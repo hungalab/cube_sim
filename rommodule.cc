@@ -21,18 +21,24 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 #include "fileutils.h"
 #include "mmapglue.h"
 #include <cerrno>
+#include <cstring>
 
-ROMModule::ROMModule (FILE *fp) : Range (0, 0, 0, MEM_READ) {
+ROMModule::ROMModule (FILE *fp) : Range (0, 0, 0, MEM_READ_WRITE) {
   extent = get_file_size (fp);
-
   // Try to map the file into memory. We use PROT_READ to indicate
-  // read-only access.
-  address = mmap (0, extent, PROT_READ, MAP_PRIVATE, fileno (fp), ftell (fp));
+  // read-only access. -> enable to write (edit!)
+  data = new uint32[extent / 4];
+
+  std::memcpy((void*)data, mmap(0, extent, PROT_READ, MAP_PRIVATE, fileno (fp), ftell (fp)), extent);
+
+  address = static_cast<void *>(data);
+
   int errcode = errno;
   if (address == MAP_FAILED)
     throw errcode;
 }
 
 ROMModule::~ROMModule () {
-  munmap (address, extent);
+  // munmap (address, extent);
+  delete data;
 }

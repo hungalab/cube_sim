@@ -146,6 +146,8 @@ private:
 
 	virtual bool setup_bootrom();
 
+  	virtual bool setup_rs232c();
+
 	virtual bool setup_exe();
 
 	bool load_elf (FILE *fp);

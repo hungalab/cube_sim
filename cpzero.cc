@@ -128,7 +128,6 @@ uint32
 CPZero::address_trans(uint32 vaddr, int mode, bool *cacheable,
 	DeviceExc *client)
 {
-  printf("address 0x%08x\n", vaddr);
 	if (kernel_mode()) {
 		switch(vaddr & KSEG_SELECT_MASK) {
 		case KSEG0:

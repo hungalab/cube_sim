@@ -25,8 +25,10 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 
 class ROMModule : public Range {
 public:
+  uint32* data;
   ROMModule (FILE *f);
   virtual ~ROMModule ();
+
 };
 
 #endif // ROMMODULE_H

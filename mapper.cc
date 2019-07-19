@@ -321,18 +321,20 @@ void Mapper::cache_write(int size, uint32 addr, uint32 data, Range *l,
 	DeviceExc *client)
 {
 	Cache *cache;
-       	if (caches_swapped) {
+	if (caches_swapped) {
 		cache = icache;
 	} else {
 		cache = dcache;
 	}
 	uint32 tag = addr>>2;
 	Cache::Entry *entry = &cache->entries[tag & cache->mask];
+
 	if (caches_isolated) {
 #if defined(CACHE_DEBUG)
 	        printf("Write(%d) w/isolated cache 0x%x -> 0x%x\n", size, data, addr);
 #endif
-	    	if (size == 4) {
+	    	
+		if (size == 4) {
 		        /* Caches isolated; write to cache only. */
 			cache_set_data_into_entry(entry,size,addr,data);
 		} else {
