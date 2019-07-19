@@ -79,11 +79,13 @@ vmips::refresh_options(void)
 	opt_clockintr = opt->option("clockintr")->num;
 	opt_clockdeviceirq = opt->option("clockdeviceirq")->num;
 	opt_loadaddr = opt->option("loadaddr")->num;
+	opt_bootaddr = opt->option("bootaddr")->num;
 	opt_memsize = opt->option("memsize")->num;
 	opt_timeratio = opt->option("timeratio")->num;
  
 	opt_memdumpfile = opt->option("memdumpfile")->str;
 	opt_image = opt->option("romfile")->str;
+	opt_boot = opt->option("bootfile")->str;
 	opt_execname = opt->option("execname")->str;
 	opt_ttydev = opt->option("ttydev")->str;
 	opt_ttydev2 = opt->option("ttydev2")->str;
@@ -409,7 +411,7 @@ vmips::setup_rom ()
     return false;
   }
   // Translate loadaddr to physical address.
-  opt_loadaddr -= KSEG1_CONST_TRANSLATION;
+  // opt_loadaddr -= KSEG1_CONST_TRANSLATION;
   ROMModule *rm;
   try {
     rm = new ROMModule (rom);
@@ -419,6 +421,7 @@ vmips::setup_rom ()
   }
   // Map the ROM image to the virtual physical memory.
   physmem->map_at_physical_address (rm, opt_loadaddr);
+
   boot_msg ("Mapping ROM image (%s, %u words) to physical address 0x%08x\n",
             opt_image, rm->getExtent () / 4, rm->getBase ());
   // Point debugger at wherever the user thinks the ROM is.
@@ -429,11 +432,41 @@ vmips::setup_rom ()
 }
 
 bool
+vmips::setup_bootrom ()
+{
+  // Open BootROM image.
+  FILE *rom = fopen (opt_boot, "rb");
+  if (!rom) {
+    error ("Could not open Boot ROM `%s': %s", opt_boot, strerror (errno));
+    return false;
+  }
+  // Translate loadaddr to physical address.
+  ROMModule *rm;
+  try {
+    rm = new ROMModule (rom);
+  } catch (int errcode) {
+    error ("mmap failed for %s: %s", opt_boot, strerror (errcode));
+    return false;
+  }
+  // Map the ROM image to the virtual physical memory.
+  physmem->map_at_physical_address (rm, opt_bootaddr);
+
+  boot_msg ("Mapping Boot ROM image (%s, %u words) to physical address 0x%08x\n",
+            opt_boot, rm->getExtent () / 4, rm->getBase ());
+  // Point debugger at wherever the user thinks the ROM is.
+  if (opt_debug)
+    if (dbgr->setup (opt_bootaddr, rm->getExtent () / 4) < 0)
+      return false; // Error in setting up debugger.
+  return true;
+}
+
+bool
 vmips::setup_ram ()
 {
   // Make a new RAM module and install it at base physical address 0.
   memmod = new MemoryModule(opt_memsize);
   physmem->map_at_physical_address(memmod, 0);
+
   boot_msg( "Mapping RAM module (host=%p, %uKB) to physical address 0x%x\n",
 	    memmod->getAddress (), memmod->getExtent () / 1024, memmod->getBase ());
   return true;
@@ -488,6 +521,9 @@ vmips::run()
 
 	/* Set up the rest of the machine components. */
 	setup_machine();
+
+	if (!setup_bootrom ()) 
+	  return 1;
 
 	if (!setup_rom ()) 
 	  return 1;

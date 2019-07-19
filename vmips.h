@@ -97,9 +97,11 @@ public:
 	uint32		opt_clockintr;
 	uint32		opt_clockdeviceirq;
 	uint32		opt_loadaddr;
+	uint32		opt_bootaddr;
 	uint32		opt_memsize;
 	uint32		opt_timeratio;
 	char		*opt_image;
+	char		*opt_boot;
 	char		*opt_execname;
 	char		*opt_memdumpfile;
 	char		*opt_ttydev;
@@ -141,6 +143,8 @@ private:
 	virtual bool setup_decserial();
 
 	virtual bool setup_rom();
+
+	virtual bool setup_bootrom();
 
 	virtual bool setup_exe();
 

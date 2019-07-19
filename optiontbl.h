@@ -176,12 +176,19 @@ static Option nametable[] = {
         **/
 
     { "romfile", STR },
+	/* program image
+	   placed beginning at @option{loadaddr}
+	 */
+
+	{ "bootfile", STR },
     /** This is the name of the file which will be initially
-        loaded into memory (at the address given in @option{loadaddr},
+        loaded into memory (at the address given in @option{bootaddr},
         typically 0xbfc00000) and executed when the virtual
         machine is reset. **/
 
-    { "loadaddr", NUM },
+
+    { "bootaddr", NUM },
+	/* change from original "loadaddr" */
     /** This is the virtual address where the ROM will be loaded.
         Note that the MIPS reset exception vector is always 0xbfc00000
         so unless you're doing something incredibly clever you should
@@ -191,6 +198,9 @@ static Option nametable[] = {
         is not mapped through the TLB (kernel segment "kseg1"). This
         effectively constrains the valid range of load addresses to
         between 0xa0000000 and 0xc0000000. **/
+
+	{ "loadaddr", NUM},
+	/* address for rom image*/
 
     { "memsize", NUM },
     /** This variable controls the size of the virtual CPU's "physical"
@@ -362,7 +372,8 @@ static const char *defaults_table[] = {
     "nohaltdumpcpu", "nohaltdumpcp0", "noexcpriomsg",
     "noexcmsg", "bootmsg", "noinstdump", "nodumpcpu", "nodumpcp0",
     "haltibe", "haltbreak", "haltdevice", "romfile=romfile.rom",
-    "loadaddr=0xbfc00000", "noinstcounts",
+	"bootfile=boot.bin", "bootaddr=0xbfc00000",
+	"loadaddr=0x81000000", "noinstcounts",
     "memsize=0x100000", "nomemdump", "memdumpfile=memdump.bin",
     "noreportirq", "ttydev=/dev/tty", "ttydev2=off",
     "nodebug", "debugport=0", "norealtime", "timeratio=1", "clockspeed=250000",

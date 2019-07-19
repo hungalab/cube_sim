@@ -128,14 +128,15 @@ uint32
 CPZero::address_trans(uint32 vaddr, int mode, bool *cacheable,
 	DeviceExc *client)
 {
+  printf("address 0x%08x\n", vaddr);
 	if (kernel_mode()) {
 		switch(vaddr & KSEG_SELECT_MASK) {
 		case KSEG0:
 			*cacheable = true;
-			return vaddr - KSEG0_CONST_TRANSLATION;
+			return vaddr;
 		case KSEG1:
 			*cacheable = false;
-			return vaddr - KSEG1_CONST_TRANSLATION;
+			return vaddr;
 		case KSEG2:
 		case KSEG2_top:
 			return tlb_translate(KSEG2, vaddr, mode, cacheable, client);

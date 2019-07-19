@@ -37,6 +37,7 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 #define KSEG1_CONST_TRANSLATION 0xa0000000 /* kseg1 v->p address difference */
 #define KSEG2 0xc0000000       /* beginning of mapped cached kernel segment */
 #define KSEG2_top 0xe0000000    /* 2nd half of mapped cached kernel segment */
+#define EXCE_HANDLER_SIZE 0x1000000
 
 /* CP0 register names and masks
  *
