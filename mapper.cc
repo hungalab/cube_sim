@@ -30,7 +30,7 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 #include <cassert>
 #include <cmath>
 
-#define CACHE_DEBUG
+//#define CACHE_DEBUG
 
 Cache::Cache(unsigned int block_count_, unsigned int block_size_, unsigned int way_size_) :
 	block_count(block_count_),
@@ -148,6 +148,7 @@ void Cache::cache_fetch(uint32 addr, Mapper* physmem, int mode, DeviceExc *clien
 	//set line
 	l = NULL;
 	uint32 fetch_offset;
+	addr = calc_addr(way, index);
 	for (int i = 0; i < block_size / 4; i++) {
 		l = physmem->find_mapping_range(addr + 4 * i);
 		if (!l) {
@@ -723,7 +724,6 @@ Mapper::store_word(uint32 addr, uint32 data, bool cacheable, DeviceExc *client)
 	uint32 offset, way, index;
 	Cache::Entry *entry = NULL;
 
-	printf("load byte from 0x%x\n", addr);
 	if (addr % 4 != 0) {
 		client->exception(AdES,DATASTORE);
 		return;
