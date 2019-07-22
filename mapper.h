@@ -122,10 +122,10 @@ private:
 		Cache::Entry *&entry);
 
 	uint32 cache_get_data_from_entry(const Cache::Entry *const entry,
-			int size, uint32 addr);
+			int size, uint32 offset);
 
 	void cache_set_data_into_entry(Cache::Entry *const entry,
-			int size, uint32 addr, uint32 data);
+			int size, uint32 offset, uint32 data);
 
 	uint32 cache_do_fill(Cache::Entry *const entry, uint32 tag,
 			Range *l, uint32 offset, int32 mode, DeviceExc *client,
