@@ -106,9 +106,9 @@ public:
 	char		*opt_memdumpfile;
 	char		*opt_ttydev;
 	char		*opt_ttydev2;
+	uint32	num_instrs;
 
 private:
-	uint32	num_instrs;
 	Interactor *interactor;
 
 	/* If boot messages are enabled with opt_bootmsg, print MSG as a

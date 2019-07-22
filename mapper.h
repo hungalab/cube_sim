@@ -25,21 +25,44 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 #include <vector>
 class DeviceExc;
 
+class Mapper;
+
 class Cache {
 public:
-        Cache(unsigned int bits_);
-        ~Cache();
+	// member var
+	unsigned int block_count;
+	unsigned int block_size;
+	unsigned int way_size;
 
-        struct Entry {
-                bool valid;
-                uint32 tag;
-                uint32 data;
-        };
+	struct Entry {
+            bool valid;
+            bool dirty;
+            int last_access;
+            uint32 tag;
+            uint32 *data;
+    };
 
-        uint32 bits;
-        uint32 size;
-        uint32 mask;
-        Entry *entries;
+    Entry **blocks;
+
+    // Constructor & Destructor
+    Cache(unsigned int block_count_,
+		  unsigned int block_size_,
+		  unsigned int way_size_);
+    ~Cache();
+
+    // method
+    bool cache_hit(uint32 addr, uint32 &index, uint32 &way, uint32 &offset);
+    void cache_fetch(uint32 addr, Mapper* physmem, int mode, DeviceExc *client, uint32 &index, uint32 &way, uint32 &offset);
+
+private:
+	// member var
+	unsigned int offset_len;
+	unsigned int index_len;
+
+	// method
+	void addr_separete(uint32 addr, uint32 &tag, uint32 &index, uint32 &offset);
+
+    uint32 calc_addr(uint32 way, uint32 index);
 };
 
 class Mapper {
@@ -52,6 +75,11 @@ public:
 		int32 width;
 		uint32 data;
 	};
+
+	/* Record information about a bad access that caused a bus error,
+	   and then signal the exception to CLIENT. */
+	void bus_error (DeviceExc *client, int32 mode, uint32 addr, int32 width,
+		uint32 data = 0xffffffff);
 
 private:
 	/* We keep lists of ranges in a vector of pointers to range
@@ -77,11 +105,6 @@ private:
 	   R overlapped with an existing range. The Mapper takes ownership
 	   of R. */
 	int add_range (Range *r);
-
-	/* Record information about a bad access that caused a bus error,
-	   and then signal the exception to CLIENT. */
-	void bus_error (DeviceExc *client, int32 mode, uint32 addr, int32 width,
-		uint32 data = 0xffffffff);
 
 	/* Cache configuration. */
 	bool caches_isolated;
@@ -170,6 +193,7 @@ public:
 	/* Set the cache control bits to the given values. */
 	void cache_set_control_bits(bool isolated, bool swapped);
 
+	bool isIsolated() {return caches_isolated; }
 };
 
 #endif /* _MAPPER_H_ */
