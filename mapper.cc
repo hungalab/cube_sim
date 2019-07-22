@@ -30,6 +30,8 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 #include <cassert>
 #include <cmath>
 
+#define CACHE_DEBUG
+
 Cache::Cache(unsigned int block_count_, unsigned int block_size_, unsigned int way_size_) :
 	block_count(block_count_),
 	block_size(block_size_),
@@ -74,11 +76,15 @@ bool Cache::cache_hit(uint32 addr, uint32 &index, uint32 &way, uint32 &offset)
 	addr_separete(addr, tag, index, offset);
 	for (way = 0; way < way_size; way++) {
 		if (blocks[way][index].tag == tag && blocks[way][index].valid) {
+#if defined(CACHE_DEBUG)
 			printf("Cache Hit addr(0x%x)\n", addr);
+#endif
 			return true;
 		}
 	}
+#if defined(CACHE_DEBUG)
 	printf("Cache Miss addr(0x%x)\n", addr);
+#endif
 	return false;
 }
 
@@ -109,6 +115,9 @@ void Cache::cache_fetch(uint32 addr, Mapper* physmem, int mode, DeviceExc *clien
 		//check if WB is needed
 		if (!physmem->isIsolated() && mode != INSTFETCH && blocks[least_recent_used_way][index].dirty) {
 			//cache WB
+#if defined(CACHE_DEBUG)
+			printf("WB cache block way(%d) index(%d) is used for addr(0x%x)\n", way, index, addr);
+#endif
 			uint32 wb_addr = calc_addr(way, index);
 			uint32 wb_offset = 0;
 			for (int i = 0; i < block_size / 4; i++, wb_addr += 4) {
@@ -122,6 +131,10 @@ void Cache::cache_fetch(uint32 addr, Mapper* physmem, int mode, DeviceExc *clien
 			}
 		}
 	}
+
+#if defined(CACHE_DEBUG)
+	printf("cache block way(%d) index(%d) is used for addr(0x%x)\n", way, index, addr);
+#endif
 
 	blocks[way][index].tag = tag;
 	blocks[way][index].valid = true;
@@ -710,6 +723,7 @@ Mapper::store_word(uint32 addr, uint32 data, bool cacheable, DeviceExc *client)
 	uint32 offset, way, index;
 	Cache::Entry *entry = NULL;
 
+	printf("load byte from 0x%x\n", addr);
 	if (addr % 4 != 0) {
 		client->exception(AdES,DATASTORE);
 		return;
