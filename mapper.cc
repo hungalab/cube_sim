@@ -30,7 +30,7 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 #include <cassert>
 #include <cmath>
 
-//#define CACHE_DEBUG
+#define CACHE_DEBUG
 
 Cache::Cache(unsigned int block_count_, unsigned int block_size_, unsigned int way_size_) :
 	block_count(block_count_),
@@ -344,60 +344,6 @@ void Mapper::cache_set_control_bits(bool isolated, bool swapped)
 	caches_swapped = swapped;
 }
 
-/* Test a specific cache entry for a hit; return whether we hit.
- */
-// bool Mapper::cache_use_entry(const Cache::Entry *const entry,
-// 	uint32 tag, int32 mode) const
-// {
-// 	return (caches_isolated && (mode != INSTFETCH)) ||
-// 	    (entry->valid && entry->tag == tag);
-// }
-
-/* Test cache for a hit; return whether we hit.
- */
-// bool Mapper::cache_read(bool cacheable, int32 mode, uint32 &offset, uint32 &addr,
-// 	Cache::Entry *&entry)
-// {
-// 	if (cacheable) {
-// 		Cache *cache;
-// 		if (caches_swapped) {
-// 			cache = (mode == INSTFETCH) ? dcache : icache;
-// 		} else {
-// 			cache = (mode == INSTFETCH) ? icache : dcache;
-// 		}
-
-// 		// hit check
-// 		bool hit = false;
-// 		uint32 tag, index;
-// 		int way;
-// 		cache->addr_separete(addr, tag, index, offset);
-// 		for (way = 0; way < cache->way_size; way++) {
-// 			if (cache->blocks[way][index].tag == tag && cache->blocks[way][index].valid) {
-// 				hit = true;
-// 				break;
-// 			}
-// 		}
-
-// 		if (hit) {
-// 			entry = &cache->blocks[way][index];
-// 		} else {
-// 			//cache miss
-// 			entry = NULL;
-// 		}
-
-// 		if (cache_use_entry(entry, tag, mode)) {
-// #if defined(CACHE_DEBUG)
-// 		    	if (caches_isolated) {
-// 				printf("Read w/isolated cache 0x%x\n", addr);
-// 			}
-// #endif
-// 		        return true;
-// 		}
-
-// 	}
-// 	return false;
-// }
-
 /* Read data from a specific cache entry.
  */
 uint32 Mapper::cache_get_data_from_entry(const Cache::Entry *const entry,
@@ -445,95 +391,6 @@ void Mapper::cache_set_data_into_entry(Cache::Entry *const entry,
 	entry->dirty = true;
 }
 
-/* Write data to cache, and then to main memory.
- * 0. If isolated, no write through
- *    - If partial word, then invalidate, otherwise valid
- * 1. If full word, write through and set tag+valid bit regardless of
- *    current contents
- * 2. If partial word, 
- *    - fill cache entry with new address
- *    - do partial-word update
- *    - write through
- */
-// void Mapper::cache_write(int size, uint32 addr, uint32 data, Range *l,
-// 	DeviceExc *client)
-// {
-// 	Cache *cache;
-// 	if (caches_swapped) {
-// 		cache = icache;
-// 	} else {
-// 		cache = dcache;
-// 	}
-// 	uint32 tag = addr>>2;
-// 	Cache::Entry *entry = &cache->entries[tag & cache->mask];
-
-// 	if (caches_isolated) {
-// #if defined(CACHE_DEBUG)
-// 	        printf("Write(%d) w/isolated cache 0x%x -> 0x%x\n", size, data, addr);
-// #endif
-
-// 		if (size == 4) {
-// 		        /* Caches isolated; write to cache only. */
-// 			cache_set_data_into_entry(entry,size,addr,data);
-// 		} else {
-// 			/* Partial-word store to isolated cache causes
-// 			   invalidation. */
-// 			entry->valid = 0;
-// 		}
-// 		return;	/* Don't write to memory. */
-// 	}
-// 	if (size != 4 && !cache_use_entry(entry, tag, DATASTORE)) {
-// 	        /* Partial-word store to cache entry that is not already valid.
-// 		   This triggers read-modify-write behavior. */
-// 	        uint32 word_addr = addr & ~0x3;	/* Refill whole word. */
-// 	        uint32 word_offset = word_addr - l->getBase();
-
-// 	    	/* Fill cache entry with word containing addressed byte or
-// 		   halfword. */
-// 		cache_do_fill(entry, tag, l, word_offset, DATASTORE, client, 4,
-// 			word_addr);
-// 	}
-// 	/* Update data in cache. */
-// 	cache_set_data_into_entry(entry,size,addr,data);
-// 	entry->valid = true;
-// 	entry->tag = tag;
-// 	/* Write word from cache to memory. */
-// 	l->store_word(addr - l->getBase(), mips_to_host_word(entry->data), client);
-// }
-
-/* Refill a cache entry.
- */
-// uint32 Mapper::cache_do_fill(Cache::Entry *const entry, uint32 addr, int32 mode, DeviceExc *client,
-// 		int32 size)
-// {
-// 	if (!caches_isolated || mode==INSTFETCH) {
-// 		for (int i = 0; i < size; i++) {
-// 			entry->data[i] = host_to_mips_word(l->fetch_word(offset, mode,
-// 				    client));
-// 		}
-// 	}
-// 	return cache_get_data_from_entry(entry,size,addr);
-// }
-
-/* Fetch a word from the physical memory from physical address
- * ADDR. MODE is INSTFETCH if this is an instruction fetch; DATALOAD
- * otherwise. CACHEABLE is true if this access should be routed through
- * the cache, false otherwise.  This routine is shared between instruction
- * fetches and word-wide data fetches.
- * 
- * The routine returns either the specified word, if it is mapped and
- * the address is correctly aligned, or else a word consisting of all
- * ones is returned.
- *
- * Words are returned in the endianness of the target processor; since devices
- * are implemented as Ranges, devices should return words in the host
- * endianness.
- * 
- * This routine may trigger exceptions IBE and/or DBE in the client
- * processor, if the address is unmapped.
- * This routine may trigger exception AdEL in the client
- * processor, if the address is unaligned.
- */
 uint32
 Mapper::fetch_word(uint32 addr, int32 mode, bool cacheable, DeviceExc *client)
 {
@@ -686,7 +543,7 @@ Mapper::fetch_byte(uint32 addr, bool cacheable, DeviceExc *client)
 			return 0xff;
 		}
 		uint32 x;
-		x = cache_get_data_from_entry(entry, 4, offset);
+		x = cache_get_data_from_entry(entry, 1, offset);
 		if (caches_isolated) {
 			printf("Isolated word read returned 0x%x\n", x);
 		}

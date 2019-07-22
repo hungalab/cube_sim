@@ -14,6 +14,7 @@ void Rs232c::store_word(uint32 offset, uint32 data, DeviceExc *client) {
   // Write to register[2] is character output.
   if (offset == 0 && (data & 0x00FF0000) > 0) {
       putchar((data & 0x00FF0000) >> 16);
+      fflush(stdout);
   }
 
   // // HACK
