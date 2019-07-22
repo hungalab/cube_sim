@@ -30,7 +30,7 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 #include <cassert>
 #include <cmath>
 
-#define CACHE_DEBUG
+//#define CACHE_DEBUG
 
 Cache::Cache(unsigned int block_count_, unsigned int block_size_, unsigned int way_size_) :
 	block_count(block_count_),
