@@ -73,6 +73,7 @@ vmips::refresh_options(void)
 	opt_instcounts = opt->option("instcounts")->flag;
 	opt_memdump = opt->option("memdump")->flag;
 	opt_realtime = opt->option("realtime")->flag;
+	opt_cache_prof = opt->option("cacheprof")->flag;
  
 	opt_clockspeed = opt->option("clockspeed")->num;
 	clock_nanos = 1000000000/opt_clockspeed;
@@ -109,6 +110,8 @@ vmips::vmips(int argc, char *argv[])
 {
     opt->process_options (argc, argv);
 	refresh_options();
+	icache_prof = CacheProf{0, 0, 0};
+	dcache_prof = CacheProf{0, 0, 0};
 }
 
 vmips::~vmips()
@@ -634,6 +637,17 @@ vmips::run()
 		} else {
 			error( "\nRAM dump failed: %s", strerror(errno) );
 		}
+	}
+
+	if (opt_cache_prof) {
+		uint32 icache_access = icache_prof.cache_miss_counts + icache_prof.cache_hit_counts;
+		uint32 dcache_access = dcache_prof.cache_miss_counts + dcache_prof.cache_hit_counts;
+		fprintf(stderr, "Instruction Cache Miss Ratio %.5f%%\n",
+			(double)icache_prof.cache_miss_counts / (double)icache_access * 100.0);
+		fprintf(stderr, "Data Cache Miss Ratio %.5f%%\n",
+			(double)dcache_prof.cache_miss_counts / (double)dcache_access * 100.0);
+		fprintf(stderr, "\twrite back ratio %.5f%%\n",
+			(double)dcache_prof.cache_wb_counts / (double)dcache_prof.cache_miss_counts * 100.0);
 	}
 
 	/* We're done. */

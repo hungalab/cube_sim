@@ -92,6 +92,7 @@ public:
 	bool		opt_decserial;
 	bool		opt_spimconsole;
 	bool		opt_testdev;
+	bool		opt_cache_prof;
 	uint32		opt_clockspeed;
 	uint32		clock_nanos;
 	uint32		opt_clockintr;
@@ -107,6 +108,16 @@ public:
 	char		*opt_ttydev;
 	char		*opt_ttydev2;
 	uint32	num_instrs;
+	uint32		cycle_counts;
+
+	struct CacheProf
+	{
+		uint32 cache_hit_counts;
+		uint32 cache_miss_counts;
+		uint32 cache_wb_counts;
+	};
+
+	CacheProf icache_prof, dcache_prof;
 
 private:
 	Interactor *interactor;

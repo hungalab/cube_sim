@@ -364,6 +364,9 @@ static Option nametable[] = {
 	this device on as necessary; you should not normally need
 	to enable it. **/
 
+    { "cacheprof", FLAG },
+    /** Report cache profiling results after emulation **/
+
     { NULL, 0 }
 };
 
@@ -382,7 +385,7 @@ static const char *defaults_table[] = {
     "spimconsole", "notracing", "tracesize=100000", "nobigendian",
     "tracestartpc=0", "traceendpc=0",
     "mipstoolprefix=/nonexistent/mips/bin/mipsel-ecoff-",
-    "execname=none", "nofpu", "notestdev",
+    "execname=none", "nofpu", "notestdev", "nocacheprof",
     NULL
 };
 

@@ -129,6 +129,7 @@ void Cache::cache_fetch(uint32 addr, Mapper* physmem, int mode, DeviceExc *clien
 				wb_offset = wb_addr - l->getBase();
 				l->store_word(wb_offset, physmem->host_to_mips_word(blocks[way][index].data[i]), client);
 			}
+			machine->dcache_prof.cache_wb_counts++;
 		}
 	}
 
@@ -412,10 +413,21 @@ Mapper::fetch_word(uint32 addr, int32 mode, bool cacheable, DeviceExc *client)
 		} else {
 			cache = (mode == INSTFETCH) ? icache : dcache;
 		}
+
 		if (!cache->cache_hit(addr, index, way, offset)) {
 			//cache miss
 			cache->cache_fetch(addr, this, mode, client, index, way, offset);
+			if (mode == INSTFETCH)
+				machine->icache_prof.cache_miss_counts++;
+			else
+				machine->dcache_prof.cache_miss_counts++;
+		} else {
+			if (mode == INSTFETCH)
+				machine->icache_prof.cache_hit_counts++;
+			else
+				machine->dcache_prof.cache_hit_counts++;
 		}
+
 		entry = &cache->blocks[way][index];
 		if (!entry->valid) {
 			return 0xffffffff;
@@ -482,7 +494,11 @@ Mapper::fetch_halfword(uint32 addr, bool cacheable, DeviceExc *client)
 		if (!cache->cache_hit(addr, index, way, offset)) {
 			//cache miss
 			cache->cache_fetch(addr, this, DATALOAD, client, index, way, offset);
+			machine->dcache_prof.cache_miss_counts++;
+		} else {
+			machine->dcache_prof.cache_hit_counts++;
 		}
+
 		entry = &cache->blocks[way][index];
 		if (!entry->valid) {
 			return 0xffff;
@@ -537,7 +553,11 @@ Mapper::fetch_byte(uint32 addr, bool cacheable, DeviceExc *client)
 		if (!cache->cache_hit(addr, index, way, offset)) {
 			//cache miss
 			cache->cache_fetch(addr, this, DATALOAD, client, index, way, offset);
+			machine->dcache_prof.cache_miss_counts++;
+		} else {
+			machine->dcache_prof.cache_hit_counts++;
 		}
+
 		entry = &cache->blocks[way][index];
 		if (!entry->valid) {
 			return 0xff;
@@ -596,7 +616,11 @@ Mapper::store_word(uint32 addr, uint32 data, bool cacheable, DeviceExc *client)
 		if (!cache->cache_hit(addr, index, way, offset)) {
 			//cache miss
 			cache->cache_fetch(addr, this, DATASTORE, client, index, way, offset);
+			machine->dcache_prof.cache_miss_counts++;
+		} else {
+			machine->dcache_prof.cache_hit_counts++;
 		}
+
 		entry = &cache->blocks[way][index];
 		if (!entry->valid) {
 			return;
@@ -656,7 +680,11 @@ Mapper::store_halfword(uint32 addr, uint16 data, bool cacheable, DeviceExc
 		if (!cache->cache_hit(addr, index, way, offset)) {
 			//cache miss
 			cache->cache_fetch(addr, this, DATASTORE, client, index, way, offset);
+			machine->dcache_prof.cache_miss_counts++;
+		} else {
+			machine->dcache_prof.cache_hit_counts++;
 		}
+
 		entry = &cache->blocks[way][index];
 		if (!entry->valid) {
 			return;
@@ -708,7 +736,11 @@ Mapper::store_byte(uint32 addr, uint8 data, bool cacheable, DeviceExc *client)
 		if (!cache->cache_hit(addr, index, way, offset)) {
 			//cache miss
 			cache->cache_fetch(addr, this, DATASTORE, client, index, way, offset);
+			machine->dcache_prof.cache_miss_counts++;
+		} else {
+			machine->dcache_prof.cache_hit_counts++;
 		}
+
 		entry = &cache->blocks[way][index];
 		if (!entry->valid) {
 			return;
