@@ -22,6 +22,7 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 
 #include "accesstypes.h"
 #include "types.h"
+#include "state.h"
 
 /* An abstract class which describes a device that can handle exceptions. */
 
@@ -36,6 +37,8 @@ public:
 
 	/* A flag which says whether an exception is ready to be handled. */
 	bool exception_pending;
+
+	DeviceState state;
 };
 
 #endif /* _DEVICEEXC_H_ */
