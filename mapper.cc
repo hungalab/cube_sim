@@ -88,6 +88,23 @@ bool Cache::cache_hit(uint32 addr, uint32 &index, uint32 &way, uint32 &offset)
 	return false;
 }
 
+void Cache::cache_wb(Mapper* physmem, int mode, DeviceExc *client, uint32 index, uint32 way)
+{
+	uint32 wb_addr = calc_addr(way, index);
+	uint32 wb_offset = 0;
+	Range *l = NULL;
+	for (int i = 0; i < block_size / 4; i++, wb_addr += 4) {
+		l = physmem->find_mapping_range(wb_addr);
+		if (!l) {
+			physmem->bus_error(client, mode, wb_addr, 4);
+			return;
+		}
+		wb_offset = wb_addr - l->getBase();
+		l->store_word(wb_offset, physmem->host_to_mips_word(blocks[way][index].data[i]), client);
+	}
+	machine->dcache_prof.cache_wb_counts++;
+}
+
 void Cache::cache_fetch(uint32 addr, Mapper* physmem, int mode, DeviceExc *client, uint32 &index, uint32 &way, uint32 &offset)
 {
 	int least_recent_used_way = 0;
@@ -113,23 +130,12 @@ void Cache::cache_fetch(uint32 addr, Mapper* physmem, int mode, DeviceExc *clien
 	if (!find) {
 		way = least_recent_used_way;
 		//check if WB is needed
-		if (!physmem->isIsolated() && mode != INSTFETCH && blocks[least_recent_used_way][index].dirty) {
+		if (!physmem->isIsolated() && mode != INSTFETCH && blocks[way][index].dirty) {
 			//cache WB
 #if defined(CACHE_DEBUG)
 			printf("WB cache block way(%d) index(%d) is used for addr(0x%x)\n", way, index, addr);
 #endif
-			uint32 wb_addr = calc_addr(way, index);
-			uint32 wb_offset = 0;
-			for (int i = 0; i < block_size / 4; i++, wb_addr += 4) {
-				l = physmem->find_mapping_range(wb_addr);
-				if (!l) {
-					physmem->bus_error(client, mode, wb_addr, 4);
-					return;
-				}
-				wb_offset = wb_addr - l->getBase();
-				l->store_word(wb_offset, physmem->host_to_mips_word(blocks[way][index].data[i]), client);
-			}
-			machine->dcache_prof.cache_wb_counts++;
+			cache_wb(physmem, mode, client, index, way);
 		}
 	}
 

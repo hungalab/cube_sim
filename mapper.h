@@ -53,7 +53,7 @@ public:
     // method
     bool cache_hit(uint32 addr, uint32 &index, uint32 &way, uint32 &offset);
     void cache_fetch(uint32 addr, Mapper* physmem, int mode, DeviceExc *client, uint32 &index, uint32 &way, uint32 &offset);
-
+    void cache_wb(Mapper* physmem, int mode, DeviceExc *client, uint32 index, uint32 way);
 private:
 	// member var
 	unsigned int offset_len;
