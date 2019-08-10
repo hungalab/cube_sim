@@ -38,7 +38,20 @@ public:
 	/* A flag which says whether an exception is ready to be handled. */
 	bool exception_pending;
 
+	// Control-flow methods.
+	virtual void step ();
+	virtual void reset ();
+
+	/*notification of stall*/
+	void stall(int cause) = {
+		state.stall_cause = cause;
+		state.stall = True;
+	};
+
+private:
+	/* Device status*/
 	DeviceState state;
+
 };
 
 #endif /* _DEVICEEXC_H_ */

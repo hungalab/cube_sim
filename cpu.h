@@ -285,6 +285,7 @@ public:
 	void step ();
 	void reset ();
 
+
 	// Methods which are only for use by the CPU and its coprocessors.
 	void branch (uint32 instr, uint32 pc);
 	void exception (uint16 excCode, int mode = ANY, int coprocno = -1);
