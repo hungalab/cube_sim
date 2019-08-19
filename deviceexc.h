@@ -27,6 +27,7 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 /* An abstract class which describes a device that can handle exceptions. */
 
 class DeviceExc {
+
 public:
 	/* This message notifies the device that an exception of type EXCCODE
 	   has been generated. The memory access (if any) is of type MODE,
@@ -39,18 +40,22 @@ public:
 	bool exception_pending;
 
 	// Control-flow methods.
-	virtual void step ();
-	virtual void reset ();
+	virtual void step () = 0;
+	virtual void reset () = 0;
 
 	/*notification of stall*/
-	void stall(int cause) = {
-		state.stall_cause = cause;
-		state.stall = True;
+	virtual void stall(int cause) {
+		stall_stat = true;
+		stall_cause = cause;
 	};
 
 private:
 	/* Device status*/
-	DeviceState state;
+	// DeviceState *state;
+	bool stall_stat;
+	int stall_cause;
+
+
 
 };
 

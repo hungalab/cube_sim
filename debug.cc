@@ -701,3 +701,7 @@ Debug::exccode_to_signal(int exccode)
 		return signos[exccode];
 	}
 }
+
+void Debug::step() {};
+void Debug::reset() {};
+

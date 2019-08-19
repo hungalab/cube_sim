@@ -110,8 +110,6 @@ vmips::vmips(int argc, char *argv[])
 {
     opt->process_options (argc, argv);
 	refresh_options();
-	icache_prof = CacheProf{0, 0, 0};
-	dcache_prof = CacheProf{0, 0, 0};
 }
 
 vmips::~vmips()
@@ -640,14 +638,10 @@ vmips::run()
 	}
 
 	if (opt_cache_prof) {
-		uint32 icache_access = icache_prof.cache_miss_counts + icache_prof.cache_hit_counts;
-		uint32 dcache_access = dcache_prof.cache_miss_counts + dcache_prof.cache_hit_counts;
-		fprintf(stderr, "Instruction Cache Miss Ratio %.5f%%\n",
-			(double)icache_prof.cache_miss_counts / (double)icache_access * 100.0);
-		fprintf(stderr, "Data Cache Miss Ratio %.5f%%\n",
-			(double)dcache_prof.cache_miss_counts / (double)dcache_access * 100.0);
-		fprintf(stderr, "\twrite back ratio %.5f%%\n",
-			(double)dcache_prof.cache_wb_counts / (double)dcache_prof.cache_miss_counts * 100.0);
+		fprintf(stderr, "Instruction Cache Profile\n");
+		cpu->icache->report_prof();
+		fprintf(stderr, "Data Cache Profile\n");
+		cpu->dcache->report_prof();
 	}
 
 	/* We're done. */

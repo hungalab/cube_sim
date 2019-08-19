@@ -23,47 +23,8 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 #include "range.h"
 #include <cstdio>
 #include <vector>
+
 class DeviceExc;
-
-class Mapper;
-
-class Cache {
-public:
-	// member var
-	unsigned int block_count;
-	unsigned int block_size;
-	unsigned int way_size;
-
-	struct Entry {
-            bool valid;
-            bool dirty;
-            int last_access;
-            uint32 tag;
-            uint32 *data;
-    };
-
-    Entry **blocks;
-
-    // Constructor & Destructor
-    Cache(unsigned int block_count_,
-		  unsigned int block_size_,
-		  unsigned int way_size_);
-    ~Cache();
-
-    // method
-    bool cache_hit(uint32 addr, uint32 &index, uint32 &way, uint32 &offset);
-    void cache_fetch(uint32 addr, Mapper* physmem, int mode, DeviceExc *client, uint32 &index, uint32 &way, uint32 &offset);
-    void cache_wb(Mapper* physmem, int mode, DeviceExc *client, uint32 index, uint32 way);
-private:
-	// member var
-	unsigned int offset_len;
-	unsigned int index_len;
-
-	// method
-	void addr_separete(uint32 addr, uint32 &tag, uint32 &index, uint32 &offset);
-
-    uint32 calc_addr(uint32 way, uint32 index);
-};
 
 class Mapper {
 public:
@@ -80,6 +41,8 @@ public:
 	   and then signal the exception to CLIENT. */
 	void bus_error (DeviceExc *client, int32 mode, uint32 addr, int32 width,
 		uint32 data = 0xffffffff);
+
+	bool byteswapped;
 
 private:
 	/* We keep lists of ranges in a vector of pointers to range
@@ -98,41 +61,12 @@ private:
 
 	/* Saved option values. */
 	bool opt_bigendian;
-	bool byteswapped;
 
 	/* Add range R to the mapping. R must not overlap with any existing
 	   ranges in the mapping. Return 0 if R added sucessfully or -1 if
 	   R overlapped with an existing range. The Mapper takes ownership
 	   of R. */
 	int add_range (Range *r);
-
-	/* Cache configuration. */
-	bool caches_isolated;
-	bool caches_swapped;
-
-	/* Cache objects. */
-	Cache *icache;
-	Cache *dcache;
-
-	/* Cache implementation. */
-	bool cache_use_entry(const Cache::Entry *const entry, uint32 tag,
-		int32 mode) const;
-
-	bool cache_hit(bool cacheable, int32 mode, uint32 &tag, uint32 &addr,
-		Cache::Entry *&entry);
-
-	uint32 cache_get_data_from_entry(const Cache::Entry *const entry,
-			int size, uint32 offset);
-
-	void cache_set_data_into_entry(Cache::Entry *const entry,
-			int size, uint32 offset, uint32 data);
-
-	uint32 cache_do_fill(Cache::Entry *const entry, uint32 tag,
-			Range *l, uint32 offset, int32 mode, DeviceExc *client,
-			int32 size, uint32 addr);
-
-	void cache_write(int size, uint32 addr, uint32 data, Range *l,
-		DeviceExc *client);
 
 public:
 	Mapper();
@@ -162,16 +96,13 @@ public:
 	   not used, but represents the TLB's information about whether
 	   the access should be cacheable. CLIENT receives any exceptions
 	   which may be generated. */
-	uint32 fetch_word(uint32 addr, int32 mode, bool cacheable,
-		DeviceExc *client);
-	uint16 fetch_halfword(uint32 addr, bool cacheable, DeviceExc *client);
-	uint8 fetch_byte(uint32 addr, bool cacheable, DeviceExc *client);
-	void store_word(uint32 addr, uint32 data, bool cacheable,
-		DeviceExc *client);
-	void store_halfword(uint32 addr, uint16 data, bool cacheable,
-		DeviceExc *client);
-	void store_byte(uint32 addr, uint8 data, bool cacheable,
-		DeviceExc *client);
+	/* cacheable was removed by kojima */
+	uint32 fetch_word(uint32 addr, int32 mode, 	DeviceExc *client);
+	uint16 fetch_halfword(uint32 addr, DeviceExc *client);
+	uint8 fetch_byte(uint32 addr, DeviceExc *client);
+	void store_word(uint32 addr, uint32 data, DeviceExc *client);
+	void store_halfword(uint32 addr, uint16 data, DeviceExc *client);
+	void store_byte(uint32 addr, uint8 data, DeviceExc *client);
 
 	/* Returns the Range object which would be used for a fetch or store to
 	   physical address P. Ordinarily, you shouldn't mess with these. */
@@ -190,10 +121,6 @@ public:
 	/* Copy information about the most recent bus error to INFO. */
 	void get_last_berr_info (BusErrorInfo &info) { info = last_berr_info; }
 
-	/* Set the cache control bits to the given values. */
-	void cache_set_control_bits(bool isolated, bool swapped);
-
-	bool isIsolated() {return caches_isolated; }
 };
 
 #endif /* _MAPPER_H_ */

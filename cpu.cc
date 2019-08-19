@@ -32,6 +32,8 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 #include "fileutils.h"
 #include "stub-dis.h"
 #include <cstring>
+#include "state.h"
+#include "cache.h"
 
 /* states of the delay-slot state machine -- see CPU::step() */
 static const int NORMAL = 0, DELAYING = 1, DELAYSLOT = 2;
@@ -72,12 +74,18 @@ CPU::CPU (Mapper &m, IntCtrl &i)
 	opt_bigendian = machine->opt->option("bigendian")->flag;
 	if (opt_tracing)
 		open_trace_file ();
+	/* Caches are 2way-set associative, physically indexed, physically tagged,
+	 * with 1-word lines. */
+	icache = new Cache(64, 64, 2);	/* 64Byte * 64Block * 2way = 8KB*/
+	dcache = new Cache(64, 64, 2);
 }
 
 CPU::~CPU ()
 {
 	if (opt_tracing)
 		close_trace_file ();
+	delete icache;
+	delete dcache;
 }
 
 void
@@ -93,6 +101,8 @@ CPU::reset(void)
 	pc = 0xbfc00000;
 	cpzero->reset();
 }
+
+
 
 void
 CPU::dump_regs(FILE *f)
@@ -147,7 +157,7 @@ CPU::dis_mem(FILE *f, uint32 addr)
 	uint32 instr;
 	if (cpzero->debug_tlb_translate(addr, &phys)) {
 		fprintf(f,"PC=0x%08x [%08x]      %s",addr,phys,(addr==pc?"=>":"  "));
-		instr = mem->fetch_word(phys,INSTFETCH,false, this);
+		instr = mem->fetch_word(phys,INSTFETCH, this);
 		fprintf(f,"%08x ",instr);
 		machine->disasm->disassemble(addr,instr);
 	} else {
@@ -355,8 +365,7 @@ void
 CPU::cpzero_emulate(uint32 instr, uint32 pc)
 {
 	cpzero->cpzero_emulate(instr, pc);
-	mem->cache_set_control_bits(cpzero->caches_isolated(),
-		cpzero->caches_swapped());
+	dcache->cache_isolate(cpzero->caches_isolated());
 }
 
 /* Called when the program wants to use coprocessor COPROCNO, and there
@@ -599,7 +608,16 @@ CPU::lb_emulate(uint32 instr, uint32 pc)
 	 * Because it is assigned to a signed variable (int32 byte)
 	 * it will be sign-extended.
 	 */
-	byte = mem->fetch_byte(phys, cacheable, this);
+	if (cacheable) {
+		if (cpzero->caches_swapped()) {
+			byte = icache->fetch_byte(mem, phys, this);
+		} else {
+			byte = dcache->fetch_byte(mem, phys, this);
+		}
+	} else {
+		byte = mem->fetch_byte(phys, this);
+	}
+
 	if (exception_pending) return;
 
 	/* Load target register with data. */
@@ -633,7 +651,16 @@ CPU::lh_emulate(uint32 instr, uint32 pc)
 	 * Because it is assigned to a signed variable (int32 halfword)
 	 * it will be sign-extended.
 	 */
-	halfword = mem->fetch_halfword(phys, cacheable, this);
+	if (cacheable) {
+		if (cpzero->caches_swapped()) {
+			halfword = icache->fetch_halfword(mem, phys, this);
+		} else {
+			halfword = dcache->fetch_halfword(mem, phys, this);
+		}
+	} else {
+		halfword = mem->fetch_halfword(phys, this);
+	}
+
 	if (exception_pending) return;
 
 	/* Load target register with data. */
@@ -723,7 +750,16 @@ CPU::lwl_emulate(uint32 instr, uint32 pc)
 	if (exception_pending) return;
 
 	/* Fetch word. */
-	memword = mem->fetch_word(phys, DATALOAD, cacheable, this);
+	if (cacheable) {
+		if (cpzero->caches_swapped()) {
+			memword = icache->fetch_word(mem, phys, DATALOAD, this);
+		} else {
+			memword = dcache->fetch_word(mem, phys, DATALOAD, this);
+		}
+	} else {
+		memword = mem->fetch_word(phys, DATALOAD, this);
+	}
+
 	if (exception_pending) return;
 	
 	/* Insert bytes into the left side of the register. */
@@ -754,7 +790,16 @@ CPU::lw_emulate(uint32 instr, uint32 pc)
 	if (exception_pending) return;
 
 	/* Fetch word. */
-	word = mem->fetch_word(phys, DATALOAD, cacheable, this);
+	if (cacheable) {
+		if (cpzero->caches_swapped()) {
+			word = icache->fetch_word(mem, phys, DATALOAD, this);
+		} else {
+			word = dcache->fetch_word(mem, phys, DATALOAD, this);
+		}
+	} else {
+		word = mem->fetch_word(phys, DATALOAD, this);
+	}
+
 	if (exception_pending) return;
 
 	/* Load target register with data. */
@@ -778,7 +823,16 @@ CPU::lbu_emulate(uint32 instr, uint32 pc)
 	if (exception_pending) return;
 
 	/* Fetch byte.  */
-	byte = mem->fetch_byte(phys, cacheable, this) & 0x000000ff;
+	if (cacheable) {
+		if (cpzero->caches_swapped()) {
+			byte = icache->fetch_byte(mem, phys, this) & 0x000000ff;
+		} else {
+			byte = dcache->fetch_byte(mem, phys, this) & 0x000000ff;
+		}
+	} else {
+		byte = mem->fetch_byte(phys, this) & 0x000000ff;
+	}
+
 	if (exception_pending) return;
 
 	/* Load target register with data. */
@@ -808,7 +862,17 @@ CPU::lhu_emulate(uint32 instr, uint32 pc)
 	if (exception_pending) return;
 
 	/* Fetch halfword.  */
-	halfword = mem->fetch_halfword(phys, cacheable, this) & 0x0000ffff;
+	if (cacheable) {
+		if (cpzero->caches_swapped()) {
+			halfword = icache->fetch_halfword(mem, phys, this) & 0x0000ffff;
+		} else {
+			halfword = dcache->fetch_halfword(mem, phys, this) & 0x0000ffff;
+		}
+		
+	} else {
+		halfword = mem->fetch_halfword(phys, this) & 0x0000ffff;
+	}
+
 	if (exception_pending) return;
 
 	/* Load target register with data. */
@@ -835,7 +899,16 @@ CPU::lwr_emulate(uint32 instr, uint32 pc)
 	if (exception_pending) return;
 
 	/* Fetch word. */
-	memword = mem->fetch_word(phys, DATALOAD, cacheable, this);
+	if (cacheable) {
+		if (cpzero->caches_swapped()) {
+			memword = icache->fetch_word(mem, phys, DATALOAD, this);
+		} else {
+			memword = dcache->fetch_word(mem, phys, DATALOAD, this);
+		}
+	} else {
+		memword = mem->fetch_word(phys, DATALOAD, this);
+	}
+
 	if (exception_pending) return;
 	
 	/* Insert bytes into the left side of the register. */
@@ -864,7 +937,16 @@ CPU::sb_emulate(uint32 instr, uint32 pc)
 	if (exception_pending) return;
 
 	/* Store byte. */
-	mem->store_byte(phys, data, cacheable, this);
+	if (cacheable) {
+		if (cpzero->caches_swapped()) {
+			icache->store_byte(mem, phys, data, this);
+		} else {
+			dcache->store_byte(mem, phys, data, this);
+		}
+	} else {
+		mem->store_byte(phys, data, this);
+	}
+
 }
 
 void
@@ -894,7 +976,16 @@ CPU::sh_emulate(uint32 instr, uint32 pc)
 	if (exception_pending) return;
 
 	/* Store halfword. */
-	mem->store_halfword(phys, data, cacheable, this);
+	if (cacheable) {
+		if (cpzero->caches_swapped()) {
+			icache->store_halfword(mem, phys, data, this);
+		} else {
+			dcache->store_halfword(mem, phys, data, this);
+		}
+	} else {
+		mem->store_halfword(phys, data, this);
+	}
+
 }
 
 uint32
@@ -962,12 +1053,30 @@ CPU::swl_emulate(uint32 instr, uint32 pc)
 	if (exception_pending) return;
 
 	/* Read data from memory. */
-	memdata = mem->fetch_word(phys, DATASTORE, cacheable, this);
+	if (cacheable) {
+		if (cpzero->caches_swapped()) {
+			memdata = icache->fetch_word(mem, phys, DATASTORE, this);
+		} else {
+			memdata = dcache->fetch_word(mem, phys, DATASTORE, this);
+		}
+	} else {
+		memdata = mem->fetch_word(phys, DATASTORE, this);
+	}
+
 	if (exception_pending) return;
 
 	/* Write back the left side of the register. */
 	which_byte = virt & 0x03UL;
-	mem->store_word(phys, swl(regdata, memdata, which_byte), cacheable, this);
+	if (cacheable) {
+		if (cpzero->caches_swapped()) {
+			icache->store_word(mem, phys, swl(regdata, memdata, which_byte), this);
+		} else {
+			dcache->store_word(mem, phys, swl(regdata, memdata, which_byte), this);
+		}
+	} else {
+		mem->store_word(phys, swl(regdata, memdata, which_byte), this);
+	}
+
 }
 
 void
@@ -996,7 +1105,16 @@ CPU::sw_emulate(uint32 instr, uint32 pc)
 	if (exception_pending) return;
 
 	/* Store word. */
-	mem->store_word(phys, data, cacheable, this);
+	if (cacheable) {
+		if (cpzero->caches_swapped()) {
+			icache->store_word(mem, phys, data, this);
+		} else {
+			dcache->store_word(mem, phys, data, this);
+		}
+	} else {
+		mem->store_word(phys, data, this);
+	}
+
 }
 
 void
@@ -1022,12 +1140,31 @@ CPU::swr_emulate(uint32 instr, uint32 pc)
 	if (exception_pending) return;
 
 	/* Read data from memory. */
-	memdata = mem->fetch_word(phys, DATASTORE, cacheable, this);
+	if (cacheable) {
+		if (cpzero->caches_swapped()) {
+			memdata = icache->fetch_word(mem, phys, DATASTORE, this);
+		} else {
+			memdata = dcache->fetch_word(mem, phys, DATASTORE, this);
+		}
+	} else {
+		memdata = mem->fetch_word(phys, DATASTORE, this);
+	}
+
 	if (exception_pending) return;
 
 	/* Write back the right side of the register. */
 	which_byte = virt & 0x03UL;
-	mem->store_word(phys, swr(regdata, memdata, which_byte), cacheable, this);
+	if (cacheable) {
+		if (cpzero->caches_swapped()) {
+			icache->store_word(mem, phys, swr(regdata, memdata, which_byte), this);
+		} else {
+			dcache->store_word(mem, phys, swr(regdata, memdata, which_byte), this);
+		}
+		
+	} else {
+		mem->store_word(phys, swr(regdata, memdata, which_byte), this);
+	}
+
 }
 
 void
@@ -1054,7 +1191,16 @@ CPU::lwc1_emulate(uint32 instr, uint32 pc)
 		if (exception_pending) return;
 
 		/* Fetch word. */
-		word = mem->fetch_word(phys, DATALOAD, cacheable, this);
+		if (cacheable) {
+			if (cpzero->caches_swapped()) {
+				word = icache->fetch_word(mem, phys, DATALOAD, this);
+			} else {
+				word = dcache->fetch_word(mem, phys, DATALOAD, this);
+			}
+		} else {
+			word = mem->fetch_word(phys, DATALOAD, this);
+		}
+
 		if (exception_pending) return;
 
 		/* Load target register with data. */
@@ -1103,7 +1249,16 @@ CPU::swc1_emulate(uint32 instr, uint32 pc)
 		if (exception_pending) return;
 
 		/* Store word. */
-		mem->store_word(phys, data, cacheable, this);
+		if (cacheable) {
+			if (cpzero->caches_swapped()) {
+				icache->store_word(mem, phys, data, this);
+			} else {
+				dcache->store_word(mem, phys, data, this);
+			}
+		} else {
+			mem->store_word(phys, data, this);
+		}
+
 	} else {
 		cop_unimpl (1, instr, pc);
 	}
@@ -1858,7 +2013,16 @@ CPU::step()
 	}
 
 	// Fetch next instruction.
-	instr = mem->fetch_word(real_pc,INSTFETCH,cacheable, this);
+	if (cacheable) {
+		if (cpzero->caches_swapped()) {
+			instr = dcache->fetch_word(mem, real_pc,INSTFETCH, this);
+		} else {
+			instr = icache->fetch_word(mem, real_pc,INSTFETCH, this);
+		}
+	} else {
+		instr = mem->fetch_word(real_pc,INSTFETCH,this);
+	}
+
 	if (exception_pending) {
 		if (opt_excmsg)
 			fprintf(stderr, "** Instruction fetch caused the exception! **\n");
@@ -2109,7 +2273,7 @@ CPU::debug_fetch_region(uint32 addr, uint32 len, char *packet,
 		if (client->exception_pending) {
 			return -1;
 		}
-		byte = mem->fetch_byte(real_addr, true, client);
+		byte = mem->fetch_byte(real_addr, client);
 		/* Stop now and return an error code if the fetch
 		 * caused an exception.
 		 */
@@ -2141,7 +2305,7 @@ CPU::debug_store_region(uint32 addr, uint32 len, char *packet,
 		if (client->exception_pending) {
 			return -1;
 		}
-		mem->store_byte(real_addr, byte, true, client);
+		mem->store_byte(real_addr, byte, client);
 		if (client->exception_pending) {
 			return -1;
 		}

@@ -110,14 +110,6 @@ public:
 	uint32	num_instrs;
 	uint32		cycle_counts;
 
-	struct CacheProf
-	{
-		uint32 cache_hit_counts;
-		uint32 cache_miss_counts;
-		uint32 cache_wb_counts;
-	};
-
-	CacheProf icache_prof, dcache_prof;
 
 private:
 	Interactor *interactor;

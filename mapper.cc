@@ -28,157 +28,11 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 #include "range.h"
 #include "vmips.h"
 #include <cassert>
-#include <cmath>
-
-//#define CACHE_DEBUG
-
-Cache::Cache(unsigned int block_count_, unsigned int block_size_, unsigned int way_size_) :
-	block_count(block_count_),
-	block_size(block_size_),
-	way_size(way_size_)
-{
-	//block_size: byte size
-	blocks = new Entry*[way_size];
-	for (int i = 0; i < way_size; i++) {
-		blocks[i] = new Entry[block_count];
-		for (int j = 0; j < block_count; j++) {
-			blocks[i][j].data = new uint32[block_size / 4];
-			blocks[i][j].dirty = false;
-			blocks[i][j].valid = false;
-			blocks[i][j].last_access = machine->num_instrs;
-		}
-	}
-
-	offset_len = int(std::log2(block_size));
-	index_len = int(std::log2(block_count));
-}
-
-Cache::~Cache()
-{
-	delete [] blocks;
-}
-
-void Cache::addr_separete(uint32 addr, uint32 &tag, uint32 &index, uint32 &offset)
-{
-	tag = addr >> (offset_len + index_len);
-	index = (addr & ((1 << (index_len + offset_len)) - 1)) >> offset_len;
-	offset = (addr & ((1 << offset_len) - 1));
-}
-
-uint32 Cache::calc_addr(uint32 way, uint32 index)
-{
-	return (blocks[way][index].tag << (offset_len + index_len)) + (index << offset_len);
-}
-
-bool Cache::cache_hit(uint32 addr, uint32 &index, uint32 &way, uint32 &offset)
-{
-	uint32 tag;
-	addr_separete(addr, tag, index, offset);
-	for (way = 0; way < way_size; way++) {
-		if (blocks[way][index].tag == tag && blocks[way][index].valid) {
-#if defined(CACHE_DEBUG)
-			printf("Cache Hit addr(0x%x)\n", addr);
-#endif
-			return true;
-		}
-	}
-#if defined(CACHE_DEBUG)
-	printf("Cache Miss addr(0x%x)\n", addr);
-#endif
-	return false;
-}
-
-void Cache::cache_wb(Mapper* physmem, int mode, DeviceExc *client, uint32 index, uint32 way)
-{
-	uint32 wb_addr = calc_addr(way, index);
-	uint32 wb_offset = 0;
-	Range *l = NULL;
-	for (int i = 0; i < block_size / 4; i++, wb_addr += 4) {
-		l = physmem->find_mapping_range(wb_addr);
-		if (!l) {
-			physmem->bus_error(client, mode, wb_addr, 4);
-			return;
-		}
-		wb_offset = wb_addr - l->getBase();
-		l->store_word(wb_offset, physmem->host_to_mips_word(blocks[way][index].data[i]), client);
-	}
-	machine->dcache_prof.cache_wb_counts++;
-}
-
-void Cache::cache_fetch(uint32 addr, Mapper* physmem, int mode, DeviceExc *client, uint32 &index, uint32 &way, uint32 &offset)
-{
-	int least_recent_used_way = 0;
-	uint32 tag;
-
-	addr_separete(addr, tag, index, offset);
-	bool find = false;
-	Range *l = NULL;
-
-	//find free block and LRU block
-	for (way = 0; way < way_size; way++) {
-		if (blocks[least_recent_used_way][index].last_access >
-				blocks[way][index].last_access) {
-			//update
-			least_recent_used_way = way;
-		}
-		if (!blocks[way][index].valid) {
-			find = true;
-			break;
-		}
-	}
-
-	if (!find) {
-		way = least_recent_used_way;
-		//check if WB is needed
-		if (!physmem->isIsolated() && mode != INSTFETCH && blocks[way][index].dirty) {
-			//cache WB
-#if defined(CACHE_DEBUG)
-			printf("WB cache block way(%d) index(%d) is used for addr(0x%x)\n", way, index, addr);
-#endif
-			cache_wb(physmem, mode, client, index, way);
-		}
-	}
-
-#if defined(CACHE_DEBUG)
-	printf("cache block way(%d) index(%d) is used for addr(0x%x)\n", way, index, addr);
-#endif
-
-	blocks[way][index].tag = tag;
-	blocks[way][index].valid = true;
-	blocks[way][index].dirty = false;
-
-	if (physmem->isIsolated() && mode != INSTFETCH) {
-		// no need to fetch
-		return;
-	}
-
-	//set line
-	l = NULL;
-	uint32 fetch_offset;
-	addr = calc_addr(way, index);
-	for (int i = 0; i < block_size / 4; i++) {
-		l = physmem->find_mapping_range(addr + 4 * i);
-		if (!l) {
-			physmem->bus_error(client, mode, addr + 4 * i, 4);
-			blocks[way][index].valid = false;
-			return;
-		}
-		fetch_offset = addr + 4 * i - l->getBase();
-		blocks[way][index].data[i] = physmem->host_to_mips_word(l->fetch_word(fetch_offset, mode, client));
-	}
-
-
-}
 
 Mapper::Mapper () :
-	last_used_mapping (NULL),
-	caches_isolated (false),
-	caches_swapped (false)
+	last_used_mapping (NULL)
 {
-     /* Caches are 2way-set associative, physically indexed, physically tagged,
-	 * with 1-word lines. */
-	icache = new Cache(64, 64, 2);	/* 64Byte * 64Block * 2way = 8KB*/
-	dcache = new Cache(64, 64, 2);
+
 	opt_bigendian = machine->opt->option("bigendian")->flag;
 	byteswapped = (((opt_bigendian) && (!machine->host_bigendian))
 			   || ((!opt_bigendian) && machine->host_bigendian));
@@ -187,8 +41,6 @@ Mapper::Mapper () :
 /* Deconstruction. Deallocate the range list. */
 Mapper::~Mapper()
 {
-	delete icache;
-	delete dcache;
 	for (Ranges::iterator i = ranges.begin(); i != ranges.end(); i++)
 		delete *i;
 }
@@ -335,115 +187,17 @@ Mapper::bus_error (DeviceExc *client, int32 mode, uint32 addr,
 	client->exception((mode == INSTFETCH ? IBE : DBE), mode);
 }
 
-/* Set the cache control bits to the given values.
- */
-void Mapper::cache_set_control_bits(bool isolated, bool swapped)
-{
-#if defined(CACHE_DEBUG)
-	if (caches_isolated != isolated) {
-	    printf("Isolated -> %d\n", isolated);
-	}
-	if (caches_swapped != swapped) {
-	    printf("Swapped -> %d\n", swapped);
-	}
-#endif
-	caches_isolated = isolated;
-	caches_swapped = swapped;
-}
-
-/* Read data from a specific cache entry.
- */
-uint32 Mapper::cache_get_data_from_entry(const Cache::Entry *const entry,
-		int size, uint32 offset)
-{
-	uint32 result;
-	uint32 n;
-	switch (size) {
-		case 4: result = entry->data[offset>>2]; break;
-		case 2: n = (offset >> 1) & 0x1;
-			if (byteswapped)
-			    n = 1 - n;
-			result = ((uint16 *)(&entry->data[offset>>2]))[n];
-			break;
-		case 1: n = (offset & 0x3);
-			if (byteswapped)
-			    n = 3 - n;
-			result = ((uint8 *)(&entry->data[offset>>2]))[n];
-			break;
-		default: assert(0); result = 0xffffffff; break;
-	}
-	return result;
-}
-
-/* Write data to a specific cache entry.
- */
-void Mapper::cache_set_data_into_entry(Cache::Entry *const entry,
-		int size, uint32 offset, uint32 data)
-{
-	uint32 n;
-	switch (size) {
-		case 4: entry->data[offset>>2] = data; break;
-		case 2: n = (offset >> 1) & 0x1;
-			if (byteswapped)
-			    n = 1 - n;
-			((uint16 *)(&entry->data[offset>>2]))[n] = (uint16)data;
-			break;
-		case 1: n = offset & 0x3;
-			if (byteswapped)
-			    n = 3 - n;
-			((uint8 *)(&entry->data[offset>>2]))[n] = (uint8)data;
-			break;
-		default: assert(0); break;
-	}
-	entry->dirty = true;
-}
 
 uint32
-Mapper::fetch_word(uint32 addr, int32 mode, bool cacheable, DeviceExc *client)
+Mapper::fetch_word(uint32 addr, int32 mode, DeviceExc *client)
 {
 	Range *l = NULL;
 	uint32 offset;
-	uint32 way, index;
 	uint32 result, oaddr = addr;
-	Cache::Entry *entry = NULL;
 
 	if (addr % 4 != 0) {
 		client->exception(AdEL,mode);
 		return 0xffffffff;
-	}
-
-	if (cacheable) {
-		Cache *cache;
-		if (caches_swapped) {
-			cache = (mode == INSTFETCH) ? dcache : icache;
-		} else {
-			cache = (mode == INSTFETCH) ? icache : dcache;
-		}
-
-		if (!cache->cache_hit(addr, index, way, offset)) {
-			//cache miss
-			cache->cache_fetch(addr, this, mode, client, index, way, offset);
-			if (mode == INSTFETCH)
-				machine->icache_prof.cache_miss_counts++;
-			else
-				machine->dcache_prof.cache_miss_counts++;
-		} else {
-			if (mode == INSTFETCH)
-				machine->icache_prof.cache_hit_counts++;
-			else
-				machine->dcache_prof.cache_hit_counts++;
-		}
-
-		entry = &cache->blocks[way][index];
-		if (!entry->valid) {
-			return 0xffffffff;
-		}
-		uint32 x;
-		x = cache_get_data_from_entry(entry, 4, offset);
-		if (caches_isolated) {
-			printf("Isolated word read returned 0x%x\n", x);
-		}
-		return x;
 	}
 
 	l = find_mapping_range(addr);
@@ -478,43 +232,15 @@ Mapper::fetch_word(uint32 addr, int32 mode, bool cacheable, DeviceExc *client)
  * processor, if the address is unaligned.
  */
 uint16
-Mapper::fetch_halfword(uint32 addr, bool cacheable, DeviceExc *client)
+Mapper::fetch_halfword(uint32 addr, DeviceExc *client)
 {
 	Range *l = NULL;
-	uint32 offset, index, way;
+	uint32 offset;
 	uint32 result, oaddr = addr;
-	Cache::Entry *entry = NULL;
 
 	if (addr % 2 != 0) {
 		client->exception(AdEL,DATALOAD);
 		return 0xffff;
-	}
-
-	if (cacheable) {
-		Cache *cache;
-		if (caches_swapped) {
-			cache = icache;
-		} else {
-			cache = dcache;
-		}
-		if (!cache->cache_hit(addr, index, way, offset)) {
-			//cache miss
-			cache->cache_fetch(addr, this, DATALOAD, client, index, way, offset);
-			machine->dcache_prof.cache_miss_counts++;
-		} else {
-			machine->dcache_prof.cache_hit_counts++;
-		}
-
-		entry = &cache->blocks[way][index];
-		if (!entry->valid) {
-			return 0xffff;
-		}
-		uint32 x;
-		x = cache_get_data_from_entry(entry, 2, offset);
-		if (caches_isolated) {
-			printf("Isolated word read returned 0x%x\n", x);
-		}
-		return x;
 	}
 
 	l = find_mapping_range(addr);
@@ -542,39 +268,11 @@ Mapper::fetch_halfword(uint32 addr, bool cacheable, DeviceExc *client)
  * if the address is unmapped.
  */
 uint8
-Mapper::fetch_byte(uint32 addr, bool cacheable, DeviceExc *client)
+Mapper::fetch_byte(uint32 addr, DeviceExc *client)
 {
 	Range *l = NULL;
-	uint32 offset, index, way;
+	uint32 offset;
 	uint32 result, oaddr = addr;
-	Cache::Entry *entry = NULL;
-
-	if (cacheable) {
-		Cache *cache;
-		if (caches_swapped) {
-			cache = icache;
-		} else {
-			cache = dcache;
-		}
-		if (!cache->cache_hit(addr, index, way, offset)) {
-			//cache miss
-			cache->cache_fetch(addr, this, DATALOAD, client, index, way, offset);
-			machine->dcache_prof.cache_miss_counts++;
-		} else {
-			machine->dcache_prof.cache_hit_counts++;
-		}
-
-		entry = &cache->blocks[way][index];
-		if (!entry->valid) {
-			return 0xff;
-		}
-		uint32 x;
-		x = cache_get_data_from_entry(entry, 1, offset);
-		if (caches_isolated) {
-			printf("Isolated word read returned 0x%x\n", x);
-		}
-		return x;
-	}
 
 	l = find_mapping_range(addr);
 	if (!l) {
@@ -601,40 +299,13 @@ Mapper::fetch_byte(uint32 addr, bool cacheable, DeviceExc *client)
  * if the address is unmapped.
  */
 void
-Mapper::store_word(uint32 addr, uint32 data, bool cacheable, DeviceExc *client)
+Mapper::store_word(uint32 addr, uint32 data, DeviceExc *client)
 {
 	Range *l = NULL;
-	uint32 offset, way, index;
-	Cache::Entry *entry = NULL;
+	uint32 offset;
 
 	if (addr % 4 != 0) {
 		client->exception(AdES,DATASTORE);
-		return;
-	}
-
-	if (cacheable) {
-		Cache *cache;
-		if (caches_swapped) {
-			cache = icache;
-		} else {
-			cache = dcache;
-		}
-		if (!cache->cache_hit(addr, index, way, offset)) {
-			//cache miss
-			cache->cache_fetch(addr, this, DATASTORE, client, index, way, offset);
-			machine->dcache_prof.cache_miss_counts++;
-		} else {
-			machine->dcache_prof.cache_hit_counts++;
-		}
-
-		entry = &cache->blocks[way][index];
-		if (!entry->valid) {
-			return;
-		}
-		if (caches_isolated) {
-			printf("Write(%d) w/isolated cache 0x%x -> 0x%x\n", 4, data, addr);
-		}
-		cache_set_data_into_entry(entry, 4, offset, data);
 		return;
 	}
 
@@ -664,41 +335,13 @@ Mapper::store_word(uint32 addr, uint32 data, bool cacheable, DeviceExc *client)
  * if the address is unmapped.
  */
 void
-Mapper::store_halfword(uint32 addr, uint16 data, bool cacheable, DeviceExc
-	*client)
+Mapper::store_halfword(uint32 addr, uint16 data, DeviceExc *client)
 {
 	Range *l = NULL;
-	uint32 offset, way, index;
-	Cache::Entry *entry = NULL;
+	uint32 offset;
 
 	if (addr % 2 != 0) {
 		client->exception(AdES,DATASTORE);
-		return;
-	}
-
-	if (cacheable) {
-		Cache *cache;
-		if (caches_swapped) {
-			cache = icache;
-		} else {
-			cache = dcache;
-		}
-		if (!cache->cache_hit(addr, index, way, offset)) {
-			//cache miss
-			cache->cache_fetch(addr, this, DATASTORE, client, index, way, offset);
-			machine->dcache_prof.cache_miss_counts++;
-		} else {
-			machine->dcache_prof.cache_hit_counts++;
-		}
-
-		entry = &cache->blocks[way][index];
-		if (!entry->valid) {
-			return;
-		}
-		if (caches_isolated) {
-			printf("Write(%d) w/isolated cache 0x%x -> 0x%x\n", 2, data, addr);
-		}
-		cache_set_data_into_entry(entry, 2, offset, data);
 		return;
 	}
 
@@ -726,37 +369,10 @@ Mapper::store_halfword(uint32 addr, uint16 data, bool cacheable, DeviceExc
  * if the address is unmapped.
  */
 void
-Mapper::store_byte(uint32 addr, uint8 data, bool cacheable, DeviceExc *client)
+Mapper::store_byte(uint32 addr, uint8 data, DeviceExc *client)
 {
 	Range *l = NULL;
-	uint32 offset, way, index;
-	Cache::Entry *entry = NULL;
-
-	if (cacheable) {
-		Cache *cache;
-		if (caches_swapped) {
-			cache = icache;
-		} else {
-			cache = dcache;
-		}
-		if (!cache->cache_hit(addr, index, way, offset)) {
-			//cache miss
-			cache->cache_fetch(addr, this, DATASTORE, client, index, way, offset);
-			machine->dcache_prof.cache_miss_counts++;
-		} else {
-			machine->dcache_prof.cache_hit_counts++;
-		}
-
-		entry = &cache->blocks[way][index];
-		if (!entry->valid) {
-			return;
-		}
-		if (caches_isolated) {
-			printf("Write(%d) w/isolated cache 0x%x -> 0x%x\n", 1, data, addr);
-		}
-		cache_set_data_into_entry(entry, 1, offset, data);
-		return;
-	}
+	uint32 offset;
 
 	l = find_mapping_range(addr);
 	if (!l) {

@@ -25,10 +25,14 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 #include <deque>
 #include <map>
 #include <vector>
+
+#include "cache.h"
+
 class CPZero;
 class FPU;
 class Mapper;
 class IntCtrl;
+class Cache;
 
 /* Exception priority information -- see exception_priority(). */
 struct excPriority {
@@ -307,6 +311,10 @@ public:
 		DeviceExc *client);
 
 	bool is_bigendian() const { return opt_bigendian; }
+
+	//cache instance
+	Cache *icache;
+	Cache *dcache;
 };
 
 #endif /* _CPU_H_ */
