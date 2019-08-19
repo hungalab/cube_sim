@@ -76,8 +76,14 @@ CPU::CPU (Mapper &m, IntCtrl &i)
 		open_trace_file ();
 	/* Caches are 2way-set associative, physically indexed, physically tagged,
 	 * with 1-word lines. */
-	icache = new Cache(64, 64, 2);	/* 64Byte * 64Block * 2way = 8KB*/
-	dcache = new Cache(64, 64, 2);
+	int opt_icacheway = machine->opt->option("icacheway")->num;
+	int opt_dcacheway = machine->opt->option("dcacheway")->num;
+	int opt_icachebnum = machine->opt->option("icachebnum")->num;
+	int opt_dcachebnum = machine->opt->option("dcachebnum")->num;
+	int opt_icachebsize = machine->opt->option("icachebsize")->num;
+	int opt_dcachebsize = machine->opt->option("dcachebsize")->num;
+	icache = new Cache(opt_icachebnum, opt_icachebsize, opt_icacheway);	/* 64Byte * 64Block * 2way = 8KB*/
+	dcache = new Cache(opt_dcachebnum, opt_dcachebsize, opt_dcacheway);
 }
 
 CPU::~CPU ()
