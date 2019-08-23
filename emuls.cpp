@@ -1538,8 +1538,8 @@ void CPU::div_exec()
 void CPU::divu_exec()
 {
 	PipelineRegs *preg = PL_REGS[EX_STAGE];
-	lo = reg[*(preg->alu_src_a)] / reg[*(preg->alu_src_b)];
-	hi = reg[*(preg->alu_src_a)] % reg[*(preg->alu_src_b)];
+	lo = *(preg->alu_src_a) / *(preg->alu_src_b);
+	hi = *(preg->alu_src_a) % *(preg->alu_src_b);
 }
 
 void CPU::add_exec()
@@ -1643,7 +1643,7 @@ void CPU::sltu_exec()
 void CPU::bltz_exec()
 {
 	PipelineRegs *preg = PL_REGS[ID_STAGE];
-	if (*(preg->alu_src_a) < 0) {
+	if ((int32)*(preg->alu_src_a) < 0) {
 		pc = preg->pc + (preg->imm << 2); //+4 later
 	}
 }
@@ -1651,7 +1651,7 @@ void CPU::bltz_exec()
 void CPU::bgez_exec()
 {
 	PipelineRegs *preg = PL_REGS[ID_STAGE];
-	if (*(preg->alu_src_a) >= 0) {
+	if ((int32)*(preg->alu_src_a) >= 0) {
 		pc = preg->pc + (preg->imm << 2); //+4 later
 	}
 }
@@ -1659,7 +1659,7 @@ void CPU::bgez_exec()
 void CPU::bltzal_exec()
 {
 	PipelineRegs *preg = PL_REGS[ID_STAGE];
-	if (*(preg->alu_src_a) < 0) {
+	if ((int32)*(preg->alu_src_a) < 0) {
 		pc = preg->pc + 4 + (preg->imm << 2); //+4 later
 	}
 	preg->result = preg->pc + 8;
@@ -1668,7 +1668,7 @@ void CPU::bltzal_exec()
 void CPU::bgezal_exec()
 {
 	PipelineRegs *preg = PL_REGS[ID_STAGE];
-	if (*(preg->alu_src_a) >= 0) {
+	if ((int32)*(preg->alu_src_a) >= 0) {
 		pc = preg->pc + (preg->imm << 2); //+4 later
 	}
 	preg->result = preg->pc + 8;

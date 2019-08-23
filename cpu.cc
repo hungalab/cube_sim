@@ -301,7 +301,6 @@ CPU::exception(uint16 excCode, int mode /* = ANY */, int coprocno /* = -1 */)
 	int prio;
 	uint32 base, vector, epc;
 	bool delaying = (delay_state == DELAYSLOT);
-
 	if (opt_haltbreak) {
 		if (excCode == Bp) {
 			fprintf(stderr,"* BREAK instruction reached -- HALTING *\n");
@@ -881,7 +880,7 @@ void CPU::decode()
 void CPU::execute()
 {
 	static alu_funcpr execTable[64] = {
-		&CPU::funct_exec, &CPU::bcond_exec, NULL, NULL, NULL, NULL, NULL, NULL,
+		&CPU::funct_exec, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
 		&CPU::add_exec, &CPU::addu_exec, &CPU::slt_exec, &CPU::sltu_exec, &CPU::and_exec, &CPU::or_exec, &CPU::xor_exec, &CPU::lui_exec,
 		&CPU::cpzero_exec, &CPU::cpone_exec, &CPU::cptwo_exec, &CPU::cpthree_exec, NULL, NULL, NULL, NULL,
 		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
@@ -951,7 +950,6 @@ void CPU::mem_access()
 					break;
 				case OP_SW:
 					cache->store_word(mem, phys, data, this);
-					//fprintf(stderr, "\tSW[%X] %X\n", vaddr, data);
 					break;
 				case OP_SWR:
 					wordvirt = vaddr & ~0x03UL;
@@ -972,7 +970,6 @@ void CPU::mem_access()
 				case OP_SW:
 				case OP_SWR:
 					mem->store_word(phys, data, this);
-					//fprintf(stderr, "\tSW[%X] %X\n", vaddr, data);
 				break;
 			}
 		}
@@ -987,7 +984,6 @@ void CPU::mem_access()
 				case OP_LB:
 				case OP_LBU:
 					preg->r_mem_data = cache->fetch_byte(mem, phys, this);
-					//fprintf(stderr, "\tLB[%X] %X\n", vaddr, preg->r_mem_data);
 					break;
 				case OP_LH:
 				case OP_LHU:
@@ -997,7 +993,6 @@ void CPU::mem_access()
 				case OP_LW:
 				case OP_LWR:
 					preg->r_mem_data = cache->fetch_word(mem, phys, DATALOAD, this);
-					//fprintf(stderr, "\tLW[%X] %X\n", vaddr, preg->r_mem_data);
 				break;
 			}
 		} else {
@@ -1006,23 +1001,27 @@ void CPU::mem_access()
 				case OP_LB:
 				case OP_LBU:
 					preg->r_mem_data = mem->fetch_byte(phys, this);
-					//fprintf(stderr, "\tLB[%X] %X\n", vaddr, preg->r_mem_data);
 					break;
 				case OP_LH:
 				case OP_LHU:
-					preg->r_mem_data = mem->fetch_halfword(phys, this);
+					preg->r_mem_data = (int16)mem->fetch_halfword(phys, this);
 					break;
 				case OP_LWL:
 				case OP_LW:
 				case OP_LWR:
 					preg->r_mem_data = mem->fetch_word(phys, DATALOAD, this);
-					//fprintf(stderr, "\tLW[%X] %X\n", vaddr, preg->r_mem_data);
 				break;
 			}
 		}
 		//Check Exception
 		//Finalize loaded data
 		switch (mem_opcode) {
+			case OP_LB:
+				preg->r_mem_data = (int8)preg->r_mem_data;
+				break;
+			case OP_LH:
+				preg->r_mem_data = (int16)preg->r_mem_data;
+				break;
 			case OP_LWL:
 				wordvirt = vaddr & ~0x03UL;
 				which_byte = vaddr & 0x03;
@@ -1102,8 +1101,8 @@ void CPU::step()
 	}
 	PL_REGS[IF_STAGE] = new PipelineRegs(pc, instr);
 
-	fprintf(stderr, "%X: ", pc);
-	disasm->disassemble(PL_REGS[IF_STAGE]->pc, PL_REGS[IF_STAGE]->instr);
+	// fprintf(stderr,"PC=0x%08x [%08x]\t%08x ",pc,real_pc,instr);
+	// disasm->disassemble(PL_REGS[IF_STAGE]->pc, PL_REGS[IF_STAGE]->instr);
 
 };
 
