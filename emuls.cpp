@@ -1621,9 +1621,9 @@ void CPU::nor_exec()
 void CPU::slt_exec()
 {
 	PipelineRegs *preg = PL_REGS[EX_STAGE];
-	int32 s_rs = (int32)(*(preg->alu_src_a));
-	int32 s_rt = (int32)(*(preg->alu_src_b));
-	if (s_rs < s_rt) {
+	int32 a = (int32)(*(preg->alu_src_a));
+	int32 b = (int32)(*(preg->alu_src_b));
+	if (a < b) {
 		preg->result = 1;
 	} else {
 		preg->result = 0;

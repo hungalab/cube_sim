@@ -882,7 +882,7 @@ void CPU::execute()
 {
 	static alu_funcpr execTable[64] = {
 		&CPU::funct_exec, &CPU::bcond_exec, NULL, NULL, NULL, NULL, NULL, NULL,
-		&CPU::add_exec, &CPU::addu_exec, &CPU::sub_exec, &CPU::subu_exec, &CPU::and_exec, &CPU::or_exec, &CPU::xor_exec, &CPU::lui_exec,
+		&CPU::add_exec, &CPU::addu_exec, &CPU::slt_exec, &CPU::sltu_exec, &CPU::and_exec, &CPU::or_exec, &CPU::xor_exec, &CPU::lui_exec,
 		&CPU::cpzero_exec, &CPU::cpone_exec, &CPU::cptwo_exec, &CPU::cpthree_exec, NULL, NULL, NULL, NULL,
 		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
 		&CPU::addu_exec, &CPU::addu_exec, &CPU::addu_exec, &CPU::addu_exec, &CPU::addu_exec, &CPU::addu_exec, &CPU::addu_exec, NULL,
