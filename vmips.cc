@@ -380,6 +380,7 @@ vmips::step(void)
 {
 	/* Process instructions. */
 	cpu->step();
+	//cpu->mystep();
 
 	/* Keep track of time passing. Each instruction either takes
 	 * clock_nanos nanoseconds, or we use pass_realtime() to check the

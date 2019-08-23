@@ -28,11 +28,24 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 
 #include "cache.h"
 
+
+
 class CPZero;
 class FPU;
 class Mapper;
 class IntCtrl;
 class Cache;
+
+#define PIPELINE_STAGES 5
+#define IF_STAGE 0
+#define ID_STAGE 1
+#define EX_STAGE 2
+#define MEM_STAGE 3
+#define WB_STAGE 4
+#define NOP_INSTR ((uint32)0)
+#define NONE_REG 32
+#define RA_REG 31
+
 
 /* Exception priority information -- see exception_priority(). */
 struct excPriority {
@@ -52,6 +65,24 @@ struct last_change {
 		last_change rv (pc_, instr_, old_value_);
 		return rv;
 	}
+};
+
+class PipelineRegs {
+public:
+	PipelineRegs(uint32 pc, uint32 instr);
+	uint32 instr, pc;
+	uint32 *alu_src_a, *alu_src_b;
+	uint32 *w_reg_data, *w_mem_data;
+	uint32 *lwrl_reg_prev;
+	uint16 src_a, src_b;	/* reg label, not value */
+	uint16 dst;				/* reg label, not value */
+	uint32 result;
+	uint32 r_mem_data;
+	uint32 imm;
+	uint32 shamt;
+	uint16 excCode;
+	bool mem_read_op;
+	bool pending_exception;
 };
 
 class Trace {
@@ -131,9 +162,12 @@ class CPU : public DeviceExc {
 
 	// Important registers:
 	uint32 pc;      // Program counter
+	uint32 mypc;      // Program counter
 	uint32 reg[32]; // General-purpose registers
 	uint32 instr;   // The current instruction
 	uint32 hi, lo;  // Division and multiplication results
+
+	PipelineRegs* PL_REGS[PIPELINE_STAGES];
 
 	// Exception bookkeeping data.
 	uint32 last_epc;
@@ -163,6 +197,20 @@ class CPU : public DeviceExc {
 	uint32 opt_tracestartpc;
 	uint32 opt_traceendpc;
 	bool opt_bigendian; // True if CPU in big endian mode.
+
+	//cache configs
+	int opt_icacheway;
+	int opt_dcacheway;
+	int opt_icachebnum;
+	int opt_dcachebnum;
+	int opt_icachebsize;
+	int opt_dcachebsize;
+
+	//each stage
+	void decode();
+	void execute();
+	void mem_access();
+	void reg_commit();
 
 	// Miscellaneous shared code. 
 	void control_transfer(uint32 new_pc);
@@ -252,6 +300,58 @@ class CPU : public DeviceExc {
 	void bgezal_emulate(uint32 instr, uint32 pc);
 	void RI_emulate(uint32 instr, uint32 pc);
 
+	// Emulation of specific instructions.
+	void funct_exec();
+	void funct_ctrl();
+	void bcond_exec();
+	void j_exec();
+	void jal_exec();
+	void beq_exec();
+	void bne_exec();
+	void blez_exec();
+	void bgtz_exec();
+	void lui_exec();
+	void cpzero_exec();
+	void cpone_exec();
+	void cptwo_exec();
+	void cpthree_exec();
+	void lwc1_exec();
+	void lwc2_exec();
+	void lwc3_exec();
+	void swc1_exec();
+	void swc2_exec();
+	void swc3_exec();
+	void sll_exec();
+	void srl_exec();
+	void sra_exec();
+	void jr_exec();
+	void jalr_exec();
+	void syscall_exec();
+	void break_exec();
+	void mfhi_exec();
+	void mthi_exec();
+	void mflo_exec();
+	void mtlo_exec();
+	void mult_exec();
+	void multu_exec();
+	void div_exec();
+	void divu_exec();
+	void add_exec();
+	void addu_exec();
+	void sub_exec();
+	void subu_exec();
+	void and_exec();
+	void or_exec();
+	void xor_exec();
+	void nor_exec();
+	void slt_exec();
+	void sltu_exec();
+	void bltz_exec();
+	void bgez_exec();
+	void bltzal_exec();
+	void bgezal_exec();
+
+
 	// Exception prioritization.
 	int exception_priority(uint16 excCode, int mode) const;
 
@@ -261,11 +361,14 @@ public:
 	static uint16 rs(const uint32 i) { return (i >> 21) & 0x01f; }
 	static uint16 rt(const uint32 i) { return (i >> 16) & 0x01f; }
 	static uint16 rd(const uint32 i) { return (i >> 11) & 0x01f; }
+	static uint16 no_reg(const uint32 i) { return NONE_REG; }
+	static uint16 ra_reg(const uint32 i) { return RA_REG; }
 	static uint16 immed(const uint32 i) { return i & 0x0ffff; }
 	static short s_immed(const uint32 i) { return i & 0x0ffff; }
 	static uint16 shamt(const uint32 i) { return (i >> 6) & 0x01f; }
 	static uint16 funct(const uint32 i) { return i & 0x03f; }
 	static uint32 jumptarg(const uint32 i) { return i & 0x03ffffff; }
+
 
 	// Constructor & destructor.
 	CPU (Mapper &m, IntCtrl &i);
@@ -281,12 +384,13 @@ public:
 
 	// Register file accessors.
 	uint32 get_reg (const unsigned regno) { return reg[regno]; }
-	void put_reg (const unsigned regno, const uint32 new_data) {    
-		reg[regno] = new_data;  
+	void put_reg (const unsigned regno, const uint32 new_data) {
+		reg[regno] = new_data;
 	}
 
 	// Control-flow methods.
 	void step ();
+	void mystep ();
 	void reset ();
 
 
