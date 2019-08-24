@@ -141,9 +141,9 @@ CPU::dump_regs(FILE *f)
 	int i;
 
 	fprintf(f,"Reg Dump: [ PC=%08x  LastInstr=%08x  HI=%08x  LO=%08x\n",
-		pc,instr,hi,lo);
-	fprintf(f,"            DelayState=%s  DelayPC=%08x  NextEPC=%08x\n",
-		strdelaystate(delay_state), delay_pc, next_epc);
+		PL_REGS[WB_STAGE]->pc,PL_REGS[WB_STAGE]->instr,hi,lo);
+	// fprintf(f,"            DelayState=%s  DelayPC=%08x  NextEPC=%08x\n",
+	// 	strdelaystate(delay_state), delay_pc, next_epc);
 	for (i = 0; i < 32; i++) {
 		fprintf(f," R%02d=%08x ",i,reg[i]);
 		if (i % 5 == 4) {
@@ -187,12 +187,12 @@ CPU::dis_mem(FILE *f, uint32 addr)
 	uint32 phys;
 	uint32 instr;
 	if (cpzero->debug_tlb_translate(addr, &phys)) {
-		fprintf(f,"PC=0x%08x [%08x]      %s",addr,phys,(addr==pc?"=>":"  "));
+		fprintf(f,"PC=0x%08x [%08x]      %s",addr,phys,(addr==PL_REGS[WB_STAGE]->pc?"=>":"  "));
 		instr = mem->fetch_word(phys,INSTFETCH, this);
 		fprintf(f,"%08x ",instr);
 		machine->disasm->disassemble(addr,instr);
 	} else {
-		fprintf(f,"PC=0x%08x [%08x]      %s",addr,phys,(addr==pc?"=>":"  "));
+		fprintf(f,"PC=0x%08x [%08x]      %s",addr,phys,(addr==PL_REGS[WB_STAGE]->pc?"=>":"  "));
 		fprintf(f, "(not mapped in TLB)\n");
 	}
 }
@@ -782,13 +782,10 @@ void CPU::decode()
 		if (preg->src_a == PL_REGS[EX_STAGE]->dst) {
 			if (PL_REGS[EX_STAGE]->mem_read_op) data_hazard = true;
 			preg->alu_src_a = PL_REGS[EX_STAGE]->w_reg_data;
-			//fprintf(stderr, "SRC A: forwarding from EX Stage\n");
 		} else if (preg->src_a == PL_REGS[MEM_STAGE]->dst) {
 			preg->alu_src_a = PL_REGS[MEM_STAGE]->w_reg_data;
-			//fprintf(stderr, "SRC A: forwarding from MEM Stage\n");
 		} else if (preg->src_a == PL_REGS[WB_STAGE]->dst) {
 			preg->alu_src_a = PL_REGS[WB_STAGE]->w_reg_data;
-			//fprintf(stderr, "SRC A: forwarding from WB Stage\n");
 		} else {
 			preg->alu_src_a = &reg[preg->src_a];
 		}
@@ -813,13 +810,10 @@ void CPU::decode()
 		if (preg->src_b == PL_REGS[EX_STAGE]->dst) {
 			preg->alu_src_b = PL_REGS[EX_STAGE]->w_reg_data;
 			if (PL_REGS[EX_STAGE]->mem_read_op) data_hazard = true;
-			//fprintf(stderr, "SRC B: forwarding from EX Stage\n");
 		} else if (preg->src_b == PL_REGS[MEM_STAGE]->dst) {
 			preg->alu_src_b = PL_REGS[MEM_STAGE]->w_reg_data;
-			//fprintf(stderr, "SRC B: forwarding from MEM Stage\n");
 		} else if (preg->src_b == PL_REGS[WB_STAGE]->dst) {
 			preg->alu_src_b = PL_REGS[WB_STAGE]->w_reg_data;
-			//fprintf(stderr, "SRC B: forwarding from WB Stage\n");
 		} else {
 			preg->alu_src_b = &reg[preg->src_b];
 		}
@@ -1044,15 +1038,11 @@ void CPU::mem_access()
 
 void CPU::reg_commit()
 {
-	static Disassembler *disasm = new Disassembler(machine->host_bigendian, stderr);
 	PipelineRegs *preg = PL_REGS[WB_STAGE];
 
-	//fprintf(stderr, "prev a0 = 0x%X\t", reg[4]);
 	if (preg->w_reg_data != NULL) {
 		reg[preg->dst] = *(preg->w_reg_data);
 	}
-	//fprintf(stderr, "ra = 0x%X\tresult = 0x%X\n", reg[reg_ra], preg->result);
-	//disasm->disassemble(PL_REGS[WB_STAGE]->pc, PL_REGS[WB_STAGE]->instr);
 }
 
 void CPU::step()
@@ -1062,6 +1052,9 @@ void CPU::step()
 
 	bool cacheable;
 	uint32 real_pc;
+
+	// Decrement Random register every clock cycle.
+	cpzero->adjust_random();
 
 	//if (call_count > 300) return;
 	if (machine->state == vmips::HALT) return;
@@ -1100,6 +1093,12 @@ void CPU::step()
 		instr = mem->fetch_word(real_pc,INSTFETCH,this);
 	}
 	PL_REGS[IF_STAGE] = new PipelineRegs(pc, instr);
+
+	// Disassemble the instruction, if the user requested it.
+	if (opt_instdump) {
+		fprintf(stderr,"PC=0x%08x [%08x]\t%08x ",pc,real_pc,instr);
+		machine->disasm->disassemble(pc,instr);
+	}
 
 	// fprintf(stderr,"PC=0x%08x [%08x]\t%08x ",pc,real_pc,instr);
 	// disasm->disassemble(PL_REGS[IF_STAGE]->pc, PL_REGS[IF_STAGE]->instr);
