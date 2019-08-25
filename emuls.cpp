@@ -1524,12 +1524,14 @@ void CPU::mult_exec()
 {
 	PipelineRegs *preg = PL_REGS[EX_STAGE];
 	mult64s(&hi, &lo, *(preg->alu_src_a), *(preg->alu_src_b));
+	mul_div_remain = mul_div_delay[FUNCT_MULT];
 }
 
 void CPU::multu_exec()
 {
 	PipelineRegs *preg = PL_REGS[EX_STAGE];
 	mult64(&hi, &lo, *(preg->alu_src_a), *(preg->alu_src_b));
+	mul_div_remain = mul_div_delay[FUNCT_MULTU];
 }
 
 void CPU::div_exec()
@@ -1539,6 +1541,7 @@ void CPU::div_exec()
 	int32 signed_b = (int32)(*(preg->alu_src_b));
 	lo = signed_a / signed_b;
 	hi = signed_a % signed_b;
+	mul_div_remain = mul_div_delay[FUNCT_DIV];
 }
 
 void CPU::divu_exec()
@@ -1546,6 +1549,7 @@ void CPU::divu_exec()
 	PipelineRegs *preg = PL_REGS[EX_STAGE];
 	lo = *(preg->alu_src_a) / *(preg->alu_src_b);
 	hi = *(preg->alu_src_a) % *(preg->alu_src_b);
+	mul_div_remain = mul_div_delay[FUNCT_DIVU];
 }
 
 void CPU::add_exec()

@@ -190,6 +190,8 @@ class CPU : public DeviceExc {
 	int delay_state;
 	uint32 delay_pc;
 
+	int mul_div_remain;
+
 	ExcInfo *exc_signal;
 
 	// Cached option values that we use in the CPU core.
@@ -217,7 +219,7 @@ class CPU : public DeviceExc {
 
 	//each stage
 	void fetch();
-	void pre_decode();
+	void pre_decode(bool& data_hazard, bool& interlock);
 	void decode();
 	void execute();
 	void pre_memaccess();

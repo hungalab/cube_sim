@@ -1,4 +1,6 @@
 #include "cpu.h"
+#include <map>
+
 using operand_decodepr = uint16 (*)(uint32);
 typedef void (CPU::*alu_funcpr)(void);
 
@@ -244,3 +246,46 @@ static bool mem_read_flag[64] = {
 	false, false, false, false, false, false, false, false
 };
 
+//Reserved Instruction Table
+//indexed by opcode
+static bool RI_flag[64] = {
+	false, false, false, false, false, false, false, false,
+	false, false, false, false, false, false, false, false,
+	false, false, false, false, true , true , true , true ,
+	true , true , true , true , true , true , true , true ,
+	false, false, false, false, false, false, false, true ,
+	false, false, false, false, true , true , false, true ,
+	false, false, false, false, true , true , true , true ,
+	false, false, false, false, true , true , true , true
+};
+
+//indexed by funct
+static bool RI_special_flag[64] = {
+	false, true , false, false, false, true , false, false,
+	false, false, true , true , false, false, true , true ,
+	false, false, false, false, true , true , true , true ,
+	false, false, false, false, true , true , true , true ,
+	false, false, false, false, false, false, false, false,
+	true , true , false, false, true , true , true , true ,
+	true , true , true , true , true , true , true , true ,
+	true , true , true , true , true , true , true , true
+};
+
+//indexed by funct
+static bool mul_div_flag[64] = {
+	false, false, false, false, false, false, false, false,
+	false, false, false, false, false, false, false, false,
+	true , false, true , false, false, false, false, false,
+	true , true , true , true , false, false, false, false,
+	false, false, false, false, false, false, false, false,
+	false, false, false, false, false, false, false, false,
+	false, false, false, false, false, false, false, false,
+	false, false, false, false, false, false, false, false
+};
+
+std::map<int, int> mul_div_delay = {
+            {FUNCT_MULTU, 1},
+            {FUNCT_MULT, 1},
+            {FUNCT_DIV, 1},
+            {FUNCT_DIVU, 1}
+};

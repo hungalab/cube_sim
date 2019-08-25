@@ -71,7 +71,7 @@ PipelineRegs::PipelineRegs(uint32 pc_, uint32 instr_):
 
 CPU::CPU (Mapper &m, IntCtrl &i)
   : tracing (false), last_epc (0), last_prio (0), mem (&m),
-    cpzero (new CPZero (this, &i)), fpu (0), delay_state (NORMAL)
+    cpzero (new CPZero (this, &i)), fpu (0), delay_state (NORMAL), mul_div_remain(0)
 {
 	opt_fpu = machine->opt->option("fpu")->flag;
 	if (opt_fpu)
@@ -739,8 +739,6 @@ void CPU::fetch()
 	uint32 real_pc;
 	uint32 fetch_instr;
 
-	
-
 	pc += 4;
 	real_pc = cpzero->address_trans(pc,INSTFETCH,&cacheable, this);
 
@@ -773,27 +771,28 @@ void CPU::fetch()
 }
 
 
-void CPU::decode()
+void CPU::pre_decode(bool& data_hazard, bool& interlock)
 {
-	static alu_funcpr execTable[64] = {
-		&CPU::funct_ctrl, &CPU::bcond_exec, &CPU::j_exec, &CPU::jal_exec, &CPU::beq_exec, &CPU::bne_exec, &CPU::blez_exec, &CPU::bgtz_exec,
-		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
-	};
-
-	/* To forward from ex_stage & mem_stage to this for control OPs
-	mem_stage, ex_stage must be processed before this*/
 
 	PipelineRegs *preg = PL_REGS[ID_STAGE];
 	uint32 dec_instr = preg->instr;
 	uint16 dec_opcode = opcode(dec_instr);
 
-	bool control_flag = execTable[dec_opcode] != NULL;
+	// check if it is Reserved Instr
+	//decode first source
+	switch (dec_opcode) {
+		case OP_SPECIAL:
+			if (RI_special_flag[funct(dec_instr)]) {
+				exception(RI);
+				preg->instr = NOP_INSTR;
+			}
+			break;
+		default:
+			if (RI_flag[dec_opcode]) {
+				exception(RI);
+				preg->instr = NOP_INSTR;
+			}
+	}
 
 	//decode first source
 	switch (dec_opcode) {
@@ -843,7 +842,7 @@ void CPU::decode()
 	if (preg->dst == 0) preg->dst = NONE_REG;
 
 	//decode value A
-	bool data_hazard = false;
+	data_hazard = false;
 	if (preg->src_a != NONE_REG) {
 		//forwarding for A
 		if (preg->src_a == PL_REGS[EX_STAGE]->dst) {
@@ -927,15 +926,37 @@ void CPU::decode()
 		}
 	}
 
-	if (data_hazard) {
-		fprintf(stderr, "Data Hazard stall one cycle\n");
-	}
+	//detect interlock
+	interlock = ((dec_opcode == OP_SPECIAL) & mul_div_flag[funct(dec_instr)] & (mul_div_remain > 0));
+
+}
+
+void CPU::decode()
+{
+	static alu_funcpr execTable[64] = {
+		&CPU::funct_ctrl, &CPU::bcond_exec, &CPU::j_exec, &CPU::jal_exec, &CPU::beq_exec, &CPU::bne_exec, &CPU::blez_exec, &CPU::bgtz_exec,
+		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+	};
+
+	/* To forward from ex_stage & mem_stage to this for control OPs
+	mem_stage, ex_stage must be processed before this*/
+
+	PipelineRegs *preg = PL_REGS[ID_STAGE];
+	uint32 dec_instr = preg->instr;
+	uint16 dec_opcode = opcode(preg->instr);
+
+	bool control_flag = execTable[dec_opcode] != NULL;
 
 	// execute control step
 	if (control_flag) {
 		(this->*execTable[dec_opcode])();
 	}
-
 }
 
 void CPU::execute()
@@ -1126,6 +1147,8 @@ void CPU::step()
 	static int call_count = 0;
 	static Disassembler *disasm = new Disassembler(machine->host_bigendian, stderr);
 
+	bool data_hazard, interlock;
+
 	// Decrement Random register every clock cycle.
 	cpzero->adjust_random();
 
@@ -1141,6 +1164,10 @@ void CPU::step()
 	//fprintf(stderr, "\tEX\n");
 	execute();
 	//fprintf(stderr, "\tID\n");
+	pre_decode(data_hazard, interlock);
+	if (interlock) {
+		fprintf(stderr, "interlocked!! 0x%X\n", PL_REGS[ID_STAGE]->pc);
+	}
 	decode();
 
 	//go ahead pipeline
@@ -1149,6 +1176,9 @@ void CPU::step()
 	}
 
 	fetch();
+
+	if (mul_div_remain > 0)
+		mul_div_remain--;
 
 	// fprintf(stderr,"PC=0x%08x [%08x]\t%08x ",pc,real_pc,instr);
 	// disasm->disassemble(PL_REGS[IF_STAGE]->pc, PL_REGS[IF_STAGE]->instr);
