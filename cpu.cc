@@ -62,8 +62,6 @@ PipelineRegs::PipelineRegs(uint32 pc_, uint32 instr_):
 	alu_src_a = &(this->shamt);
 	alu_src_b = &(this->shamt);
 	w_reg_data = w_mem_data = lwrl_reg_prev = NULL;
-	excCode = 0;
-	pending_exception = false;
 	mem_read_op = false;
 	src_a = src_b = dst = NONE_REG;
 	result = r_mem_data = imm = shamt = 0;
@@ -298,9 +296,56 @@ CPU::exception_priority(uint16 excCode, int mode) const
 void
 CPU::exception(uint16 excCode, int mode /* = ANY */, int coprocno /* = -1 */)
 {
+	//just buffer exception signal in this method
+	//handling buffered signals in exe_handle()
+	exc_signal = new ExcInfo();
+	exc_signal->excCode = excCode;
+	exc_signal->mode = mode;
+	exc_signal->coprocno = coprocno;
+	exception_pending = false; //will be removed
+	catch_exception = true;
+}
+
+void CPU::exc_handle(PipelineRegs *preg)
+{
 	int prio;
+	int max_prio;
+	uint16 excCode;
+	int mode;
+	int coprocno;
 	uint32 base, vector, epc;
-	bool delaying = (delay_state == DELAYSLOT);
+
+	if (preg->excBuf.size() == 0) {
+		return;
+	}
+
+
+	/* Prioritize exception -- if the last exception to occur _also_ was
+	 * caused by this EPC, only report this exception if it has a higher
+	 * priority.  Otherwise, exception handling terminates here,
+	 * because only one exception will be reported per instruction
+	 * (as per MIPS RISC Architecture, p. 6-35). Note that this only
+	 * applies IFF the previous exception was caught during the current
+	 * _execution_ of the instruction at this EPC, so we check that
+	 * EXCEPTION_PENDING is true before aborting exception handling.
+	 * (This flag is reset by each call to step().)
+	 */
+	max_prio = -1;
+	if (opt_excpriomsg & (preg->excBuf.size() > 1)) {
+		fprintf(stderr,
+			"(Ignoring additional lower priority exception...)\n");
+	}
+	//get highest priority of excCode
+	for (int i = 0; i < preg->excBuf.size(); i++) {
+		prio = exception_priority((preg->excBuf[i])->excCode, (preg->excBuf[i])->mode);
+		if (prio > max_prio) {
+			//update
+			excCode = (preg->excBuf[i])->excCode;
+			mode = (preg->excBuf[i])->mode;
+			coprocno = (preg->excBuf[i])->coprocno;
+		}
+	}
+
 	if (opt_haltbreak) {
 		if (excCode == Bp) {
 			fprintf(stderr,"* BREAK instruction reached -- HALTING *\n");
@@ -317,36 +362,12 @@ CPU::exception(uint16 excCode, int mode /* = ANY */, int coprocno /* = -1 */)
 	/* step() ensures that next_epc will always contain the correct
 	 * ne whenever exception() is called.
 	 */
-	epc = next_epc;
-
-	/* Prioritize exception -- if the last exception to occur _also_ was
-	 * caused by this EPC, only report this exception if it has a higher
-	 * priority.  Otherwise, exception handling terminates here,
-	 * because only one exception will be reported per instruction
-	 * (as per MIPS RISC Architecture, p. 6-35). Note that this only
-	 * applies IFF the previous exception was caught during the current
-	 * _execution_ of the instruction at this EPC, so we check that
-	 * EXCEPTION_PENDING is true before aborting exception handling.
-	 * (This flag is reset by each call to step().)
-	 */
-	prio = exception_priority(excCode, mode);
-	if (epc == last_epc) {
-		if (prio <= last_prio && exception_pending) {
-			if (opt_excpriomsg) {
-				fprintf(stderr,
-					"(Ignoring additional lower priority exception...)\n");
-			}
-			return;
-		} else {
-			last_prio = prio;
-		}
-	}
-	last_epc = epc;
+	epc = preg->pc;
 
 	/* Set processor to Kernel mode, disable interrupts, and save 
 	 * exception PC.
 	 */
-	cpzero->enter_exception(epc,excCode,coprocno,delaying);
+	cpzero->enter_exception(epc,excCode,coprocno,false);
 
 	/* Calculate the exception handler address; this is of the form BASE +
 	 * VECTOR. The BASE is determined by whether we're using boot-time
@@ -372,13 +393,16 @@ CPU::exception(uint16 excCode, int mode /* = ANY */, int coprocno /* = -1 */)
 		fprintf(stderr,"Exception %d (%s) triggered, EPC=%08x\n", excCode, 
 			strexccode(excCode), epc);
 		fprintf(stderr,
-			" Priority is %d; delay state is %s; mem access mode is %s\n",
-			prio, strdelaystate(delay_state), strmemmode(mode));
+			"Priority is %d; mem access mode is %s\n",
+			prio, strmemmode(mode));
 		if (excCode == Int) {
 		  uint32 status, bad, cause;
 		  cpzero->read_debug_info(&status, &bad, &cause);
 		  fprintf (stderr, " Interrupt cause = %x, status = %x\n", cause, status);
 		}
+		//PC error
+		// fprintf(stderr,
+		// 	"** PC address translation caused the exception! **\n");
 	}
     if (opt_tracing) {
 		if (tracing) {
@@ -386,10 +410,8 @@ CPU::exception(uint16 excCode, int mode /* = ANY */, int coprocno /* = -1 */)
 			current_trace.last_exception_code = excCode;
 		}
 	}
-	pc = base + vector;
-	exception_pending = true;
+	pc = base + vector - 4; //+4 later
 }
-
 
 void
 CPU::open_trace_file ()
@@ -712,31 +734,37 @@ void CPU::fetch()
 	uint32 real_pc;
 	uint32 fetch_instr;
 
+	
+
 	pc += 4;
 	real_pc = cpzero->address_trans(pc,INSTFETCH,&cacheable, this);
-	if (exception_pending) {
-		if (opt_excmsg)
-			fprintf(stderr,
-				"** PC address translation caused the exception! **\n");
-	}
 
-	// Fetch next instruction.
-	if (cacheable) {
-		if (cpzero->caches_swapped()) {
-			fetch_instr = dcache->fetch_word(mem, real_pc,INSTFETCH, this);
-		} else {
-			fetch_instr = icache->fetch_word(mem, real_pc,INSTFETCH, this);
-		}
+	if (catch_exception) {
+		PL_REGS[IF_STAGE] = new PipelineRegs(pc, NOP_INSTR);
+		PL_REGS[IF_STAGE]->excBuf.emplace_back(exc_signal);
+		//reset signal
+		catch_exception = false;
 	} else {
-		fetch_instr = mem->fetch_word(real_pc,INSTFETCH,this);
-	}
-	PL_REGS[IF_STAGE] = new PipelineRegs(pc, fetch_instr);
+		// Fetch next instruction.
+		if (cacheable) {
+			if (cpzero->caches_swapped()) {
+				fetch_instr = dcache->fetch_word(mem, real_pc,INSTFETCH, this);
+			} else {
+				fetch_instr = icache->fetch_word(mem, real_pc,INSTFETCH, this);
+			}
+		} else {
+			fetch_instr = mem->fetch_word(real_pc,INSTFETCH,this);
+		}
 
-	// Disassemble the instruction, if the user requested it.
-	if (opt_instdump) {
-		fprintf(stderr,"PC=0x%08x [%08x]\t%08x ",pc,real_pc,fetch_instr);
-		machine->disasm->disassemble(pc,fetch_instr);
+		PL_REGS[IF_STAGE] = new PipelineRegs(pc, fetch_instr);
+
+		// Disassemble the instruction, if the user requested it.
+		if (opt_instdump) {
+			fprintf(stderr,"PC=0x%08x [%08x]\t%08x ",pc,real_pc,fetch_instr);
+			machine->disasm->disassemble(pc,fetch_instr);
+		}
 	}
+
 }
 
 
@@ -922,6 +950,12 @@ void CPU::execute()
 	if (execTable[opcode(exec_instr)]) {
 		(this->*execTable[opcode(exec_instr)])();
 	}
+	//store exception
+	if (catch_exception) {
+		preg->excBuf.emplace_back(exc_signal);
+		//reset signal
+		catch_exception = false;
+	}
 }
 
 void CPU::mem_access()
@@ -1005,7 +1039,10 @@ void CPU::mem_access()
 		//Load
 		/* Translate virtual address to physical address. */
 		phys = cpzero->address_trans(vaddr, DATALOAD, &cacheable, this);
-		if (exception_pending) { fprintf(stderr, "not imple\n");}
+		if (exception_pending) { 
+			fprintf(stderr, "not imple ld %X\n", vaddr);
+			fprintf(stderr, "PC  0x%X\n", preg->pc);
+		}
 		if (cacheable) {
 			//load from cache
 			switch (mem_opcode) {
@@ -1084,8 +1121,6 @@ void CPU::step()
 	static int call_count = 0;
 	static Disassembler *disasm = new Disassembler(machine->host_bigendian, stderr);
 
-	
-
 	// Decrement Random register every clock cycle.
 	cpzero->adjust_random();
 
@@ -1093,6 +1128,7 @@ void CPU::step()
 	if (machine->state == vmips::HALT) return;
 
 	/* ################ DECODE STAGE ################ */
+	exc_handle(PL_REGS[WB_STAGE]);
 	//fprintf(stderr, "\tWB\n");
 	reg_commit();
 	//fprintf(stderr, "\tMEM\n");

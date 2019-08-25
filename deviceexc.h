@@ -38,6 +38,7 @@ public:
 
 	/* A flag which says whether an exception is ready to be handled. */
 	bool exception_pending;
+	bool catch_exception;
 
 	// Control-flow methods.
 	virtual void step () = 0;

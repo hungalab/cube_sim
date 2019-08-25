@@ -1550,8 +1550,8 @@ void CPU::add_exec()
 	b = (int32)(*(preg->alu_src_b));
 	sum = a + b;
 	if ((a < 0 && b < 0 && !(sum < 0)) || (a >= 0 && b >= 0 && !(sum >= 0))) {
-		preg->excCode = Ov;
-		preg->pending_exception = true;
+		//preg->excCode = Ov;
+		//preg->pending_exception = true;
 	} else {
 		preg->result = (uint32)sum;
 	}
@@ -1577,8 +1577,8 @@ void CPU::sub_exec()
 	b = (int32)(*(preg->alu_src_b));
 	diff = a - b;
 	if ((a < 0 && !(b < 0) && !(diff < 0)) || (!(a < 0) && b < 0 && diff < 0)) {
-		preg->excCode = Ov;
-		preg->pending_exception = true;
+		// preg->excCode = Ov;
+		// preg->pending_exception = true;
 	} else {
 		preg->result = (uint32)diff;
 	}

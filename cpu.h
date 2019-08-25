@@ -67,14 +67,15 @@ struct last_change {
 	}
 };
 
+struct ExcInfo {
+	uint16 excCode;
+	int mode;
+	int coprocno;
+	ExcInfo() :  excCode(-1), mode(ANY), coprocno(-1) {}
+};
+
 class PipelineRegs {
 public:
-	struct ExcInfo {
-		uint16 excCode;
-		int mode;
-		int coprocno;
-		ExcInfo() :  excCode(-1), mode(ANY), coprocno(-1) {}
-	};
 	PipelineRegs(uint32 pc, uint32 instr);
 	uint32 instr, pc;
 	uint32 *alu_src_a, *alu_src_b;
@@ -88,7 +89,6 @@ public:
 	uint32 shamt;
 	uint16 excCode;
 	bool mem_read_op;
-	bool pending_exception;
 	std::vector<ExcInfo*> excBuf;
 };
 
@@ -190,6 +190,8 @@ class CPU : public DeviceExc {
 	int delay_state;
 	uint32 delay_pc;
 
+	ExcInfo *exc_signal;
+
 	// Cached option values that we use in the CPU core.
 	bool opt_fpu;
 	bool opt_excmsg;
@@ -220,7 +222,7 @@ class CPU : public DeviceExc {
 	void execute();
 	void pre_memaccess();
 	void mem_access();
-	void exc_handle();
+	void exc_handle(PipelineRegs* preg);
 	void reg_commit();
 
 	// Miscellaneous shared code. 
