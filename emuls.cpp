@@ -1,12 +1,12 @@
 
 
 /* emulation of instructions */
-void
-CPU::cpzero_emulate(uint32 instr, uint32 pc)
-{
-	cpzero->cpzero_emulate(instr, pc);
-	dcache->cache_isolate(cpzero->caches_isolated());
-}
+// void
+// CPU::cpzero_emulate(uint32 instr, uint32 pc)
+// {
+// 	cpzero->cpzero_emulate(instr, pc);
+// 	dcache->cache_isolate(cpzero->caches_isolated());
+// }
 
 /* Called when the program wants to use coprocessor COPROCNO, and there
  * isn't any implementation for that coprocessor.
@@ -14,298 +14,304 @@ CPU::cpzero_emulate(uint32 instr, uint32 pc)
  * message being printed if the coprocessor is marked usable in the
  * CP0 Status register.
  */
-void
-CPU::cop_unimpl (int coprocno, uint32 instr, uint32 pc)
-{
-	if (cpzero->cop_usable (coprocno)) {
-		/* Since they were expecting this to work, the least we
-		 * can do is print an error message. */
-		fprintf (stderr, "CP%d instruction %x not implemented at pc=0x%x:\n",
-				 coprocno, instr, pc);
-		machine->disasm->disassemble (pc, instr);
-		exception (CpU, ANY, coprocno);
-	} else {
-		/* It's fair game to just throw an exception, if they
-		 * haven't even bothered to twiddle the status bits first. */
-		exception (CpU, ANY, coprocno);
-	}
-}
+// void
+// CPU::cop_unimpl (int coprocno, uint32 instr, uint32 pc)
+// {
+// 	if (cpzero->cop_usable (coprocno)) {
+// 		/* Since they were expecting this to work, the least we
+// 		 * can do is print an error message. */
+// 		fprintf (stderr, "CP%d instruction %x not implemented at pc=0x%x:\n",
+// 				 coprocno, instr, pc);
+// 		machine->disasm->disassemble (pc, instr);
+// 		exception (CpU, ANY, coprocno);
+// 	} else {
+// 		/* It's fair game to just throw an exception, if they
+// 		 * haven't even bothered to twiddle the status bits first. */
+// 		exception (CpU, ANY, coprocno);
+// 	}
+// }
 
-void
-CPU::cpone_emulate(uint32 instr, uint32 pc)
-{
-	if (opt_fpu) {
-		// FIXME: check cpzero->cop_usable
-		fpu->cpone_emulate (instr, pc);
-	} else {
-		/* If it's a cfc1 <reg>, $0 then we copy 0 into reg,
-		 * which is supposed to mean there is NO cp1... 
-		 * for now, though, ANYTHING else asked of cp1 results
-		 * in the default "unimplemented" behavior. */
-		if (cpzero->cop_usable (1) && rs (instr) == 2
-                    && rd (instr) == 0) {
-			reg[rt (instr)] = 0; /* No cp1. */
-		} else {
-			cop_unimpl (1, instr, pc);
-		}
-        }
-}
+// void
+// CPU::cpone_emulate(uint32 instr, uint32 pc)
+// {
+// 	if (opt_fpu) {
+// 		// FIXME: check cpzero->cop_usable
+// 		fpu->cpone_emulate (instr, pc);
+// 	} else {
+// 		 /*If it's a cfc1 <reg>, $0 then we copy 0 into reg,
+// 		 * which is supposed to mean there is NO cp1... 
+// 		 * for now, though, ANYTHING else asked of cp1 results
+// 		 * in the default "unimplemented" behavior. */
+// 		if (cpzero->cop_usable (1) && rs (instr) == 2
+//                     && rd (instr) == 0) {
+// 			reg[rt (instr)] = 0; /* No cp1. */
+// 		} else {
+// 			cop_unimpl (1, instr, pc);
+// 		}
+//         }
+// }
 
-void
-CPU::cptwo_emulate(uint32 instr, uint32 pc)
-{
-	cop_unimpl (2, instr, pc);
-}
+// void
+// CPU::cptwo_emulate(uint32 instr, uint32 pc)
+// {
+// 	cop_unimpl (2, instr, pc);
+// }
 
-void
-CPU::cpthree_emulate(uint32 instr, uint32 pc)
-{
-	cop_unimpl (3, instr, pc);
-}
+// void
+// CPU::cpthree_emulate(uint32 instr, uint32 pc)
+// {
+// 	cop_unimpl (3, instr, pc);
+//}
 
-void
-CPU::control_transfer (uint32 new_pc)
-{
-	if (!new_pc) warning ("Jumping to zero (PC = 0x%x)\n", pc);
-	delay_state = DELAYING;
-    delay_pc = new_pc;
-}
+// void
+// CPU::control_transfer (uint32 new_pc)
+// {
+// 	if (!new_pc) warning ("Jumping to zero (PC = 0x%x)\n", pc);
+// 	delay_state = DELAYING;
+//     delay_pc = new_pc;
+// }
 
-/// calc_jump_target - Calculate the address to jump to as a result of
-/// the J-format (jump) instruction INSTR at address PC.  (PC is the address
-/// of the jump instruction, and INSTR is the jump instruction word.)
-///
-uint32
-CPU::calc_jump_target (uint32 instr, uint32 pc)
-{
-    // Must use address of delay slot (pc + 4) to calculate.
-	return ((pc + 4) & 0xf0000000) | (jumptarg(instr) << 2);
-}
+// /// calc_jump_target - Calculate the address to jump to as a result of
+// /// the J-format (jump) instruction INSTR at address PC.  (PC is the address
+// /// of the jump instruction, and INSTR is the jump instruction word.)
+// ///
+// uint32
+// CPU::calc_jump_target (uint32 instr, uint32 pc)
+// {
+//     // Must use address of delay slot (pc + 4) to calculate.
+// 	return ((pc + 4) & 0xf0000000) | (jumptarg(instr) << 2);
+// }
 
-void
-CPU::jump(uint32 instr, uint32 pc)
-{
-    control_transfer (calc_jump_target (instr, pc));
-}
+// void
+// CPU::jump(uint32 instr, uint32 pc)
+// {
+//     control_transfer (calc_jump_target (instr, pc));
+// }
 
-void
-CPU::j_emulate(uint32 instr, uint32 pc)
-{
-	jump (instr, pc);
-}
+// void
+// CPU::j_emulate(uint32 instr, uint32 pc)
+// {
+// 	jump (instr, pc);
+// }
 
-void
-CPU::jal_emulate(uint32 instr, uint32 pc)
-{
-    jump (instr, pc);
-	// RA gets addr of instr after delay slot (2 words after this one).
-	reg[reg_ra] = pc + 8;
-}
+// void
+// CPU::jal_emulate(uint32 instr, uint32 pc)
+// {
+//     jump (instr, pc);
+// 	// RA gets addr of instr after delay slot (2 words after this one).
+// 	reg[reg_ra] = pc + 8;
+// }
 
-/// calc_branch_target - Calculate the address to jump to for the
-/// PC-relative branch for which the offset is specified by the immediate field
-/// of the branch instruction word INSTR, with the program counter equal to PC.
-/// 
-uint32
-CPU::calc_branch_target(uint32 instr, uint32 pc)
-{
-	return (pc + 4) + (s_immed(instr) << 2);
-}
+// /// calc_branch_target - Calculate the address to jump to for the
+// /// PC-relative branch for which the offset is specified by the immediate field
+// /// of the branch instruction word INSTR, with the program counter equal to PC.
+// /// 
+// uint32
+// CPU::calc_branch_target(uint32 instr, uint32 pc)
+// {
+// 	return (pc + 4) + (s_immed(instr) << 2);
+// }
+
+// void
+// CPU::branch(uint32 instr, uint32 pc)
+// {
+//     control_transfer (calc_branch_target (instr, pc));
+// }
 
 void
 CPU::branch(uint32 instr, uint32 pc)
 {
-    control_transfer (calc_branch_target (instr, pc));
+    fprintf(stderr, "Dont use CPU::branch\n");
 }
 
-void
-CPU::beq_emulate(uint32 instr, uint32 pc)
-{
-	if (reg[rs(instr)] == reg[rt(instr)])
-        branch (instr, pc);
-}
+// void
+// CPU::beq_emulate(uint32 instr, uint32 pc)
+// {
+// 	if (reg[rs(instr)] == reg[rt(instr)])
+//         branch (instr, pc);
+// }
 
-void
-CPU::bne_emulate(uint32 instr, uint32 pc)
-{
-	if (reg[rs(instr)] != reg[rt(instr)])
-        branch (instr, pc);
-}
+// void
+// CPU::bne_emulate(uint32 instr, uint32 pc)
+// {
+// 	if (reg[rs(instr)] != reg[rt(instr)])
+//         branch (instr, pc);
+// }
 
-void
-CPU::blez_emulate(uint32 instr, uint32 pc)
-{
-	if (rt(instr) != 0) {
-		exception(RI);
-		return;
-    }
-	if (reg[rs(instr)] == 0 || (reg[rs(instr)] & 0x80000000))
-		branch(instr, pc);
-}
+// void
+// CPU::blez_emulate(uint32 instr, uint32 pc)
+// {
+// 	if (rt(instr) != 0) {
+// 		exception(RI);
+// 		return;
+//     }
+// 	if (reg[rs(instr)] == 0 || (reg[rs(instr)] & 0x80000000))
+// 		branch(instr, pc);
+// }
 
-void
-CPU::bgtz_emulate(uint32 instr, uint32 pc)
-{
-	if (rt(instr) != 0) {
-		exception(RI);
-		return;
-	}
-	if (reg[rs(instr)] != 0 && (reg[rs(instr)] & 0x80000000) == 0)
-		branch(instr, pc);
-}
+// void
+// CPU::bgtz_emulate(uint32 instr, uint32 pc)
+// {
+// 	if (rt(instr) != 0) {
+// 		exception(RI);
+// 		return;
+// 	}
+// 	if (reg[rs(instr)] != 0 && (reg[rs(instr)] & 0x80000000) == 0)
+// 		branch(instr, pc);
+// }
 
-void
-CPU::addi_emulate(uint32 instr, uint32 pc)
-{
-	int32 a, b, sum;
+// void
+// CPU::addi_emulate(uint32 instr, uint32 pc)
+// {
+// 	int32 a, b, sum;
 
-	a = (int32)reg[rs(instr)];
-	b = s_immed(instr);
-	sum = a + b;
-	if ((a < 0 && b < 0 && !(sum < 0)) || (a >= 0 && b >= 0 && !(sum >= 0))) {
-		exception(Ov);
-		return;
-	} else {
-		reg[rt(instr)] = (uint32)sum;
-	}
-}
+// 	a = (int32)reg[rs(instr)];
+// 	b = s_immed(instr);
+// 	sum = a + b;
+// 	if ((a < 0 && b < 0 && !(sum < 0)) || (a >= 0 && b >= 0 && !(sum >= 0))) {
+// 		exception(Ov);
+// 		return;
+// 	} else {
+// 		reg[rt(instr)] = (uint32)sum;
+// 	}
+// }
 
-void
-CPU::addiu_emulate(uint32 instr, uint32 pc)
-{
-	int32 a, b, sum;
+// void
+// CPU::addiu_emulate(uint32 instr, uint32 pc)
+// {
+// 	int32 a, b, sum;
 
-	a = (int32)reg[rs(instr)];
-	b = s_immed(instr);
-	sum = a + b;
-	reg[rt(instr)] = (uint32)sum;
-}
+// 	a = (int32)reg[rs(instr)];
+// 	b = s_immed(instr);
+// 	sum = a + b;
+// 	reg[rt(instr)] = (uint32)sum;
+// }
 
-void
-CPU::slti_emulate(uint32 instr, uint32 pc)
-{
-	int32 s_rs = reg[rs(instr)];
+// void
+// CPU::slti_emulate(uint32 instr, uint32 pc)
+// {
+// 	int32 s_rs = reg[rs(instr)];
 
-	if (s_rs < s_immed(instr)) {
-		reg[rt(instr)] = 1;
-	} else {
-		reg[rt(instr)] = 0;
-	}
-}
+// 	if (s_rs < s_immed(instr)) {
+// 		reg[rt(instr)] = 1;
+// 	} else {
+// 		reg[rt(instr)] = 0;
+// 	}
+// }
 
-void
-CPU::sltiu_emulate(uint32 instr, uint32 pc)
-{
-	if (reg[rs(instr)] < (uint32)(int32)s_immed(instr)) {
-		reg[rt(instr)] = 1;
-	} else {
-		reg[rt(instr)] = 0;
-	}
-}
+// void
+// CPU::sltiu_emulate(uint32 instr, uint32 pc)
+// {
+// 	if (reg[rs(instr)] < (uint32)(int32)s_immed(instr)) {
+// 		reg[rt(instr)] = 1;
+// 	} else {
+// 		reg[rt(instr)] = 0;
+// 	}
+// }
 
-void
-CPU::andi_emulate(uint32 instr, uint32 pc)
-{
-	reg[rt(instr)] = (reg[rs(instr)] & 0x0ffff) & immed(instr);
-}
+// void
+// CPU::andi_emulate(uint32 instr, uint32 pc)
+// {
+// 	reg[rt(instr)] = (reg[rs(instr)] & 0x0ffff) & immed(instr);
+// }
 
-void
-CPU::ori_emulate(uint32 instr, uint32 pc)
-{
-	reg[rt(instr)] = reg[rs(instr)] | immed(instr);
-}
+// void
+// CPU::ori_emulate(uint32 instr, uint32 pc)
+// {
+// 	reg[rt(instr)] = reg[rs(instr)] | immed(instr);
+// }
 
-void
-CPU::xori_emulate(uint32 instr, uint32 pc)
-{
-	reg[rt(instr)] = reg[rs(instr)] ^ immed(instr);
-}
+// void
+// CPU::xori_emulate(uint32 instr, uint32 pc)
+// {
+// 	reg[rt(instr)] = reg[rs(instr)] ^ immed(instr);
+// }
 
-void
-CPU::lui_emulate(uint32 instr, uint32 pc)
-{
-	reg[rt(instr)] = immed(instr) << 16;
-}
+// void
+// CPU::lui_emulate(uint32 instr, uint32 pc)
+// {
+// 	reg[rt(instr)] = immed(instr) << 16;
+// }
 
-void
-CPU::lb_emulate(uint32 instr, uint32 pc)
-{
-	uint32 phys, virt, base;
-	int8 byte;
-	int32 offset;
-	bool cacheable;
+// void
+// CPU::lb_emulate(uint32 instr, uint32 pc)
+// {
+// 	uint32 phys, virt, base;
+// 	int8 byte;
+// 	int32 offset;
+// 	bool cacheable;
 
-	/* Calculate virtual address. */
-	base = reg[rs(instr)];
-	offset = s_immed(instr);
-	virt = base + offset;
+// 	/* Calculate virtual address. */
+// 	base = reg[rs(instr)];
+// 	offset = s_immed(instr);
+// 	virt = base + offset;
 
-	/* Translate virtual address to physical address. */
-	phys = cpzero->address_trans(virt, DATALOAD, &cacheable, this);
-	if (exception_pending) return;
+// 	/* Translate virtual address to physical address. */
+// 	phys = cpzero->address_trans(virt, DATALOAD, &cacheable, this);
+// 	if (exception_pending) return;
 
-	/* Fetch byte.
-	 * Because it is assigned to a signed variable (int32 byte)
-	 * it will be sign-extended.
-	 */
-	if (cacheable) {
-		if (cpzero->caches_swapped()) {
-			byte = icache->fetch_byte(mem, phys, this);
-		} else {
-			byte = dcache->fetch_byte(mem, phys, this);
-		}
-	} else {
-		byte = mem->fetch_byte(phys, this);
-	}
+// 	/* Fetch byte.
+// 	 * Because it is assigned to a signed variable (int32 byte)
+// 	 * it will be sign-extended.
+// 	 */
+// 	if (cacheable) {
+// 		if (cpzero->caches_swapped()) {
+// 			byte = icache->fetch_byte(mem, phys, this);
+// 		} else {
+// 			byte = dcache->fetch_byte(mem, phys, this);
+// 		}
+// 	} else {
+// 		byte = mem->fetch_byte(phys, this);
+// 	}
 
-	if (exception_pending) return;
+// 	if (exception_pending) return;
 
-	/* Load target register with data. */
-	reg[rt(instr)] = byte;
-}
+// 	/* Load target register with data. */
+// 	reg[rt(instr)] = byte;
+// }
 
-void
-CPU::lh_emulate(uint32 instr, uint32 pc)
-{
-	uint32 phys, virt, base;
-	int16 halfword;
-	int32 offset;
-	bool cacheable;
+// void
+// CPU::lh_emulate(uint32 instr, uint32 pc)
+// {
+// 	uint32 phys, virt, base;
+// 	int16 halfword;
+// 	int32 offset;
+// 	bool cacheable;
 
-	/* Calculate virtual address. */
-	base = reg[rs(instr)];
-	offset = s_immed(instr);
-	virt = base + offset;
+// 	/* Calculate virtual address. */
+// 	base = reg[rs(instr)];
+// 	offset = s_immed(instr);
+// 	virt = base + offset;
 
-	/* This virtual address must be halfword-aligned. */
-	if (virt % 2 != 0) {
-		exception(AdEL,DATALOAD);
-		return;
-	}
+// 	/* This virtual address must be halfword-aligned. */
+// 	if (virt % 2 != 0) {
+// 		exception(AdEL,DATALOAD);
+// 		return;
+// 	}
 
-	/* Translate virtual address to physical address. */
-	phys = cpzero->address_trans(virt, DATALOAD, &cacheable, this);
-	if (exception_pending) return;
+// 	/* Translate virtual address to physical address. */
+// 	phys = cpzero->address_trans(virt, DATALOAD, &cacheable, this);
+// 	if (exception_pending) return;
 
-	/* Fetch halfword.
-	 * Because it is assigned to a signed variable (int32 halfword)
-	 * it will be sign-extended.
-	 */
-	if (cacheable) {
-		if (cpzero->caches_swapped()) {
-			halfword = icache->fetch_halfword(mem, phys, this);
-		} else {
-			halfword = dcache->fetch_halfword(mem, phys, this);
-		}
-	} else {
-		halfword = mem->fetch_halfword(phys, this);
-	}
+// 	/* Fetch halfword.
+// 	 * Because it is assigned to a signed variable (int32 halfword)
+// 	 * it will be sign-extended.
+// 	 */
+// 	if (cacheable) {
+// 		if (cpzero->caches_swapped()) {
+// 			halfword = icache->fetch_halfword(mem, phys, this);
+// 		} else {
+// 			halfword = dcache->fetch_halfword(mem, phys, this);
+// 		}
+// 	} else {
+// 		halfword = mem->fetch_halfword(phys, this);
+// 	}
 
-	if (exception_pending) return;
+// 	if (exception_pending) return;
 
-	/* Load target register with data. */
-	reg[rt(instr)] = halfword;
-}
+// 	/* Load target register with data. */
+// 	reg[rt(instr)] = halfword;
+// }
 
 /* The lwr and lwl algorithms here are taken from SPIM 6.0,
  * since I didn't manage to come up with a better way to write them.
@@ -370,263 +376,263 @@ CPU::lwl(uint32 regval, uint32 memval, uint8 offset)
 	fatal_error("Invalid offset %x passed to lwl\n", offset);
 }
 
-void
-CPU::lwl_emulate(uint32 instr, uint32 pc)
-{
-	uint32 phys, virt, wordvirt, base, memword;
-	uint8 which_byte;
-	int32 offset;
-	bool cacheable;
+// void
+// CPU::lwl_emulate(uint32 instr, uint32 pc)
+// {
+// 	uint32 phys, virt, wordvirt, base, memword;
+// 	uint8 which_byte;
+// 	int32 offset;
+// 	bool cacheable;
 
-	/* Calculate virtual address. */
-	base = reg[rs(instr)];
-	offset = s_immed(instr);
-	virt = base + offset;
-	/* We request the word containing the byte-address requested. */
-	wordvirt = virt & ~0x03UL;
+// 	/* Calculate virtual address. */
+// 	base = reg[rs(instr)];
+// 	offset = s_immed(instr);
+// 	virt = base + offset;
+// 	/* We request the word containing the byte-address requested. */
+// 	wordvirt = virt & ~0x03UL;
 
-	/* Translate virtual address to physical address. */
-	phys = cpzero->address_trans(wordvirt, DATALOAD, &cacheable, this);
-	if (exception_pending) return;
+// 	/* Translate virtual address to physical address. */
+// 	phys = cpzero->address_trans(wordvirt, DATALOAD, &cacheable, this);
+// 	if (exception_pending) return;
 
-	/* Fetch word. */
-	if (cacheable) {
-		if (cpzero->caches_swapped()) {
-			memword = icache->fetch_word(mem, phys, DATALOAD, this);
-		} else {
-			memword = dcache->fetch_word(mem, phys, DATALOAD, this);
-		}
-	} else {
-		memword = mem->fetch_word(phys, DATALOAD, this);
-	}
+// 	/* Fetch word. */
+// 	if (cacheable) {
+// 		if (cpzero->caches_swapped()) {
+// 			memword = icache->fetch_word(mem, phys, DATALOAD, this);
+// 		} else {
+// 			memword = dcache->fetch_word(mem, phys, DATALOAD, this);
+// 		}
+// 	} else {
+// 		memword = mem->fetch_word(phys, DATALOAD, this);
+// 	}
 
-	if (exception_pending) return;
+// 	if (exception_pending) return;
 	
-	/* Insert bytes into the left side of the register. */
-	which_byte = virt & 0x03;
-	reg[rt(instr)] = lwl(reg[rt(instr)], memword, which_byte);
-}
+// 	/* Insert bytes into the left side of the register. */
+// 	which_byte = virt & 0x03;
+// 	reg[rt(instr)] = lwl(reg[rt(instr)], memword, which_byte);
+// }
 
-void
-CPU::lw_emulate(uint32 instr, uint32 pc)
-{
-	uint32 phys, virt, base, word;
-	int32 offset;
-	bool cacheable;
+// void
+// CPU::lw_emulate(uint32 instr, uint32 pc)
+// {
+// 	uint32 phys, virt, base, word;
+// 	int32 offset;
+// 	bool cacheable;
 
-	/* Calculate virtual address. */
-	base = reg[rs(instr)];
-	offset = s_immed(instr);
-	virt = base + offset;
+// 	/* Calculate virtual address. */
+// 	base = reg[rs(instr)];
+// 	offset = s_immed(instr);
+// 	virt = base + offset;
 
-	/* This virtual address must be word-aligned. */
-	if (virt % 4 != 0) {
-		exception(AdEL,DATALOAD);
-		return;
-	}
+// 	/* This virtual address must be word-aligned. */
+// 	if (virt % 4 != 0) {
+// 		exception(AdEL,DATALOAD);
+// 		return;
+// 	}
 
-	/* Translate virtual address to physical address. */
-	phys = cpzero->address_trans(virt, DATALOAD, &cacheable, this);
-	if (exception_pending) return;
+// 	/* Translate virtual address to physical address. */
+// 	phys = cpzero->address_trans(virt, DATALOAD, &cacheable, this);
+// 	if (exception_pending) return;
 
-	/* Fetch word. */
-	if (cacheable) {
-		if (cpzero->caches_swapped()) {
-			word = icache->fetch_word(mem, phys, DATALOAD, this);
-		} else {
-			word = dcache->fetch_word(mem, phys, DATALOAD, this);
-		}
-	} else {
-		word = mem->fetch_word(phys, DATALOAD, this);
-	}
+// 	/* Fetch word. */
+// 	if (cacheable) {
+// 		if (cpzero->caches_swapped()) {
+// 			word = icache->fetch_word(mem, phys, DATALOAD, this);
+// 		} else {
+// 			word = dcache->fetch_word(mem, phys, DATALOAD, this);
+// 		}
+// 	} else {
+// 		word = mem->fetch_word(phys, DATALOAD, this);
+// 	}
 
-	if (exception_pending) return;
+// 	if (exception_pending) return;
 
-	/* Load target register with data. */
-	reg[rt(instr)] = word;
-}
+// 	/* Load target register with data. */
+// 	reg[rt(instr)] = word;
+// }
 
-void
-CPU::lbu_emulate(uint32 instr, uint32 pc)
-{
-	uint32 phys, virt, base, byte;
-	int32 offset;
-	bool cacheable;
+// void
+// CPU::lbu_emulate(uint32 instr, uint32 pc)
+// {
+// 	uint32 phys, virt, base, byte;
+// 	int32 offset;
+// 	bool cacheable;
 
-	/* Calculate virtual address. */
-	base = reg[rs(instr)];
-	offset = s_immed(instr);
-	virt = base + offset;
+// 	/* Calculate virtual address. */
+// 	base = reg[rs(instr)];
+// 	offset = s_immed(instr);
+// 	virt = base + offset;
 
-	/* Translate virtual address to physical address. */
-	phys = cpzero->address_trans(virt, DATALOAD, &cacheable, this);
-	if (exception_pending) return;
+// 	/* Translate virtual address to physical address. */
+// 	phys = cpzero->address_trans(virt, DATALOAD, &cacheable, this);
+// 	if (exception_pending) return;
 
-	/* Fetch byte.  */
-	if (cacheable) {
-		if (cpzero->caches_swapped()) {
-			byte = icache->fetch_byte(mem, phys, this) & 0x000000ff;
-		} else {
-			byte = dcache->fetch_byte(mem, phys, this) & 0x000000ff;
-		}
-	} else {
-		byte = mem->fetch_byte(phys, this) & 0x000000ff;
-	}
+// 	/* Fetch byte.  */
+// 	if (cacheable) {
+// 		if (cpzero->caches_swapped()) {
+// 			byte = icache->fetch_byte(mem, phys, this) & 0x000000ff;
+// 		} else {
+// 			byte = dcache->fetch_byte(mem, phys, this) & 0x000000ff;
+// 		}
+// 	} else {
+// 		byte = mem->fetch_byte(phys, this) & 0x000000ff;
+// 	}
 
-	if (exception_pending) return;
+// 	if (exception_pending) return;
 
-	/* Load target register with data. */
-	reg[rt(instr)] = byte;
-}
+// 	/* Load target register with data. */
+// 	reg[rt(instr)] = byte;
+// }
 
-void
-CPU::lhu_emulate(uint32 instr, uint32 pc)
-{
-	uint32 phys, virt, base, halfword;
-	int32 offset;
-	bool cacheable;
+// void
+// CPU::lhu_emulate(uint32 instr, uint32 pc)
+// {
+// 	uint32 phys, virt, base, halfword;
+// 	int32 offset;
+// 	bool cacheable;
 
-	/* Calculate virtual address. */
-	base = reg[rs(instr)];
-	offset = s_immed(instr);
-	virt = base + offset;
+// 	/* Calculate virtual address. */
+// 	base = reg[rs(instr)];
+// 	offset = s_immed(instr);
+// 	virt = base + offset;
 
-	/* This virtual address must be halfword-aligned. */
-	if (virt % 2 != 0) {
-		exception(AdEL,DATALOAD);
-		return;
-	}
+// 	/* This virtual address must be halfword-aligned. */
+// 	if (virt % 2 != 0) {
+// 		exception(AdEL,DATALOAD);
+// 		return;
+// 	}
 
-	/* Translate virtual address to physical address. */
-	phys = cpzero->address_trans(virt, DATALOAD, &cacheable, this);
-	if (exception_pending) return;
+// 	/* Translate virtual address to physical address. */
+// 	phys = cpzero->address_trans(virt, DATALOAD, &cacheable, this);
+// 	if (exception_pending) return;
 
-	/* Fetch halfword.  */
-	if (cacheable) {
-		if (cpzero->caches_swapped()) {
-			halfword = icache->fetch_halfword(mem, phys, this) & 0x0000ffff;
-		} else {
-			halfword = dcache->fetch_halfword(mem, phys, this) & 0x0000ffff;
-		}
+// 	/* Fetch halfword.  */
+// 	if (cacheable) {
+// 		if (cpzero->caches_swapped()) {
+// 			halfword = icache->fetch_halfword(mem, phys, this) & 0x0000ffff;
+// 		} else {
+// 			halfword = dcache->fetch_halfword(mem, phys, this) & 0x0000ffff;
+// 		}
 		
-	} else {
-		halfword = mem->fetch_halfword(phys, this) & 0x0000ffff;
-	}
+// 	} else {
+// 		halfword = mem->fetch_halfword(phys, this) & 0x0000ffff;
+// 	}
 
-	if (exception_pending) return;
+// 	if (exception_pending) return;
 
-	/* Load target register with data. */
-	reg[rt(instr)] = halfword;
-}
+// 	/* Load target register with data. */
+// 	reg[rt(instr)] = halfword;
+// }
 
-void
-CPU::lwr_emulate(uint32 instr, uint32 pc)
-{
-	uint32 phys, virt, wordvirt, base, memword;
-	uint8 which_byte;
-	int32 offset;
-	bool cacheable;
+// void
+// CPU::lwr_emulate(uint32 instr, uint32 pc)
+// {
+// 	uint32 phys, virt, wordvirt, base, memword;
+// 	uint8 which_byte;
+// 	int32 offset;
+// 	bool cacheable;
 
-	/* Calculate virtual address. */
-	base = reg[rs(instr)];
-	offset = s_immed(instr);
-	virt = base + offset;
-	/* We request the word containing the byte-address requested. */
-	wordvirt = virt & ~0x03UL;
+// 	/* Calculate virtual address. */
+// 	base = reg[rs(instr)];
+// 	offset = s_immed(instr);
+// 	virt = base + offset;
+// 	/* We request the word containing the byte-address requested. */
+// 	wordvirt = virt & ~0x03UL;
 
-	/* Translate virtual address to physical address. */
-	phys = cpzero->address_trans(wordvirt, DATALOAD, &cacheable, this);
-	if (exception_pending) return;
+// 	/* Translate virtual address to physical address. */
+// 	phys = cpzero->address_trans(wordvirt, DATALOAD, &cacheable, this);
+// 	if (exception_pending) return;
 
-	/* Fetch word. */
-	if (cacheable) {
-		if (cpzero->caches_swapped()) {
-			memword = icache->fetch_word(mem, phys, DATALOAD, this);
-		} else {
-			memword = dcache->fetch_word(mem, phys, DATALOAD, this);
-		}
-	} else {
-		memword = mem->fetch_word(phys, DATALOAD, this);
-	}
+// 	/* Fetch word. */
+// 	if (cacheable) {
+// 		if (cpzero->caches_swapped()) {
+// 			memword = icache->fetch_word(mem, phys, DATALOAD, this);
+// 		} else {
+// 			memword = dcache->fetch_word(mem, phys, DATALOAD, this);
+// 		}
+// 	} else {
+// 		memword = mem->fetch_word(phys, DATALOAD, this);
+// 	}
 
-	if (exception_pending) return;
+// 	if (exception_pending) return;
 	
-	/* Insert bytes into the left side of the register. */
-	which_byte = virt & 0x03;
-	reg[rt(instr)] = lwr(reg[rt(instr)], memword, which_byte);
-}
+// 	/* Insert bytes into the left side of the register. */
+// 	which_byte = virt & 0x03;
+// 	reg[rt(instr)] = lwr(reg[rt(instr)], memword, which_byte);
+// }
 
-void
-CPU::sb_emulate(uint32 instr, uint32 pc)
-{
-	uint32 phys, virt, base;
-	uint8 data;
-	int32 offset;
-	bool cacheable;
+// void
+// CPU::sb_emulate(uint32 instr, uint32 pc)
+// {
+// 	uint32 phys, virt, base;
+// 	uint8 data;
+// 	int32 offset;
+// 	bool cacheable;
 
-	/* Load data from register. */
-	data = reg[rt(instr)] & 0x0ff;
+// 	/* Load data from register. */
+// 	data = reg[rt(instr)] & 0x0ff;
 
-	/* Calculate virtual address. */
-	base = reg[rs(instr)];
-	offset = s_immed(instr);
-	virt = base + offset;
+// 	/* Calculate virtual address. */
+// 	base = reg[rs(instr)];
+// 	offset = s_immed(instr);
+// 	virt = base + offset;
 
-	/* Translate virtual address to physical address. */
-	phys = cpzero->address_trans(virt, DATASTORE, &cacheable, this);
-	if (exception_pending) return;
+// 	/* Translate virtual address to physical address. */
+// 	phys = cpzero->address_trans(virt, DATASTORE, &cacheable, this);
+// 	if (exception_pending) return;
 
-	/* Store byte. */
-	if (cacheable) {
-		if (cpzero->caches_swapped()) {
-			icache->store_byte(mem, phys, data, this);
-		} else {
-			dcache->store_byte(mem, phys, data, this);
-		}
-	} else {
-		mem->store_byte(phys, data, this);
-	}
+// 	/* Store byte. */
+// 	if (cacheable) {
+// 		if (cpzero->caches_swapped()) {
+// 			icache->store_byte(mem, phys, data, this);
+// 		} else {
+// 			dcache->store_byte(mem, phys, data, this);
+// 		}
+// 	} else {
+// 		mem->store_byte(phys, data, this);
+// 	}
 
-}
+// }
 
-void
-CPU::sh_emulate(uint32 instr, uint32 pc)
-{
-	uint32 phys, virt, base;
-	uint16 data;
-	int32 offset;
-	bool cacheable;
+// void
+// CPU::sh_emulate(uint32 instr, uint32 pc)
+// {
+// 	uint32 phys, virt, base;
+// 	uint16 data;
+// 	int32 offset;
+// 	bool cacheable;
 
-	/* Load data from register. */
-	data = reg[rt(instr)] & 0x0ffff;
+// 	/* Load data from register. */
+// 	data = reg[rt(instr)] & 0x0ffff;
 
-	/* Calculate virtual address. */
-	base = reg[rs(instr)];
-	offset = s_immed(instr);
-	virt = base + offset;
+// 	/* Calculate virtual address. */
+// 	base = reg[rs(instr)];
+// 	offset = s_immed(instr);
+// 	virt = base + offset;
 
-	/* This virtual address must be halfword-aligned. */
-	if (virt % 2 != 0) {
-		exception(AdES,DATASTORE);
-		return;
-	}
+// 	/* This virtual address must be halfword-aligned. */
+// 	if (virt % 2 != 0) {
+// 		exception(AdES,DATASTORE);
+// 		return;
+// 	}
 
-	/* Translate virtual address to physical address. */
-	phys = cpzero->address_trans(virt, DATASTORE, &cacheable, this);
-	if (exception_pending) return;
+// 	/* Translate virtual address to physical address. */
+// 	phys = cpzero->address_trans(virt, DATASTORE, &cacheable, this);
+// 	if (exception_pending) return;
 
-	/* Store halfword. */
-	if (cacheable) {
-		if (cpzero->caches_swapped()) {
-			icache->store_halfword(mem, phys, data, this);
-		} else {
-			dcache->store_halfword(mem, phys, data, this);
-		}
-	} else {
-		mem->store_halfword(phys, data, this);
-	}
+// 	/* Store halfword. */
+// 	if (cacheable) {
+// 		if (cpzero->caches_swapped()) {
+// 			icache->store_halfword(mem, phys, data, this);
+// 		} else {
+// 			dcache->store_halfword(mem, phys, data, this);
+// 		}
+// 	} else {
+// 		mem->store_halfword(phys, data, this);
+// 	}
 
-}
+// }
 
 uint32
 CPU::swl(uint32 regval, uint32 memval, uint8 offset)
@@ -670,256 +676,256 @@ CPU::swr(uint32 regval, uint32 memval, uint8 offset)
 	fatal_error("Invalid offset %x passed to swr\n", offset);
 }
 
-void
-CPU::swl_emulate(uint32 instr, uint32 pc)
-{
-	uint32 phys, virt, wordvirt, base, regdata, memdata;
-	int32 offset;
-	uint8 which_byte;
-	bool cacheable;
+// void
+// CPU::swl_emulate(uint32 instr, uint32 pc)
+// {
+// 	uint32 phys, virt, wordvirt, base, regdata, memdata;
+// 	int32 offset;
+// 	uint8 which_byte;
+// 	bool cacheable;
 
-	/* Load data from register. */
-	regdata = reg[rt(instr)];
+// 	/* Load data from register. */
+// 	regdata = reg[rt(instr)];
 
-	/* Calculate virtual address. */
-	base = reg[rs(instr)];
-	offset = s_immed(instr);
-	virt = base + offset;
-	/* We request the word containing the byte-address requested. */
-	wordvirt = virt & ~0x03UL;
+// 	/* Calculate virtual address. */
+// 	base = reg[rs(instr)];
+// 	offset = s_immed(instr);
+// 	virt = base + offset;
+// 	/* We request the word containing the byte-address requested. */
+// 	wordvirt = virt & ~0x03UL;
 
-	/* Translate virtual address to physical address. */
-	phys = cpzero->address_trans(wordvirt, DATASTORE, &cacheable, this);
-	if (exception_pending) return;
+// 	/* Translate virtual address to physical address. */
+// 	phys = cpzero->address_trans(wordvirt, DATASTORE, &cacheable, this);
+// 	if (exception_pending) return;
 
-	/* Read data from memory. */
-	if (cacheable) {
-		if (cpzero->caches_swapped()) {
-			memdata = icache->fetch_word(mem, phys, DATASTORE, this);
-		} else {
-			memdata = dcache->fetch_word(mem, phys, DATASTORE, this);
-		}
-	} else {
-		memdata = mem->fetch_word(phys, DATASTORE, this);
-	}
+// 	/* Read data from memory. */
+// 	if (cacheable) {
+// 		if (cpzero->caches_swapped()) {
+// 			memdata = icache->fetch_word(mem, phys, DATASTORE, this);
+// 		} else {
+// 			memdata = dcache->fetch_word(mem, phys, DATASTORE, this);
+// 		}
+// 	} else {
+// 		memdata = mem->fetch_word(phys, DATASTORE, this);
+// 	}
 
-	if (exception_pending) return;
+// 	if (exception_pending) return;
 
-	/* Write back the left side of the register. */
-	which_byte = virt & 0x03UL;
-	if (cacheable) {
-		if (cpzero->caches_swapped()) {
-			icache->store_word(mem, phys, swl(regdata, memdata, which_byte), this);
-		} else {
-			dcache->store_word(mem, phys, swl(regdata, memdata, which_byte), this);
-		}
-	} else {
-		mem->store_word(phys, swl(regdata, memdata, which_byte), this);
-	}
+// 	/* Write back the left side of the register. */
+// 	which_byte = virt & 0x03UL;
+// 	if (cacheable) {
+// 		if (cpzero->caches_swapped()) {
+// 			icache->store_word(mem, phys, swl(regdata, memdata, which_byte), this);
+// 		} else {
+// 			dcache->store_word(mem, phys, swl(regdata, memdata, which_byte), this);
+// 		}
+// 	} else {
+// 		mem->store_word(phys, swl(regdata, memdata, which_byte), this);
+// 	}
 
-}
+// }
 
-void
-CPU::sw_emulate(uint32 instr, uint32 pc)
-{
-	uint32 phys, virt, base, data;
-	int32 offset;
-	bool cacheable;
+// void
+// CPU::sw_emulate(uint32 instr, uint32 pc)
+// {
+// 	uint32 phys, virt, base, data;
+// 	int32 offset;
+// 	bool cacheable;
 
-	/* Load data from register. */
-	data = reg[rt(instr)];
+// 	/* Load data from register. */
+// 	data = reg[rt(instr)];
 
-	/* Calculate virtual address. */
-	base = reg[rs(instr)];
-	offset = s_immed(instr);
-	virt = base + offset;
+// 	/* Calculate virtual address. */
+// 	base = reg[rs(instr)];
+// 	offset = s_immed(instr);
+// 	virt = base + offset;
 
-	/* This virtual address must be word-aligned. */
-	if (virt % 4 != 0) {
-		exception(AdES,DATASTORE);
-		return;
-	}
+// 	/* This virtual address must be word-aligned. */
+// 	if (virt % 4 != 0) {
+// 		exception(AdES,DATASTORE);
+// 		return;
+// 	}
 
-	/* Translate virtual address to physical address. */
-	phys = cpzero->address_trans(virt, DATASTORE, &cacheable, this);
-	if (exception_pending) return;
+// 	/* Translate virtual address to physical address. */
+// 	phys = cpzero->address_trans(virt, DATASTORE, &cacheable, this);
+// 	if (exception_pending) return;
 
-	/* Store word. */
-	if (cacheable) {
-		if (cpzero->caches_swapped()) {
-			icache->store_word(mem, phys, data, this);
-		} else {
-			dcache->store_word(mem, phys, data, this);
-		}
-	} else {
-		mem->store_word(phys, data, this);
-	}
+// 	/* Store word. */
+// 	if (cacheable) {
+// 		if (cpzero->caches_swapped()) {
+// 			icache->store_word(mem, phys, data, this);
+// 		} else {
+// 			dcache->store_word(mem, phys, data, this);
+// 		}
+// 	} else {
+// 		mem->store_word(phys, data, this);
+// 	}
 
-}
+// }
 
-void
-CPU::swr_emulate(uint32 instr, uint32 pc)
-{
-	uint32 phys, virt, wordvirt, base, regdata, memdata;
-	int32 offset;
-	uint8 which_byte;
-	bool cacheable;
+// void
+// CPU::swr_emulate(uint32 instr, uint32 pc)
+// {
+// 	uint32 phys, virt, wordvirt, base, regdata, memdata;
+// 	int32 offset;
+// 	uint8 which_byte;
+// 	bool cacheable;
 
-	/* Load data from register. */
-	regdata = reg[rt(instr)];
+// 	/* Load data from register. */
+// 	regdata = reg[rt(instr)];
 
-	/* Calculate virtual address. */
-	base = reg[rs(instr)];
-	offset = s_immed(instr);
-	virt = base + offset;
-	/* We request the word containing the byte-address requested. */
-	wordvirt = virt & ~0x03UL;
+// 	/* Calculate virtual address. */
+// 	base = reg[rs(instr)];
+// 	offset = s_immed(instr);
+// 	virt = base + offset;
+// 	/* We request the word containing the byte-address requested. */
+// 	wordvirt = virt & ~0x03UL;
 
-	/* Translate virtual address to physical address. */
-	phys = cpzero->address_trans(wordvirt, DATASTORE, &cacheable, this);
-	if (exception_pending) return;
+// 	/* Translate virtual address to physical address. */
+// 	phys = cpzero->address_trans(wordvirt, DATASTORE, &cacheable, this);
+// 	if (exception_pending) return;
 
-	/* Read data from memory. */
-	if (cacheable) {
-		if (cpzero->caches_swapped()) {
-			memdata = icache->fetch_word(mem, phys, DATASTORE, this);
-		} else {
-			memdata = dcache->fetch_word(mem, phys, DATASTORE, this);
-		}
-	} else {
-		memdata = mem->fetch_word(phys, DATASTORE, this);
-	}
+// 	/* Read data from memory. */
+// 	if (cacheable) {
+// 		if (cpzero->caches_swapped()) {
+// 			memdata = icache->fetch_word(mem, phys, DATASTORE, this);
+// 		} else {
+// 			memdata = dcache->fetch_word(mem, phys, DATASTORE, this);
+// 		}
+// 	} else {
+// 		memdata = mem->fetch_word(phys, DATASTORE, this);
+// 	}
 
-	if (exception_pending) return;
+// 	if (exception_pending) return;
 
-	/* Write back the right side of the register. */
-	which_byte = virt & 0x03UL;
-	if (cacheable) {
-		if (cpzero->caches_swapped()) {
-			icache->store_word(mem, phys, swr(regdata, memdata, which_byte), this);
-		} else {
-			dcache->store_word(mem, phys, swr(regdata, memdata, which_byte), this);
-		}
-	} else {
-		mem->store_word(phys, swr(regdata, memdata, which_byte), this);
-	}
+// 	/* Write back the right side of the register. */
+// 	which_byte = virt & 0x03UL;
+// 	if (cacheable) {
+// 		if (cpzero->caches_swapped()) {
+// 			icache->store_word(mem, phys, swr(regdata, memdata, which_byte), this);
+// 		} else {
+// 			dcache->store_word(mem, phys, swr(regdata, memdata, which_byte), this);
+// 		}
+// 	} else {
+// 		mem->store_word(phys, swr(regdata, memdata, which_byte), this);
+// 	}
 
-}
+// }
 
-void
-CPU::lwc1_emulate(uint32 instr, uint32 pc)
-{
-	if (opt_fpu) {
-		uint32 phys, virt, base, word;
-		int32 offset;
-		bool cacheable;
+// void
+// CPU::lwc1_emulate(uint32 instr, uint32 pc)
+// {
+// 	if (opt_fpu) {
+// 		uint32 phys, virt, base, word;
+// 		int32 offset;
+// 		bool cacheable;
 
-		/* Calculate virtual address. */
-		base = reg[rs(instr)];
-		offset = s_immed(instr);
-		virt = base + offset;
+// 		/* Calculate virtual address. */
+// 		base = reg[rs(instr)];
+// 		offset = s_immed(instr);
+// 		virt = base + offset;
 
-		/* This virtual address must be word-aligned. */
-		if (virt % 4 != 0) {
-			exception(AdEL,DATALOAD);
-			return;
-		}
+// 		/* This virtual address must be word-aligned. */
+// 		if (virt % 4 != 0) {
+// 			exception(AdEL,DATALOAD);
+// 			return;
+// 		}
 
-		/* Translate virtual address to physical address. */
-		phys = cpzero->address_trans(virt, DATALOAD, &cacheable, this);
-		if (exception_pending) return;
+// 		/* Translate virtual address to physical address. */
+// 		phys = cpzero->address_trans(virt, DATALOAD, &cacheable, this);
+// 		if (exception_pending) return;
 
-		/* Fetch word. */
-		if (cacheable) {
-			if (cpzero->caches_swapped()) {
-				word = icache->fetch_word(mem, phys, DATALOAD, this);
-			} else {
-				word = dcache->fetch_word(mem, phys, DATALOAD, this);
-			}
-		} else {
-			word = mem->fetch_word(phys, DATALOAD, this);
-		}
+// 		/* Fetch word. */
+// 		if (cacheable) {
+// 			if (cpzero->caches_swapped()) {
+// 				word = icache->fetch_word(mem, phys, DATALOAD, this);
+// 			} else {
+// 				word = dcache->fetch_word(mem, phys, DATALOAD, this);
+// 			}
+// 		} else {
+// 			word = mem->fetch_word(phys, DATALOAD, this);
+// 		}
 
-		if (exception_pending) return;
+// 		if (exception_pending) return;
 
-		/* Load target register with data. */
-		fpu->write_reg (rt (instr), word);
-	} else {
-		cop_unimpl (1, instr, pc);
-	}
-}
+// 		/* Load target register with data. */
+// 		fpu->write_reg (rt (instr), word);
+// 	} else {
+// 		cop_unimpl (1, instr, pc);
+// 	}
+// }
 
-void
-CPU::lwc2_emulate(uint32 instr, uint32 pc)
-{
-	cop_unimpl (2, instr, pc);
-}
+// void
+// CPU::lwc2_emulate(uint32 instr, uint32 pc)
+// {
+// 	cop_unimpl (2, instr, pc);
+// }
 
-void
-CPU::lwc3_emulate(uint32 instr, uint32 pc)
-{
-	cop_unimpl (3, instr, pc);
-}
+// void
+// CPU::lwc3_emulate(uint32 instr, uint32 pc)
+// {
+// 	cop_unimpl (3, instr, pc);
+// }
 
-void
-CPU::swc1_emulate(uint32 instr, uint32 pc)
-{
-	if (opt_fpu) {
-		uint32 phys, virt, base, data;
-		int32 offset;
-		bool cacheable;
+// void
+// CPU::swc1_emulate(uint32 instr, uint32 pc)
+// {
+// 	if (opt_fpu) {
+// 		uint32 phys, virt, base, data;
+// 		int32 offset;
+// 		bool cacheable;
 
-		/* Load data from register. */
-		data = fpu->read_reg (rt (instr));
+// 		/* Load data from register. */
+// 		data = fpu->read_reg (rt (instr));
 
-		/* Calculate virtual address. */
-		base = reg[rs(instr)];
-		offset = s_immed(instr);
-		virt = base + offset;
+// 		/* Calculate virtual address. */
+// 		base = reg[rs(instr)];
+// 		offset = s_immed(instr);
+// 		virt = base + offset;
 
-		/* This virtual address must be word-aligned. */
-		if (virt % 4 != 0) {
-			exception(AdES,DATASTORE);
-			return;
-		}
+// 		/* This virtual address must be word-aligned. */
+// 		if (virt % 4 != 0) {
+// 			exception(AdES,DATASTORE);
+// 			return;
+// 		}
 
-		/* Translate virtual address to physical address. */
-		phys = cpzero->address_trans(virt, DATASTORE, &cacheable, this);
-		if (exception_pending) return;
+// 		/* Translate virtual address to physical address. */
+// 		phys = cpzero->address_trans(virt, DATASTORE, &cacheable, this);
+// 		if (exception_pending) return;
 
-		/* Store word. */
-		if (cacheable) {
-			if (cpzero->caches_swapped()) {
-				icache->store_word(mem, phys, data, this);
-			} else {
-				dcache->store_word(mem, phys, data, this);
-			}
-		} else {
-			mem->store_word(phys, data, this);
-		}
+// 		/* Store word. */
+// 		if (cacheable) {
+// 			if (cpzero->caches_swapped()) {
+// 				icache->store_word(mem, phys, data, this);
+// 			} else {
+// 				dcache->store_word(mem, phys, data, this);
+// 			}
+// 		} else {
+// 			mem->store_word(phys, data, this);
+// 		}
 
-	} else {
-		cop_unimpl (1, instr, pc);
-	}
-}
+// 	} else {
+// 		cop_unimpl (1, instr, pc);
+// 	}
+// }
 
-void
-CPU::swc2_emulate(uint32 instr, uint32 pc)
-{
-	cop_unimpl (2, instr, pc);
-}
+// void
+// CPU::swc2_emulate(uint32 instr, uint32 pc)
+// {
+// 	cop_unimpl (2, instr, pc);
+// }
 
-void
-CPU::swc3_emulate(uint32 instr, uint32 pc)
-{
-	cop_unimpl (3, instr, pc);
-}
+// void
+// CPU::swc3_emulate(uint32 instr, uint32 pc)
+// {
+// 	cop_unimpl (3, instr, pc);
+// }
 
-void
-CPU::sll_emulate(uint32 instr, uint32 pc)
-{
-	reg[rd(instr)] = reg[rt(instr)] << shamt(instr);
-}
+// void
+// CPU::sll_emulate(uint32 instr, uint32 pc)
+// {
+// 	reg[rd(instr)] = reg[rt(instr)] << shamt(instr);
+// }
 
 int32
 srl(int32 a, int32 b)
@@ -943,107 +949,107 @@ sra(int32 a, int32 b)
 	}
 }
 
-void
-CPU::srl_emulate(uint32 instr, uint32 pc)
-{
-	reg[rd(instr)] = srl(reg[rt(instr)], shamt(instr));
-}
+// void
+// CPU::srl_emulate(uint32 instr, uint32 pc)
+// {
+// 	reg[rd(instr)] = srl(reg[rt(instr)], shamt(instr));
+// }
 
-void
-CPU::sra_emulate(uint32 instr, uint32 pc)
-{
-	reg[rd(instr)] = sra(reg[rt(instr)], shamt(instr));
-}
+// void
+// CPU::sra_emulate(uint32 instr, uint32 pc)
+// {
+// 	reg[rd(instr)] = sra(reg[rt(instr)], shamt(instr));
+// }
 
-void
-CPU::sllv_emulate(uint32 instr, uint32 pc)
-{
-	reg[rd(instr)] = reg[rt(instr)] << (reg[rs(instr)] & 0x01f);
-}
+// void
+// CPU::sllv_emulate(uint32 instr, uint32 pc)
+// {
+// 	reg[rd(instr)] = reg[rt(instr)] << (reg[rs(instr)] & 0x01f);
+// }
 
-void
-CPU::srlv_emulate(uint32 instr, uint32 pc)
-{
-	reg[rd(instr)] = srl(reg[rt(instr)], reg[rs(instr)] & 0x01f);
-}
+// void
+// CPU::srlv_emulate(uint32 instr, uint32 pc)
+// {
+// 	reg[rd(instr)] = srl(reg[rt(instr)], reg[rs(instr)] & 0x01f);
+// }
 
-void
-CPU::srav_emulate(uint32 instr, uint32 pc)
-{
-	reg[rd(instr)] = sra(reg[rt(instr)], reg[rs(instr)] & 0x01f);
-}
+// void
+// CPU::srav_emulate(uint32 instr, uint32 pc)
+// {
+// 	reg[rd(instr)] = sra(reg[rt(instr)], reg[rs(instr)] & 0x01f);
+// }
 
-void
-CPU::jr_emulate(uint32 instr, uint32 pc)
-{
-	if (reg[rd(instr)] != 0) {
-		exception(RI);
-		return;
-	}
-	control_transfer (reg[rs(instr)]);
-}
+// void
+// CPU::jr_emulate(uint32 instr, uint32 pc)
+// {
+// 	if (reg[rd(instr)] != 0) {
+// 		exception(RI);
+// 		return;
+// 	}
+// 	control_transfer (reg[rs(instr)]);
+// }
 
-void
-CPU::jalr_emulate(uint32 instr, uint32 pc)
-{
-	control_transfer (reg[rs(instr)]);
-	/* RA gets addr of instr after delay slot (2 words after this one). */
-	reg[rd(instr)] = pc + 8;
-}
+// void
+// CPU::jalr_emulate(uint32 instr, uint32 pc)
+// {
+// 	control_transfer (reg[rs(instr)]);
+// 	 RA gets addr of instr after delay slot (2 words after this one). 
+// 	reg[rd(instr)] = pc + 8;
+// }
 
-void
-CPU::syscall_emulate(uint32 instr, uint32 pc)
-{
-	exception(Sys);
-}
+// void
+// CPU::syscall_emulate(uint32 instr, uint32 pc)
+// {
+// 	exception(Sys);
+// }
 
-void
-CPU::break_emulate(uint32 instr, uint32 pc)
-{
-	exception(Bp);
-}
+// void
+// CPU::break_emulate(uint32 instr, uint32 pc)
+// {
+// 	exception(Bp);
+// }
 
-void
-CPU::mfhi_emulate(uint32 instr, uint32 pc)
-{
-	reg[rd(instr)] = hi;
-}
+// void
+// CPU::mfhi_emulate(uint32 instr, uint32 pc)
+// {
+// 	reg[rd(instr)] = hi;
+// }
 
-void
-CPU::mthi_emulate(uint32 instr, uint32 pc)
-{
-	if (rd(instr) != 0) {
-		exception(RI);
-		return;
-	}
-	hi = reg[rs(instr)];
-}
+// void
+// CPU::mthi_emulate(uint32 instr, uint32 pc)
+// {
+// 	if (rd(instr) != 0) {
+// 		exception(RI);
+// 		return;
+// 	}
+// 	hi = reg[rs(instr)];
+// }
 
-void
-CPU::mflo_emulate(uint32 instr, uint32 pc)
-{
-	reg[rd(instr)] = lo;
-}
+// void
+// CPU::mflo_emulate(uint32 instr, uint32 pc)
+// {
+// 	reg[rd(instr)] = lo;
+// }
 
-void
-CPU::mtlo_emulate(uint32 instr, uint32 pc)
-{
-	if (rd(instr) != 0) {
-		exception(RI);
-		return;
-	}
-	lo = reg[rs(instr)];
-}
+// void
+// CPU::mtlo_emulate(uint32 instr, uint32 pc)
+// {
+// 	if (rd(instr) != 0) {
+// 		exception(RI);
+// 		return;
+// 	}
+// 	lo = reg[rs(instr)];
+// }
 
-void
-CPU::mult_emulate(uint32 instr, uint32 pc)
-{
-	if (rd(instr) != 0) {
-		exception(RI);
-		return;
-	}
-	mult64s(&hi, &lo, reg[rs(instr)], reg[rt(instr)]);
-}
+// void
+// CPU::mult_emulate(uint32 instr, uint32 pc)
+// {
+// 	if (rd(instr) != 0) {
+// 		exception(RI);
+// 		return;
+// 	}
+// 	mult64s(&hi, &lo, reg[rs(instr)], reg[rt(instr)]);
+// }
 
 void
 CPU::mult64(uint32 *hi, uint32 *lo, uint32 n, uint32 m)
@@ -1121,167 +1127,167 @@ CPU::mult64s(uint32 *hi, uint32 *lo, int32 n, int32 m)
 #endif /* HAVE_LONG_LONG */
 }
 
-void
-CPU::multu_emulate(uint32 instr, uint32 pc)
-{
-	if (rd(instr) != 0) {
-		exception(RI);
-		return;
-	}
-	mult64(&hi, &lo, reg[rs(instr)], reg[rt(instr)]);
-}
+// void
+// CPU::multu_emulate(uint32 instr, uint32 pc)
+// {
+// 	if (rd(instr) != 0) {
+// 		exception(RI);
+// 		return;
+// 	}
+// 	mult64(&hi, &lo, reg[rs(instr)], reg[rt(instr)]);
+// }
 
-void
-CPU::div_emulate(uint32 instr, uint32 pc)
-{
-	int32 signed_rs = (int32)reg[rs(instr)];
-	int32 signed_rt = (int32)reg[rt(instr)];
-	lo = signed_rs / signed_rt;
-	hi = signed_rs % signed_rt;
-}
+// void
+// CPU::div_emulate(uint32 instr, uint32 pc)
+// {
+// 	int32 signed_rs = (int32)reg[rs(instr)];
+// 	int32 signed_rt = (int32)reg[rt(instr)];
+// 	lo = signed_rs / signed_rt;
+// 	hi = signed_rs % signed_rt;
+// }
 
-void
-CPU::divu_emulate(uint32 instr, uint32 pc)
-{
-	lo = reg[rs(instr)] / reg[rt(instr)];
-	hi = reg[rs(instr)] % reg[rt(instr)];
-}
+// void
+// CPU::divu_emulate(uint32 instr, uint32 pc)
+// {
+// 	lo = reg[rs(instr)] / reg[rt(instr)];
+// 	hi = reg[rs(instr)] % reg[rt(instr)];
+// }
 
-void
-CPU::add_emulate(uint32 instr, uint32 pc)
-{
-	int32 a, b, sum;
-	a = (int32)reg[rs(instr)];
-	b = (int32)reg[rt(instr)];
-	sum = a + b;
-	if ((a < 0 && b < 0 && !(sum < 0)) || (a >= 0 && b >= 0 && !(sum >= 0))) {
-		exception(Ov);
-		return;
-	} else {
-		reg[rd(instr)] = (uint32)sum;
-	}
-}
+// void
+// CPU::add_emulate(uint32 instr, uint32 pc)
+// {
+// 	int32 a, b, sum;
+// 	a = (int32)reg[rs(instr)];
+// 	b = (int32)reg[rt(instr)];
+// 	sum = a + b;
+// 	if ((a < 0 && b < 0 && !(sum < 0)) || (a >= 0 && b >= 0 && !(sum >= 0))) {
+// 		exception(Ov);
+// 		return;
+// 	} else {
+// 		reg[rd(instr)] = (uint32)sum;
+// 	}
+// }
 
-void
-CPU::addu_emulate(uint32 instr, uint32 pc)
-{
-	int32 a, b, sum;
-	a = (int32)reg[rs(instr)];
-	b = (int32)reg[rt(instr)];
-	sum = a + b;
-	reg[rd(instr)] = (uint32)sum;
-}
+// void
+// CPU::addu_emulate(uint32 instr, uint32 pc)
+// {
+// 	int32 a, b, sum;
+// 	a = (int32)reg[rs(instr)];
+// 	b = (int32)reg[rt(instr)];
+// 	sum = a + b;
+// 	reg[rd(instr)] = (uint32)sum;
+// }
 
-void
-CPU::sub_emulate(uint32 instr, uint32 pc)
-{
-	int32 a, b, diff;
-	a = (int32)reg[rs(instr)];
-	b = (int32)reg[rt(instr)];
-	diff = a - b;
-	if ((a < 0 && !(b < 0) && !(diff < 0)) || (!(a < 0) && b < 0 && diff < 0)) {
-		exception(Ov);
-		return;
-	} else {
-		reg[rd(instr)] = (uint32)diff;
-	}
-}
+// void
+// CPU::sub_emulate(uint32 instr, uint32 pc)
+// {
+// 	int32 a, b, diff;
+// 	a = (int32)reg[rs(instr)];
+// 	b = (int32)reg[rt(instr)];
+// 	diff = a - b;
+// 	if ((a < 0 && !(b < 0) && !(diff < 0)) || (!(a < 0) && b < 0 && diff < 0)) {
+// 		exception(Ov);
+// 		return;
+// 	} else {
+// 		reg[rd(instr)] = (uint32)diff;
+// 	}
+// }
 
-void
-CPU::subu_emulate(uint32 instr, uint32 pc)
-{
-	int32 a, b, diff;
-	a = (int32)reg[rs(instr)];
-	b = (int32)reg[rt(instr)];
-	diff = a - b;
-	reg[rd(instr)] = (uint32)diff;
-}
+// void
+// CPU::subu_emulate(uint32 instr, uint32 pc)
+// {
+// 	int32 a, b, diff;
+// 	a = (int32)reg[rs(instr)];
+// 	b = (int32)reg[rt(instr)];
+// 	diff = a - b;
+// 	reg[rd(instr)] = (uint32)diff;
+// }
 
-void
-CPU::and_emulate(uint32 instr, uint32 pc)
-{
-	reg[rd(instr)] = reg[rs(instr)] & reg[rt(instr)];
-}
+// void
+// CPU::and_emulate(uint32 instr, uint32 pc)
+// {
+// 	reg[rd(instr)] = reg[rs(instr)] & reg[rt(instr)];
+// }
 
-void
-CPU::or_emulate(uint32 instr, uint32 pc)
-{
-	reg[rd(instr)] = reg[rs(instr)] | reg[rt(instr)];
-}
+// void
+// CPU::or_emulate(uint32 instr, uint32 pc)
+// {
+// 	reg[rd(instr)] = reg[rs(instr)] | reg[rt(instr)];
+// }
 
-void
-CPU::xor_emulate(uint32 instr, uint32 pc)
-{
-	reg[rd(instr)] = reg[rs(instr)] ^ reg[rt(instr)];
-}
+// void
+// CPU::xor_emulate(uint32 instr, uint32 pc)
+// {
+// 	reg[rd(instr)] = reg[rs(instr)] ^ reg[rt(instr)];
+// }
 
-void
-CPU::nor_emulate(uint32 instr, uint32 pc)
-{
-	reg[rd(instr)] = ~(reg[rs(instr)] | reg[rt(instr)]);
-}
+// void
+// CPU::nor_emulate(uint32 instr, uint32 pc)
+// {
+// 	reg[rd(instr)] = ~(reg[rs(instr)] | reg[rt(instr)]);
+// }
 
-void
-CPU::slt_emulate(uint32 instr, uint32 pc)
-{
-	int32 s_rs = (int32)reg[rs(instr)];
-	int32 s_rt = (int32)reg[rt(instr)];
-	if (s_rs < s_rt) {
-		reg[rd(instr)] = 1;
-	} else {
-		reg[rd(instr)] = 0;
-	}
-}
+// void
+// CPU::slt_emulate(uint32 instr, uint32 pc)
+// {
+// 	int32 s_rs = (int32)reg[rs(instr)];
+// 	int32 s_rt = (int32)reg[rt(instr)];
+// 	if (s_rs < s_rt) {
+// 		reg[rd(instr)] = 1;
+// 	} else {
+// 		reg[rd(instr)] = 0;
+// 	}
+// }
 
-void
-CPU::sltu_emulate(uint32 instr, uint32 pc)
-{
-	if (reg[rs(instr)] < reg[rt(instr)]) {
-		reg[rd(instr)] = 1;
-	} else {
-		reg[rd(instr)] = 0;
-	}
-}
+// void
+// CPU::sltu_emulate(uint32 instr, uint32 pc)
+// {
+// 	if (reg[rs(instr)] < reg[rt(instr)]) {
+// 		reg[rd(instr)] = 1;
+// 	} else {
+// 		reg[rd(instr)] = 0;
+// 	}
+// }
 
-void
-CPU::bltz_emulate(uint32 instr, uint32 pc)
-{
-	if ((int32)reg[rs(instr)] < 0)
-		branch(instr, pc);
-}
+// void
+// CPU::bltz_emulate(uint32 instr, uint32 pc)
+// {
+// 	if ((int32)reg[rs(instr)] < 0)
+// 		branch(instr, pc);
+// }
 
-void
-CPU::bgez_emulate(uint32 instr, uint32 pc)
-{
-	if ((int32)reg[rs(instr)] >= 0)
-		branch(instr, pc);
-}
+// void
+// CPU::bgez_emulate(uint32 instr, uint32 pc)
+// {
+// 	if ((int32)reg[rs(instr)] >= 0)
+// 		branch(instr, pc);
+// }
 
-/* As with JAL, BLTZAL and BGEZAL cause RA to get the address of the
- * instruction two words after the current one (pc + 8).
- */
-void
-CPU::bltzal_emulate(uint32 instr, uint32 pc)
-{
-	reg[reg_ra] = pc + 8;
-	if ((int32)reg[rs(instr)] < 0)
-		branch(instr, pc);
-}
+// /* As with JAL, BLTZAL and BGEZAL cause RA to get the address of the
+//  * instruction two words after the current one (pc + 8).
+//  */
+// void
+// CPU::bltzal_emulate(uint32 instr, uint32 pc)
+// {
+// 	reg[reg_ra] = pc + 8;
+// 	if ((int32)reg[rs(instr)] < 0)
+// 		branch(instr, pc);
+// }
 
-void
-CPU::bgezal_emulate(uint32 instr, uint32 pc)
-{
-	reg[reg_ra] = pc + 8;
-	if ((int32)reg[rs(instr)] >= 0)
-		branch(instr, pc);
-}
+// void
+// CPU::bgezal_emulate(uint32 instr, uint32 pc)
+// {
+// 	reg[reg_ra] = pc + 8;
+// 	if ((int32)reg[rs(instr)] >= 0)
+// 		branch(instr, pc);
+// }
 
-/* reserved instruction */
-void
-CPU::RI_emulate(uint32 instr, uint32 pc)
-{
-	exception(RI);
-}
+// /* reserved instruction */
+// void
+// CPU::RI_emulate(uint32 instr, uint32 pc)
+// {
+// 	exception(RI);
+// }
 
 void CPU::funct_ctrl()
 {
@@ -1550,8 +1556,7 @@ void CPU::add_exec()
 	b = (int32)(*(preg->alu_src_b));
 	sum = a + b;
 	if ((a < 0 && b < 0 && !(sum < 0)) || (a >= 0 && b >= 0 && !(sum >= 0))) {
-		//preg->excCode = Ov;
-		//preg->pending_exception = true;
+		exception(Ov);
 	} else {
 		preg->result = (uint32)sum;
 	}
@@ -1577,8 +1582,7 @@ void CPU::sub_exec()
 	b = (int32)(*(preg->alu_src_b));
 	diff = a - b;
 	if ((a < 0 && !(b < 0) && !(diff < 0)) || (!(a < 0) && b < 0 && diff < 0)) {
-		// preg->excCode = Ov;
-		// preg->pending_exception = true;
+		exception(Ov);
 	} else {
 		preg->result = (uint32)diff;
 	}
