@@ -69,6 +69,12 @@ struct last_change {
 
 class PipelineRegs {
 public:
+	struct ExcInfo {
+		uint16 excCode;
+		int mode;
+		int coprocno;
+		ExcInfo() :  excCode(-1), mode(ANY), coprocno(-1) {}
+	};
 	PipelineRegs(uint32 pc, uint32 instr);
 	uint32 instr, pc;
 	uint32 *alu_src_a, *alu_src_b;
@@ -83,6 +89,7 @@ public:
 	uint16 excCode;
 	bool mem_read_op;
 	bool pending_exception;
+	std::vector<ExcInfo*> excBuf;
 };
 
 class Trace {
@@ -162,7 +169,7 @@ class CPU : public DeviceExc {
 
 	// Important registers:
 	uint32 pc;      // Program counter
-	uint32 mypc;      // Program counter
+	//uint32 mypc;      // Program counter
 	uint32 reg[32]; // General-purpose registers
 	uint32 instr;   // The current instruction
 	uint32 hi, lo;  // Division and multiplication results
@@ -207,9 +214,13 @@ class CPU : public DeviceExc {
 	int opt_dcachebsize;
 
 	//each stage
+	void fetch();
+	void pre_decode();
 	void decode();
 	void execute();
+	void pre_memaccess();
 	void mem_access();
+	void exc_handle();
 	void reg_commit();
 
 	// Miscellaneous shared code. 

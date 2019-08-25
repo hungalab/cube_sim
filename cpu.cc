@@ -705,6 +705,40 @@ CPU::stop_tracing()
 	tracing = false;
 }
 
+void CPU::fetch()
+{
+
+	bool cacheable;
+	uint32 real_pc;
+	uint32 fetch_instr;
+
+	pc += 4;
+	real_pc = cpzero->address_trans(pc,INSTFETCH,&cacheable, this);
+	if (exception_pending) {
+		if (opt_excmsg)
+			fprintf(stderr,
+				"** PC address translation caused the exception! **\n");
+	}
+
+	// Fetch next instruction.
+	if (cacheable) {
+		if (cpzero->caches_swapped()) {
+			fetch_instr = dcache->fetch_word(mem, real_pc,INSTFETCH, this);
+		} else {
+			fetch_instr = icache->fetch_word(mem, real_pc,INSTFETCH, this);
+		}
+	} else {
+		fetch_instr = mem->fetch_word(real_pc,INSTFETCH,this);
+	}
+	PL_REGS[IF_STAGE] = new PipelineRegs(pc, fetch_instr);
+
+	// Disassemble the instruction, if the user requested it.
+	if (opt_instdump) {
+		fprintf(stderr,"PC=0x%08x [%08x]\t%08x ",pc,real_pc,fetch_instr);
+		machine->disasm->disassemble(pc,fetch_instr);
+	}
+}
+
 
 void CPU::decode()
 {
@@ -1050,8 +1084,7 @@ void CPU::step()
 	static int call_count = 0;
 	static Disassembler *disasm = new Disassembler(machine->host_bigendian, stderr);
 
-	bool cacheable;
-	uint32 real_pc;
+	
 
 	// Decrement Random register every clock cycle.
 	cpzero->adjust_random();
@@ -1074,31 +1107,7 @@ void CPU::step()
 		PL_REGS[i] = PL_REGS[i - 1];
 	}
 
-	pc += 4;
-	real_pc = cpzero->address_trans(pc,INSTFETCH,&cacheable, this);
-	if (exception_pending) {
-		if (opt_excmsg)
-			fprintf(stderr,
-				"** PC address translation caused the exception! **\n");
-	}
-
-	// Fetch next instruction.
-	if (cacheable) {
-		if (cpzero->caches_swapped()) {
-			instr = dcache->fetch_word(mem, real_pc,INSTFETCH, this);
-		} else {
-			instr = icache->fetch_word(mem, real_pc,INSTFETCH, this);
-		}
-	} else {
-		instr = mem->fetch_word(real_pc,INSTFETCH,this);
-	}
-	PL_REGS[IF_STAGE] = new PipelineRegs(pc, instr);
-
-	// Disassemble the instruction, if the user requested it.
-	if (opt_instdump) {
-		fprintf(stderr,"PC=0x%08x [%08x]\t%08x ",pc,real_pc,instr);
-		machine->disasm->disassemble(pc,instr);
-	}
+	fetch();
 
 	// fprintf(stderr,"PC=0x%08x [%08x]\t%08x ",pc,real_pc,instr);
 	// disasm->disassemble(PL_REGS[IF_STAGE]->pc, PL_REGS[IF_STAGE]->instr);
