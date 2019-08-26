@@ -192,6 +192,8 @@ class CPU : public DeviceExc {
 	uint32 delay_pc;
 
 	int mul_div_remain;
+	int cop_remain;
+	bool suspend;
 
 	ExcInfo *exc_signal;
 
@@ -413,7 +415,7 @@ public:
 
 
 	// Methods which are only for use by the CPU and its coprocessors.
-	void branch (uint32 instr, uint32 pc);
+	void branch (uint32 instr, uint32 current_pc);
 	void exception (uint16 excCode, int mode = ANY, int coprocno = -1);
 
 	// Public tracing support method.

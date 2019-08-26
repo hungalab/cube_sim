@@ -143,7 +143,7 @@ CPZero::address_trans(uint32 vaddr, int mode, bool *cacheable,
 			return tlb_translate(KUSEG, vaddr, mode, cacheable, client);
 		}
 	}
-	
+
 	/* user mode */
 	if (vaddr & KERNEL_SPACE_MASK) {
 		/* Can't go there. */
@@ -229,14 +229,19 @@ CPZero::write_reg(const uint16 r, const uint32 data)
 }
 
 void
-CPZero::mfc0_emulate(uint32 instr, uint32 pc)
+CPZero::mfc0_emulate(PipelineRegs *preg)
 {
-	cpu->put_reg (CPU::rt (instr), read_reg (CPU::rd (instr)));
+	//cpu->put_reg (CPU::rt (instr), read_reg (CPU::rd (instr)));
+	preg->result = read_reg(CPU::rd (preg->instr));
+	preg->dst = CPU::rt(preg->instr);
+	preg->w_reg_data = &(preg->result);
 }
 
 void
 CPZero::mtc0_emulate(uint32 instr, uint32 pc)
 {
+	// don't occur data hazard & no need of forwarding
+	// due to stalling of cpzreo op
 	write_reg (CPU::rd (instr), cpu->get_reg (CPU::rt (instr)));
 }
 
@@ -300,9 +305,12 @@ CPZero::rfe_emulate(uint32 instr, uint32 pc)
 }
 
 void
-CPZero::cpzero_emulate(uint32 instr, uint32 pc)
+CPZero::cpzero_emulate(PipelineRegs *preg)
 {
+	uint32 instr = preg->instr;
+	uint32 pc = preg->pc;
 	uint16 rs = CPU::rs (instr);
+
 	if (CPU::rs (instr) > 15) {
 		switch (CPU::funct (instr)) {
 		case 1: tlbr_emulate (instr, pc); break;
@@ -314,7 +322,7 @@ CPZero::cpzero_emulate(uint32 instr, uint32 pc)
 		}
 	} else {
 		switch (rs) {
-		case 0: mfc0_emulate (instr, pc); break;
+		case 0: mfc0_emulate (preg); break;
 		case 2: cpu->exception (RI, ANY, 0); break; /* cfc0 - reserved */
 		case 4: mtc0_emulate (instr, pc); break;
 		case 6: cpu->exception (RI, ANY, 0); break; /* ctc0 - reserved */

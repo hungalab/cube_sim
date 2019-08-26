@@ -44,7 +44,6 @@ static const int reg_zero = 0;  /* always zero */
 static const int reg_sp = 29;   /* stack pointer */
 static const int reg_ra = 31;   /* return address */
 
-#include "emuls.cpp"
 
 /* pointer to CPU method returning void and taking two uint32's */
 typedef void (CPU::*emulate_funptr)(uint32, uint32);
@@ -71,7 +70,8 @@ PipelineRegs::PipelineRegs(uint32 pc_, uint32 instr_):
 
 CPU::CPU (Mapper &m, IntCtrl &i)
   : tracing (false), last_epc (0), last_prio (0), mem (&m),
-    cpzero (new CPZero (this, &i)), fpu (0), delay_state (NORMAL), mul_div_remain(0)
+    cpzero (new CPZero (this, &i)), fpu (0), delay_state (NORMAL),
+    mul_div_remain(0), suspend(false)
 {
 	opt_fpu = machine->opt->option("fpu")->flag;
 	if (opt_fpu)
@@ -945,7 +945,7 @@ void CPU::decode()
 	static alu_funcpr execTable[64] = {
 		&CPU::funct_ctrl, &CPU::bcond_exec, &CPU::j_exec, &CPU::jal_exec, &CPU::beq_exec, &CPU::bne_exec, &CPU::blez_exec, &CPU::bgtz_exec,
 		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+		&CPU::cpzero_exec, &CPU::cpone_exec, &CPU::cptwo_exec, &CPU::cpthree_exec, NULL, NULL, NULL, NULL,
 		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
 		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
 		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
@@ -960,11 +960,32 @@ void CPU::decode()
 	uint32 dec_instr = preg->instr;
 	uint16 dec_opcode = opcode(preg->instr);
 
-	bool control_flag = execTable[dec_opcode] != NULL;
+	// execution on ID stage
+	// branch & cop instr
+	bool exec_flag = (execTable[dec_opcode] != NULL);
+
+	if (suspend & (cop_remain == 0)) {
+		// finish cop instr
+		suspend = false;
+	} else if (cop_flag[dec_opcode] & !suspend) {
+		// start cop instr
+		suspend = true;
+		cop_remain = CPZERO_OP_SUSPEND;
+		return;
+	} else if (suspend) {
+		return;
+	}
 
 	// execute control step
-	if (control_flag) {
+	if (exec_flag) {
 		(this->*execTable[dec_opcode])();
+	}
+
+	//store exception (cpzero)
+	if (catch_exception) {
+		preg->excBuf.emplace_back(exc_signal);
+		//reset signal
+		catch_exception = false;
 	}
 
 }
@@ -985,7 +1006,7 @@ void CPU::execute()
 	static alu_funcpr execTable[64] = {
 		&CPU::funct_exec, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
 		&CPU::add_exec, &CPU::addu_exec, &CPU::slt_exec, &CPU::sltu_exec, &CPU::and_exec, &CPU::or_exec, &CPU::xor_exec, &CPU::lui_exec,
-		&CPU::cpzero_exec, &CPU::cpone_exec, &CPU::cptwo_exec, &CPU::cpthree_exec, NULL, NULL, NULL, NULL,
+		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
 		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
 		&CPU::addu_exec, &CPU::addu_exec, &CPU::addu_exec, &CPU::addu_exec, &CPU::addu_exec, &CPU::addu_exec, &CPU::addu_exec, NULL,
 		&CPU::addu_exec, &CPU::addu_exec, &CPU::addu_exec, &CPU::addu_exec, NULL, NULL, &CPU::addu_exec, NULL,
@@ -1198,7 +1219,6 @@ void CPU::step()
 	// Decrement Random register every clock cycle.
 	cpzero->adjust_random();
 
-	//if (call_count > 300) return;
 	if (machine->state == vmips::HALT) return;
 
 	//check exception & stall
@@ -1207,15 +1227,18 @@ void CPU::step()
 	pre_execute(interlock);
 	exc_handle(PL_REGS[MEM_STAGE]);
 
-	// emulate mult/div unit
+	// emulate mult/div unit stall
 	if (mul_div_remain > 0) {
-		mul_div_remain--;
-		if (mul_div_remain == 0) {
+		if (--mul_div_remain == 0) {
 			//update regs
 			hi = hi_write ? hi_temp : hi;
 			lo = lo_write ? lo_temp : lo;
 			hi_write = lo_write = false;
 		}
+	}
+	// emulate cop unit stall
+	if (cop_remain > 0) {
+		cop_remain--;
 	}
 
 	//if no stall/exception, process each stage
@@ -1224,13 +1247,20 @@ void CPU::step()
 		mem_access();
 		execute();
 		decode(); //decode must be processed after execute/mem_access due to forwarding
-
-		//go ahead pipeline
-		for (int i = PIPELINE_STAGES - 1; i > 0; i--) {
-			PL_REGS[i] = PL_REGS[i - 1];
+		if (suspend == true) {
+			//IF stage stay in same stage until suspension
+			for (int i = PIPELINE_STAGES - 1; i > EX_STAGE; i--) {
+				PL_REGS[i] = PL_REGS[i - 1];
+			}
+			PL_REGS[EX_STAGE] = new PipelineRegs(pc, NOP_INSTR);
+		} else {
+			//go ahead pipeline
+			for (int i = PIPELINE_STAGES - 1; i > 0; i--) {
+				PL_REGS[i] = PL_REGS[i - 1];
+			}
+			fetch();
 		}
 
-		fetch();
 	} else {
 		machine->stall_count++;
 	}
@@ -1591,3 +1621,756 @@ CPU::debug_store_region(uint32 addr, uint32 len, char *packet,
 	}
 	return 0;
 }
+
+/*  ######## emulation each functionality ########   */
+
+// just used for cpzero branch
+void
+CPU::branch(uint32 instr, uint32 current_pc)
+{
+    pc = current_pc + (s_immed(instr) << 2); //+4 later
+}
+
+
+/* The lwr and lwl algorithms here are taken from SPIM 6.0,
+ * since I didn't manage to come up with a better way to write them.
+ * Improvements are welcome.
+ */
+uint32
+CPU::lwr(uint32 regval, uint32 memval, uint8 offset)
+{
+	if (opt_bigendian) {
+		switch (offset)
+		{
+			case 0: return (regval & 0xffffff00) |
+						((unsigned)(memval & 0xff000000) >> 24);
+			case 1: return (regval & 0xffff0000) |
+						((unsigned)(memval & 0xffff0000) >> 16);
+			case 2: return (regval & 0xff000000) |
+						((unsigned)(memval & 0xffffff00) >> 8);
+			case 3: return memval;
+		}
+	} else /* if MIPS target is little endian */ {
+		switch (offset)
+		{
+			/* The SPIM source claims that "The description of the
+			 * little-endian case in Kane is totally wrong." The fact
+			 * that I ripped off the LWR algorithm from them could be
+			 * viewed as a sort of passive assumption that their claim
+			 * is correct.
+			 */
+			case 0: /* 3 in book */
+				return memval;
+			case 1: /* 0 in book */
+				return (regval & 0xff000000) | ((memval & 0xffffff00) >> 8);
+			case 2: /* 1 in book */
+				return (regval & 0xffff0000) | ((memval & 0xffff0000) >> 16);
+			case 3: /* 2 in book */
+				return (regval & 0xffffff00) | ((memval & 0xff000000) >> 24);
+		}
+	}
+	fatal_error("Invalid offset %x passed to lwr\n", offset);
+}
+
+uint32
+CPU::lwl(uint32 regval, uint32 memval, uint8 offset)
+{
+	if (opt_bigendian) {
+		switch (offset)
+		{
+			case 0: return memval;
+			case 1: return (memval & 0xffffff) << 8 | (regval & 0xff);
+			case 2: return (memval & 0xffff) << 16 | (regval & 0xffff);
+			case 3: return (memval & 0xff) << 24 | (regval & 0xffffff);
+		}
+	} else /* if MIPS target is little endian */ {
+		switch (offset)
+		{
+			case 0: return (memval & 0xff) << 24 | (regval & 0xffffff);
+			case 1: return (memval & 0xffff) << 16 | (regval & 0xffff);
+			case 2: return (memval & 0xffffff) << 8 | (regval & 0xff);
+			case 3: return memval;
+		}
+	}
+	fatal_error("Invalid offset %x passed to lwl\n", offset);
+}
+
+
+uint32
+CPU::swl(uint32 regval, uint32 memval, uint8 offset)
+{
+	if (opt_bigendian) {
+		switch (offset) {
+			case 0: return regval;
+			case 1: return (memval & 0xff000000) | (regval >> 8 & 0xffffff); 
+			case 2: return (memval & 0xffff0000) | (regval >> 16 & 0xffff); 
+			case 3: return (memval & 0xffffff00) | (regval >> 24 & 0xff); 
+		}
+	} else /* if MIPS target is little endian */ {
+		switch (offset) {
+			case 0: return (memval & 0xffffff00) | (regval >> 24 & 0xff); 
+			case 1: return (memval & 0xffff0000) | (regval >> 16 & 0xffff); 
+			case 2: return (memval & 0xff000000) | (regval >> 8 & 0xffffff); 
+			case 3: return regval;
+		}
+	}
+	fatal_error("Invalid offset %x passed to swl\n", offset);
+}
+
+uint32
+CPU::swr(uint32 regval, uint32 memval, uint8 offset)
+{
+	if (opt_bigendian) {
+		switch (offset) {
+			case 0: return ((regval << 24) & 0xff000000) | (memval & 0xffffff);
+			case 1: return ((regval << 16) & 0xffff0000) | (memval & 0xffff);
+			case 2: return ((regval << 8) & 0xffffff00) | (memval & 0xff);
+			case 3: return regval;
+		}
+	} else /* if MIPS target is little endian */ {
+		switch (offset) {
+			case 0: return regval;
+			case 1: return ((regval << 8) & 0xffffff00) | (memval & 0xff);
+			case 2: return ((regval << 16) & 0xffff0000) | (memval & 0xffff);
+			case 3: return ((regval << 24) & 0xff000000) | (memval & 0xffffff);
+		}
+	}
+	fatal_error("Invalid offset %x passed to swr\n", offset);
+}
+
+
+/* Called when the program wants to use coprocessor COPROCNO, and there
+ * isn't any implementation for that coprocessor.
+ * Results in a Coprocessor Unusable exception, along with an error
+ * message being printed if the coprocessor is marked usable in the
+ * CP0 Status register.
+ */
+void
+CPU::cop_unimpl (int coprocno, uint32 instr, uint32 pc)
+{
+	if (cpzero->cop_usable (coprocno)) {
+		/* Since they were expecting this to work, the least we
+		 * can do is print an error message. */
+		fprintf (stderr, "CP%d instruction %x not implemented at pc=0x%x:\n",
+				 coprocno, instr, pc);
+		machine->disasm->disassemble (pc, instr);
+		exception (CpU, ANY, coprocno);
+	} else {
+		/* It's fair game to just throw an exception, if they
+		 * haven't even bothered to twiddle the status bits first. */
+		exception (CpU, ANY, coprocno);
+	}
+}
+
+// void
+// CPU::lwc1_emulate(uint32 instr, uint32 pc)
+// {
+// 	if (opt_fpu) {
+// 		uint32 phys, virt, base, word;
+// 		int32 offset;
+// 		bool cacheable;
+
+// 		/* Calculate virtual address. */
+// 		base = reg[rs(instr)];
+// 		offset = s_immed(instr);
+// 		virt = base + offset;
+
+// 		/* This virtual address must be word-aligned. */
+// 		if (virt % 4 != 0) {
+// 			exception(AdEL,DATALOAD);
+// 			return;
+// 		}
+
+// 		/* Translate virtual address to physical address. */
+// 		phys = cpzero->address_trans(virt, DATALOAD, &cacheable, this);
+// 		if (exception_pending) return;
+
+// 		/* Fetch word. */
+// 		if (cacheable) {
+// 			if (cpzero->caches_swapped()) {
+// 				word = icache->fetch_word(mem, phys, DATALOAD, this);
+// 			} else {
+// 				word = dcache->fetch_word(mem, phys, DATALOAD, this);
+// 			}
+// 		} else {
+// 			word = mem->fetch_word(phys, DATALOAD, this);
+// 		}
+
+// 		if (exception_pending) return;
+
+// 		/* Load target register with data. */
+// 		fpu->write_reg (rt (instr), word);
+// 	} else {
+// 		cop_unimpl (1, instr, pc);
+// 	}
+// }
+
+// void
+// CPU::swc1_emulate(uint32 instr, uint32 pc)
+// {
+// 	if (opt_fpu) {
+// 		uint32 phys, virt, base, data;
+// 		int32 offset;
+// 		bool cacheable;
+
+// 		/* Load data from register. */
+// 		data = fpu->read_reg (rt (instr));
+
+// 		/* Calculate virtual address. */
+// 		base = reg[rs(instr)];
+// 		offset = s_immed(instr);
+// 		virt = base + offset;
+
+// 		/* This virtual address must be word-aligned. */
+// 		if (virt % 4 != 0) {
+// 			exception(AdES,DATASTORE);
+// 			return;
+// 		}
+
+// 		/* Translate virtual address to physical address. */
+// 		phys = cpzero->address_trans(virt, DATASTORE, &cacheable, this);
+// 		if (exception_pending) return;
+
+// 		/* Store word. */
+// 		if (cacheable) {
+// 			if (cpzero->caches_swapped()) {
+// 				icache->store_word(mem, phys, data, this);
+// 			} else {
+// 				dcache->store_word(mem, phys, data, this);
+// 			}
+// 		} else {
+// 			mem->store_word(phys, data, this);
+// 		}
+
+// 	} else {
+// 		cop_unimpl (1, instr, pc);
+// 	}
+// }
+
+
+int32
+srl(int32 a, int32 b)
+{
+	if (b == 0) {
+		return a;
+	} else if (b == 32) {
+		return 0;
+	} else {
+		return (a >> b) & ((1 << (32 - b)) - 1);
+	}
+}
+
+int32
+sra(int32 a, int32 b)
+{
+	if (b == 0) {
+		return a;
+	} else {
+		return (a >> b) | (((a >> 31) & 0x01) * (((1 << b) - 1) << (32 - b)));
+	}
+}
+
+
+void
+CPU::mult64(uint32 *hi, uint32 *lo, uint32 n, uint32 m)
+{
+#ifdef HAVE_LONG_LONG
+	uint64 result;
+	result = ((uint64)n) * ((uint64)m);
+	*hi = (uint32) (result >> 32);
+	*lo = (uint32) result;
+#else /* HAVE_LONG_LONG */
+	/*           n = (w << 16) | x ; m = (y << 16) | z
+	 *     w x   g = a + e ; h = b + f ; p = 65535
+	 *   X y z   c = (z * x) mod p
+	 *   -----   b = (z * w + ((z * x) div p)) mod p
+	 *   a b c   a = (z * w + ((z * x) div p)) div p
+	 * d e f     f = (y * x) mod p
+	 * -------   e = (y * w + ((y * x) div p)) mod p
+	 * i g h c   d = (y * w + ((y * x) div p)) div p
+	 */
+	uint16 w,x,y,z,a,b,c,d,e,f,g,h,i;
+	uint32 p;
+	p = 65536;
+	w = (n >> 16) & 0x0ffff;
+	x = n & 0x0ffff;
+	y = (m >> 16) & 0x0ffff;
+	z = m & 0x0ffff;
+	c = (z * x) % p;
+	b = (z * w + ((z * x) / p)) % p;
+	a = (z * w + ((z * x) / p)) / p;
+	f = (y * x) % p;
+	e = (y * w + ((y * x) / p)) % p;
+	d = (y * w + ((y * x) / p)) / p;
+	h = (b + f) % p;
+	g = ((a + e) + ((b + f) / p)) % p;
+	i = d + (((a + e) + ((b + f) / p)) / p);
+	*hi = (i << 16) | g;
+	*lo = (h << 16) | c;
+#endif /* HAVE_LONG_LONG */
+}
+
+void
+CPU::mult64s(uint32 *hi, uint32 *lo, int32 n, int32 m)
+{
+#ifdef HAVE_LONG_LONG
+	int64 result;
+	result = ((int64)n) * ((int64)m);
+	*hi = (uint32) (result >> 32);
+	*lo = (uint32) result;
+#else /* HAVE_LONG_LONG */
+	int32 result_sign = (n<0)^(m<0);
+	int32 n_abs = n;
+	int32 m_abs = m;
+
+	if (n_abs < 0) n_abs = -n_abs;
+	if (m_abs < 0) m_abs = -m_abs;
+
+	mult64(hi,lo,n_abs,m_abs);
+	if (result_sign)
+	{
+		*hi = ~*hi;
+		*lo = ~*lo;
+		if (*lo & 0x80000000)
+		{
+			*lo += 1;
+			if (!(*lo & 0x80000000))
+			{
+				*hi += 1;
+			}
+		}
+		else
+		{
+			*lo += 1;
+		}
+	}
+#endif /* HAVE_LONG_LONG */
+}
+
+void CPU::funct_ctrl()
+{
+	static alu_funcpr execSpecialTable[64] = {
+		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+		&CPU::jr_exec, &CPU::jal_exec, NULL, NULL, NULL, NULL, NULL, NULL,
+		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+	};
+
+	PipelineRegs *preg = PL_REGS[ID_STAGE];
+	uint32 dec_instr = preg->instr;
+	if (execSpecialTable[funct(dec_instr)]) {
+		(this->*execSpecialTable[funct(dec_instr)])();
+	}
+}
+
+void CPU::funct_exec()
+{
+	static alu_funcpr execSpecialTable[64] = {
+		&CPU::sll_exec, NULL, &CPU::srl_exec, &CPU::sra_exec, &CPU::sll_exec, NULL, &CPU::srl_exec, &CPU::sra_exec,
+		NULL, NULL, NULL, NULL, &CPU::syscall_exec, &CPU::break_exec, NULL, NULL,
+		&CPU::mfhi_exec, &CPU::mthi_exec, &CPU::mflo_exec, &CPU::mtlo_exec, NULL, NULL, NULL, NULL,
+		&CPU::mult_exec, &CPU::multu_exec, &CPU::div_exec, &CPU::divu_exec, NULL, NULL, NULL, NULL,
+		&CPU::add_exec, &CPU::addu_exec, &CPU::sub_exec, &CPU::subu_exec, &CPU::and_exec, &CPU::or_exec, &CPU::xor_exec, &CPU::nor_exec,
+		NULL, NULL, &CPU::slt_exec, &CPU::sltu_exec, NULL, NULL, NULL, NULL,
+		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+	};
+
+	PipelineRegs *preg = PL_REGS[EX_STAGE];
+	uint32 exec_instr = preg->instr;
+	if (execSpecialTable[funct(exec_instr)]) {
+		(this->*execSpecialTable[funct(exec_instr)])();
+	}
+}
+
+void CPU::bcond_exec()
+{
+	static alu_funcpr  execBcondTable[32] = {
+		&CPU::bltz_exec, &CPU::bgez_exec, NULL, NULL, NULL, NULL, NULL, NULL,
+		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+		&CPU::bltzal_exec, &CPU::bgezal_exec, NULL, NULL, NULL, NULL, NULL, NULL,
+		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+	};
+
+	PipelineRegs *preg = PL_REGS[ID_STAGE];
+	uint32 dec_instr = preg->instr;
+	if (execBcondTable[rt(dec_instr)]) {
+		(this->*execBcondTable[rt(dec_instr)])();
+	}
+
+}
+
+void CPU::j_exec()
+{
+	PipelineRegs *preg = PL_REGS[ID_STAGE];
+	pc = (((preg->pc + 4) & 0xf0000000) | (jumptarg(preg->instr) << 2) - 4); //+4 later
+	//fprintf(stderr, "go to %X\n", pc);
+}
+
+void CPU::jal_exec()
+{
+	PipelineRegs *preg = PL_REGS[ID_STAGE];
+	pc = (((preg->pc + 4) & 0xf0000000) | (jumptarg(preg->instr) << 2) - 4); //+4 later
+	preg->result = preg->pc + 8;
+}
+
+void CPU::beq_exec()
+{
+	PipelineRegs *preg = PL_REGS[ID_STAGE];
+	if (*(preg->alu_src_a) == *(preg->alu_src_b)) {
+		pc = preg->pc + (preg->imm << 2); //+4 later
+	}
+}
+
+void CPU::bne_exec()
+{
+	PipelineRegs *preg = PL_REGS[ID_STAGE];
+	if (*(preg->alu_src_a) != *(preg->alu_src_b)) {
+		pc = preg->pc + (preg->imm << 2); //+4 later
+	}
+}
+
+void CPU::blez_exec()
+{
+	PipelineRegs *preg = PL_REGS[ID_STAGE];
+	if (*(preg->alu_src_a) == 0 ||
+		 *(preg->alu_src_a) & 0x80000000) {
+		pc = preg->pc + (preg->imm << 2); //+4 later
+	}
+}
+
+void CPU::bgtz_exec()
+{
+	PipelineRegs *preg = PL_REGS[ID_STAGE];
+	if (*(preg->alu_src_a) != 0 &&
+		(*(preg->alu_src_a) & 0x80000000) == 0) {
+		pc = preg->pc + (preg->imm << 2); //+4 later
+	}
+}
+
+void CPU::lui_exec()
+{
+	PipelineRegs *preg = PL_REGS[EX_STAGE];
+	preg->result = *(preg->alu_src_b) << 16;
+}
+
+void CPU::cpzero_exec()
+{
+	PipelineRegs *preg = PL_REGS[ID_STAGE];
+	cpzero->cpzero_emulate(preg);
+	dcache->cache_isolate(cpzero->caches_isolated());
+}
+
+void CPU::cpone_exec()
+{
+	PipelineRegs *preg = PL_REGS[ID_STAGE];
+	if (opt_fpu) {
+		// FIXME: check cpzero->cop_usable
+		fpu->cpone_emulate (preg->instr, preg->pc);
+	} else {
+		 /*If it's a cfc1 <reg>, $0 then we copy 0 into reg,
+		 * which is supposed to mean there is NO cp1...
+		 * for now, though, ANYTHING else asked of cp1 results
+		 * in the default "unimplemented" behavior. */
+		if (cpzero->cop_usable (1) && rs (preg->instr) == 2
+                    && rd (preg->instr) == 0) {
+			preg->dst = rt (instr);
+			preg->result = 0;
+			preg->w_reg_data = &(preg->result);
+		} else {
+			cop_unimpl (1, instr, pc);
+		}
+    }
+}
+
+void CPU::cptwo_exec()
+{
+	PipelineRegs *preg = PL_REGS[ID_STAGE];
+	cop_unimpl (2, preg->instr, preg->pc);
+}
+
+void CPU::cpthree_exec()
+{
+	PipelineRegs *preg = PL_REGS[ID_STAGE];
+	cop_unimpl (3, preg->instr, preg->pc);
+}
+
+void CPU::lwc1_exec()
+{
+	PipelineRegs *preg = PL_REGS[EX_STAGE];
+	cop_unimpl (1, preg->instr, preg->pc);
+}
+
+void CPU::lwc2_exec()
+{
+	PipelineRegs *preg = PL_REGS[EX_STAGE];
+	cop_unimpl (2, preg->instr, preg->pc);
+}
+
+void CPU::lwc3_exec()
+{
+	PipelineRegs *preg = PL_REGS[EX_STAGE];
+	cop_unimpl (3, preg->instr, preg->pc);
+}
+
+void CPU::swc1_exec()
+{
+	PipelineRegs *preg = PL_REGS[EX_STAGE];
+	cop_unimpl (1, preg->instr, preg->pc);
+}
+
+void CPU::swc2_exec()
+{
+	PipelineRegs *preg = PL_REGS[EX_STAGE];
+	cop_unimpl (2, preg->instr, preg->pc);
+}
+
+void CPU::swc3_exec()
+{
+	PipelineRegs *preg = PL_REGS[EX_STAGE];
+	cop_unimpl (3, preg->instr, preg->pc);
+}
+
+void CPU::sll_exec()
+{
+	PipelineRegs *preg = PL_REGS[EX_STAGE];
+	preg->result = *(preg->alu_src_a) << (*(preg->alu_src_b) & 0x1f);
+}
+
+void CPU::srl_exec()
+{
+	PipelineRegs *preg = PL_REGS[EX_STAGE];
+	preg->result = srl(*(preg->alu_src_a), (*(preg->alu_src_b) & 0x1f));
+}
+
+void CPU::sra_exec()
+{
+	PipelineRegs *preg = PL_REGS[EX_STAGE];
+	preg->result = sra(*(preg->alu_src_a), (*(preg->alu_src_b) & 0x1f));
+}
+
+void CPU::jr_exec()
+{
+	PipelineRegs *preg = PL_REGS[ID_STAGE];
+	pc = *(preg->alu_src_a) - 4; //+4 later
+	//fprintf(stderr, "go to %X\n", pc);
+}
+
+void CPU::jalr_exec()
+{
+	PipelineRegs *preg = PL_REGS[ID_STAGE];
+	pc = *(preg->alu_src_a) - 4; //+4 later
+	preg->result = preg->pc + 8;
+	fprintf(stderr, "go to %X\n", pc);
+}
+
+void CPU::syscall_exec()
+{
+	exception(Sys);
+}
+
+void CPU::break_exec()
+{
+	exception(Bp);
+}
+
+void CPU::mfhi_exec()
+{
+	PipelineRegs *preg = PL_REGS[EX_STAGE];
+	preg->result = hi;
+}
+
+void CPU::mthi_exec()
+{
+	PipelineRegs *preg = PL_REGS[EX_STAGE];
+	hi_temp = *(preg->alu_src_a);
+	hi_write = true;
+}
+
+void CPU::mflo_exec()
+{
+	PipelineRegs *preg = PL_REGS[EX_STAGE];
+	preg->result = lo;
+}
+
+void CPU::mtlo_exec()
+{
+	PipelineRegs *preg = PL_REGS[EX_STAGE];
+	lo_temp = *(preg->alu_src_a);
+	lo_write = true;
+}
+
+void CPU::mult_exec()
+{
+	PipelineRegs *preg = PL_REGS[EX_STAGE];
+	mult64s(&hi_temp, &lo_temp, *(preg->alu_src_a), *(preg->alu_src_b));
+	hi_write = true;
+	lo_write = true;
+}
+
+void CPU::multu_exec()
+{
+	PipelineRegs *preg = PL_REGS[EX_STAGE];
+	mult64(&hi_temp, &lo_temp, *(preg->alu_src_a), *(preg->alu_src_b));
+	hi_write = true;
+	lo_write = true;
+}
+
+void CPU::div_exec()
+{
+	PipelineRegs *preg = PL_REGS[EX_STAGE];
+	int32 signed_a = (int32)(*(preg->alu_src_a));
+	int32 signed_b = (int32)(*(preg->alu_src_b));
+	lo_temp = signed_a / signed_b;
+	hi_temp = signed_a % signed_b;
+	hi_write = true;
+	lo_write = true;
+}
+
+void CPU::divu_exec()
+{
+	PipelineRegs *preg = PL_REGS[EX_STAGE];
+	lo_temp = *(preg->alu_src_a) / *(preg->alu_src_b);
+	hi_temp = *(preg->alu_src_a) % *(preg->alu_src_b);
+	hi_write = true;
+	lo_write = true;
+}
+
+void CPU::add_exec()
+{
+	int32 a, b, sum;
+	PipelineRegs *preg = PL_REGS[EX_STAGE];
+	a = (int32)(*(preg->alu_src_a));
+	b = (int32)(*(preg->alu_src_b));
+	sum = a + b;
+	if ((a < 0 && b < 0 && !(sum < 0)) || (a >= 0 && b >= 0 && !(sum >= 0))) {
+		exception(Ov);
+	} else {
+		preg->result = (uint32)sum;
+	}
+}
+
+void CPU::addu_exec()
+{
+	int32 a, b, sum;
+	PipelineRegs *preg = PL_REGS[EX_STAGE];
+	a = (int32)(*(preg->alu_src_a));
+	b = (int32)(*(preg->alu_src_b));
+	sum = a + b;
+	preg->result = (uint32)sum;
+	// if (opcode(preg->instr) == OP_ADDIU)
+	// 	printf("ADDIU: %X = %X + %X dst: %d\n", sum, a, b, preg->dst);
+}
+
+void CPU::sub_exec()
+{
+	int32 a, b, diff;
+	PipelineRegs *preg = PL_REGS[EX_STAGE];
+	a = (int32)(*(preg->alu_src_a));
+	b = (int32)(*(preg->alu_src_b));
+	diff = a - b;
+	if ((a < 0 && !(b < 0) && !(diff < 0)) || (!(a < 0) && b < 0 && diff < 0)) {
+		exception(Ov);
+	} else {
+		preg->result = (uint32)diff;
+	}
+}
+
+void CPU::subu_exec()
+{
+	int32 a, b, diff;
+	PipelineRegs *preg = PL_REGS[EX_STAGE];
+	a = (int32)(*(preg->alu_src_a));
+	b = (int32)(*(preg->alu_src_b));
+	diff = a - b;
+	preg->result = (uint32)diff;
+}
+
+void CPU::and_exec()
+{
+	PipelineRegs *preg = PL_REGS[EX_STAGE];
+	preg->result = *(preg->alu_src_a) & *(preg->alu_src_b);
+}
+
+void CPU::or_exec()
+{
+	PipelineRegs *preg = PL_REGS[EX_STAGE];
+	preg->result = *(preg->alu_src_a) | *(preg->alu_src_b);
+}
+
+void CPU::xor_exec()
+{
+	PipelineRegs *preg = PL_REGS[EX_STAGE];
+	preg->result = *(preg->alu_src_a) ^ *(preg->alu_src_b);
+}
+
+void CPU::nor_exec()
+{
+	PipelineRegs *preg = PL_REGS[EX_STAGE];
+	preg->result = ~(*(preg->alu_src_a) | *(preg->alu_src_b));
+}
+
+void CPU::slt_exec()
+{
+	PipelineRegs *preg = PL_REGS[EX_STAGE];
+	int32 a = (int32)(*(preg->alu_src_a));
+	int32 b = (int32)(*(preg->alu_src_b));
+	if (a < b) {
+		preg->result = 1;
+	} else {
+		preg->result = 0;
+	}
+}
+
+void CPU::sltu_exec()
+{
+	PipelineRegs *preg = PL_REGS[EX_STAGE];
+	if (*(preg->alu_src_a) < *(preg->alu_src_b)) {
+		preg->result = 1;
+	} else {
+		preg->result = 0;
+	}
+}
+
+void CPU::bltz_exec()
+{
+	PipelineRegs *preg = PL_REGS[ID_STAGE];
+	if ((int32)*(preg->alu_src_a) < 0) {
+		pc = preg->pc + (preg->imm << 2); //+4 later
+	}
+}
+
+void CPU::bgez_exec()
+{
+	PipelineRegs *preg = PL_REGS[ID_STAGE];
+	if ((int32)*(preg->alu_src_a) >= 0) {
+		pc = preg->pc + (preg->imm << 2); //+4 later
+	}
+}
+
+// /* As with JAL, BLTZAL and BGEZAL cause RA to get the address of the
+//  * instruction two words after the current one (pc + 8).
+//  */
+void CPU::bltzal_exec()
+{
+	PipelineRegs *preg = PL_REGS[ID_STAGE];
+	if ((int32)*(preg->alu_src_a) < 0) {
+		pc = preg->pc + 4 + (preg->imm << 2); //+4 later
+	}
+	preg->result = preg->pc + 8;
+}
+
+void CPU::bgezal_exec()
+{
+	PipelineRegs *preg = PL_REGS[ID_STAGE];
+	if ((int32)*(preg->alu_src_a) >= 0) {
+		pc = preg->pc + (preg->imm << 2); //+4 later
+	}
+	preg->result = preg->pc + 8;
+}
+
+

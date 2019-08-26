@@ -293,3 +293,15 @@ std::map<int, int> mul_div_delay = {
 };
 
 #define CPZERO_OP_SUSPEND 5
+
+//indexed by opcode
+static bool cop_flag[64] = {
+	false, false, false, false, false, false, false, false,
+	false, false, false, false, false, false, false, false,
+	true , true , true , true , false, false, false, false,
+	false, false, false, false, false, false, false, false,
+	false, false, false, false, false, false, false, false,
+	false, false, false, false, false, false, false, false,
+	false, false, false, false, false, false, false, false,
+	false, false, false, false, false, false, false, false
+};
