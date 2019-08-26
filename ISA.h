@@ -275,7 +275,7 @@ static bool RI_special_flag[64] = {
 static bool mul_div_flag[64] = {
 	false, false, false, false, false, false, false, false,
 	false, false, false, false, false, false, false, false,
-	true , false, true , false, false, false, false, false,
+	true , true , true , true , false, false, false, false,
 	true , true , true , true , false, false, false, false,
 	false, false, false, false, false, false, false, false,
 	false, false, false, false, false, false, false, false,
@@ -284,8 +284,12 @@ static bool mul_div_flag[64] = {
 };
 
 std::map<int, int> mul_div_delay = {
-            {FUNCT_MULTU, 1},
-            {FUNCT_MULT, 1},
-            {FUNCT_DIV, 1},
-            {FUNCT_DIVU, 1}
+			{FUNCT_MTLO, 2}, //at WB stage
+			{FUNCT_MTHI, 2}, //at WB stage
+            {FUNCT_MULTU, 3},
+            {FUNCT_MULT, 3},
+            {FUNCT_DIV, 9},
+            {FUNCT_DIVU, 9}
 };
+
+#define CPZERO_OP_SUSPEND 5

@@ -1505,7 +1505,8 @@ void CPU::mfhi_exec()
 void CPU::mthi_exec()
 {
 	PipelineRegs *preg = PL_REGS[EX_STAGE];
-	hi = *(preg->alu_src_a);
+	hi_temp = *(preg->alu_src_a);
+	hi_write = true;
 }
 
 void CPU::mflo_exec()
@@ -1517,21 +1518,24 @@ void CPU::mflo_exec()
 void CPU::mtlo_exec()
 {
 	PipelineRegs *preg = PL_REGS[EX_STAGE];
-	lo = *(preg->alu_src_a);
+	lo_temp = *(preg->alu_src_a);
+	lo_write = true;
 }
 
 void CPU::mult_exec()
 {
 	PipelineRegs *preg = PL_REGS[EX_STAGE];
-	mult64s(&hi, &lo, *(preg->alu_src_a), *(preg->alu_src_b));
-	mul_div_remain = mul_div_delay[FUNCT_MULT];
+	mult64s(&hi_temp, &lo_temp, *(preg->alu_src_a), *(preg->alu_src_b));
+	hi_write = true;
+	lo_write = true;
 }
 
 void CPU::multu_exec()
 {
 	PipelineRegs *preg = PL_REGS[EX_STAGE];
-	mult64(&hi, &lo, *(preg->alu_src_a), *(preg->alu_src_b));
-	mul_div_remain = mul_div_delay[FUNCT_MULTU];
+	mult64(&hi_temp, &lo_temp, *(preg->alu_src_a), *(preg->alu_src_b));
+	hi_write = true;
+	lo_write = true;
 }
 
 void CPU::div_exec()
@@ -1539,17 +1543,19 @@ void CPU::div_exec()
 	PipelineRegs *preg = PL_REGS[EX_STAGE];
 	int32 signed_a = (int32)(*(preg->alu_src_a));
 	int32 signed_b = (int32)(*(preg->alu_src_b));
-	lo = signed_a / signed_b;
-	hi = signed_a % signed_b;
-	mul_div_remain = mul_div_delay[FUNCT_DIV];
+	lo_temp = signed_a / signed_b;
+	hi_temp = signed_a % signed_b;
+	hi_write = true;
+	lo_write = true;
 }
 
 void CPU::divu_exec()
 {
 	PipelineRegs *preg = PL_REGS[EX_STAGE];
-	lo = *(preg->alu_src_a) / *(preg->alu_src_b);
-	hi = *(preg->alu_src_a) % *(preg->alu_src_b);
-	mul_div_remain = mul_div_delay[FUNCT_DIVU];
+	lo_temp = *(preg->alu_src_a) / *(preg->alu_src_b);
+	hi_temp = *(preg->alu_src_a) % *(preg->alu_src_b);
+	hi_write = true;
+	lo_write = true;
 }
 
 void CPU::add_exec()

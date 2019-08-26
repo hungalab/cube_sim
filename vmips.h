@@ -107,9 +107,8 @@ public:
 	char		*opt_memdumpfile;
 	char		*opt_ttydev;
 	char		*opt_ttydev2;
-	uint32	num_instrs;
-	uint32		cycle_counts;
-
+	uint32		num_instrs;
+	uint32 		stall_count;
 
 private:
 	Interactor *interactor;

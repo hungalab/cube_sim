@@ -87,7 +87,6 @@ public:
 	uint32 r_mem_data;
 	uint32 imm;
 	uint32 shamt;
-	uint16 excCode;
 	bool mem_read_op;
 	std::vector<ExcInfo*> excBuf;
 };
@@ -173,6 +172,8 @@ class CPU : public DeviceExc {
 	uint32 reg[32]; // General-purpose registers
 	uint32 instr;   // The current instruction
 	uint32 hi, lo;  // Division and multiplication results
+	uint32 hi_temp, lo_temp; //temporary hi/lo data
+	bool hi_write, lo_write;
 
 	PipelineRegs* PL_REGS[PIPELINE_STAGES];
 
@@ -219,10 +220,11 @@ class CPU : public DeviceExc {
 
 	//each stage
 	void fetch();
-	void pre_decode(bool& data_hazard, bool& interlock);
+	void pre_decode(bool& data_hazard);
 	void decode();
+	void pre_execute(bool& interlock);
 	void execute();
-	void pre_memaccess();
+	void pre_mem_access(bool& dcache_miss);
 	void mem_access();
 	void exc_handle(PipelineRegs* preg);
 	void reg_commit();

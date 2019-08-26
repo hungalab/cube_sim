@@ -39,7 +39,7 @@ instcounts
 # noreportirq
 # notestdev
 # notracing
-tracing
+# tracing
 # romfile=romfile.rom
 # spimconsole
 # timeratio=1

@@ -740,7 +740,13 @@ void CPU::fetch()
 	uint32 fetch_instr;
 
 	pc += 4;
-	real_pc = cpzero->address_trans(pc,INSTFETCH,&cacheable, this);
+
+	if (pc % 4 != 0) {
+		//Addr Error
+		exception(AdEL);
+	} else {
+		real_pc = cpzero->address_trans(pc,INSTFETCH,&cacheable, this);
+	}
 
 	if (catch_exception) {
 		PL_REGS[IF_STAGE] = new PipelineRegs(pc, NOP_INSTR);
@@ -771,7 +777,7 @@ void CPU::fetch()
 }
 
 
-void CPU::pre_decode(bool& data_hazard, bool& interlock)
+void CPU::pre_decode(bool& data_hazard)
 {
 
 	PipelineRegs *preg = PL_REGS[ID_STAGE];
@@ -926,9 +932,12 @@ void CPU::pre_decode(bool& data_hazard, bool& interlock)
 		}
 	}
 
-	//detect interlock
-	interlock = ((dec_opcode == OP_SPECIAL) & mul_div_flag[funct(dec_instr)] & (mul_div_remain > 0));
-
+	//store exception
+	if (catch_exception) {
+		preg->excBuf.emplace_back(exc_signal);
+		//reset signal
+		catch_exception = false;
+	}
 }
 
 void CPU::decode()
@@ -957,6 +966,18 @@ void CPU::decode()
 	if (control_flag) {
 		(this->*execTable[dec_opcode])();
 	}
+
+}
+
+void CPU::pre_execute(bool& interlock)
+{
+	PipelineRegs *preg = PL_REGS[EX_STAGE];
+	uint32 exec_instr = preg->instr;
+
+	//detect interlock
+	interlock = ((opcode(exec_instr) == OP_SPECIAL)
+					& mul_div_flag[funct(exec_instr)] & (mul_div_remain > 0));
+
 }
 
 void CPU::execute()
@@ -976,6 +997,56 @@ void CPU::execute()
 	if (execTable[opcode(exec_instr)]) {
 		(this->*execTable[opcode(exec_instr)])();
 	}
+
+	// setup delay count
+	if ((opcode(exec_instr) == OP_SPECIAL) & mul_div_flag[funct(exec_instr)]) {
+		mul_div_remain = mul_div_delay[funct(exec_instr)];
+	}
+
+	//store exception
+	if (catch_exception) {
+		preg->excBuf.emplace_back(exc_signal);
+		//reset signal
+		catch_exception = false;
+	}
+}
+
+void CPU::pre_mem_access(bool& cache_miss)
+{
+	PipelineRegs *preg = PL_REGS[MEM_STAGE];
+	uint32 mem_instr = preg->instr;
+	uint16 mem_opcode = opcode(mem_instr);
+
+	uint32 phys;
+	bool cacheable;
+	Cache *cache = cpzero->caches_swapped() ? icache : dcache;
+
+	uint32 vaddr = preg->result;
+
+	//Address Error check
+	switch (mem_opcode) {
+		case OP_LH:
+		case OP_LHU:
+		case OP_SH:
+			if (vaddr % 2 != 0) {
+				exception(AdEL);
+			}
+			break;
+		case OP_LW:
+		case OP_SW:
+			if (vaddr % 4 != 0) {
+				exception(AdEL);
+			}
+		break;
+	}
+
+	//Exception may be occured
+	if (mem_write_flag[mem_opcode]) {
+		phys = cpzero->address_trans(vaddr, DATASTORE, &cacheable, this);
+	} else if (mem_read_flag[mem_opcode]) {
+		phys = cpzero->address_trans(vaddr, DATALOAD, &cacheable, this);
+	}
+
 	//store exception
 	if (catch_exception) {
 		preg->excBuf.emplace_back(exc_signal);
@@ -998,28 +1069,10 @@ void CPU::mem_access()
 
 	uint32 vaddr = preg->result;
 
-	//Address Error check
-	switch (mem_opcode) {
-		case OP_LH:
-		case OP_LHU:
-		case OP_SH:
-			if (vaddr % 2 != 0) {
-				preg->excCode = AdEL;
-			}
-			break;
-		case OP_LW:
-		case OP_SW:
-			if (vaddr % 4 != 0) {
-				preg->excCode = AdEL;
-			}
-		break;
-	}
-
 	if (mem_write_flag[mem_opcode]) {
 		//Store
 		uint32 data = *(preg->w_mem_data);
 		phys = cpzero->address_trans(vaddr, DATASTORE, &cacheable, this);
-		if (exception_pending) { fprintf(stderr, "not imple\n");}
 		if (cacheable) {
 			//store from cache
 			switch (mem_opcode) {
@@ -1034,7 +1087,7 @@ void CPU::mem_access()
 				case OP_SWL:
 					wordvirt = vaddr & ~0x03UL;
 					which_byte = vaddr & 0x03UL;
-					fprintf(stderr, "not imple\n");
+					fprintf(stderr, "Not implemented SWL\n");
 					break;
 				case OP_SW:
 					cache->store_word(mem, phys, data, this);
@@ -1042,7 +1095,7 @@ void CPU::mem_access()
 				case OP_SWR:
 					wordvirt = vaddr & ~0x03UL;
 					which_byte = vaddr & 0x03UL;
-					fprintf(stderr, "not imple\n");
+					fprintf(stderr, "Not implemented SWR\n");
 					break;
 			}
 		} else {
@@ -1065,10 +1118,6 @@ void CPU::mem_access()
 		//Load
 		/* Translate virtual address to physical address. */
 		phys = cpzero->address_trans(vaddr, DATALOAD, &cacheable, this);
-		if (exception_pending) { 
-			fprintf(stderr, "not imple ld %X\n", vaddr);
-			fprintf(stderr, "PC  0x%X\n", preg->pc);
-		}
 		if (cacheable) {
 			//load from cache
 			switch (mem_opcode) {
@@ -1144,10 +1193,7 @@ void CPU::reg_commit()
 
 void CPU::step()
 {
-	static int call_count = 0;
-	static Disassembler *disasm = new Disassembler(machine->host_bigendian, stderr);
-
-	bool data_hazard, interlock;
+	bool data_hazard, interlock, dcache_miss;
 
 	// Decrement Random register every clock cycle.
 	cpzero->adjust_random();
@@ -1155,33 +1201,39 @@ void CPU::step()
 	//if (call_count > 300) return;
 	if (machine->state == vmips::HALT) return;
 
-	/* ################ DECODE STAGE ################ */
-	exc_handle(PL_REGS[WB_STAGE]);
-	//fprintf(stderr, "\tWB\n");
-	reg_commit();
-	//fprintf(stderr, "\tMEM\n");
-	mem_access();
-	//fprintf(stderr, "\tEX\n");
-	execute();
-	//fprintf(stderr, "\tID\n");
-	pre_decode(data_hazard, interlock);
-	if (interlock) {
-		fprintf(stderr, "interlocked!! 0x%X\n", PL_REGS[ID_STAGE]->pc);
-	}
-	decode();
+	//check exception & stall
+	pre_decode(data_hazard);
+	pre_mem_access(dcache_miss);
+	pre_execute(interlock);
+	exc_handle(PL_REGS[MEM_STAGE]);
 
-	//go ahead pipeline
-	for (int i = PIPELINE_STAGES - 1; i > 0; i--) {
-		PL_REGS[i] = PL_REGS[i - 1];
-	}
-
-	fetch();
-
-	if (mul_div_remain > 0)
+	// emulate mult/div unit
+	if (mul_div_remain > 0) {
 		mul_div_remain--;
+		if (mul_div_remain == 0) {
+			//update regs
+			hi = hi_write ? hi_temp : hi;
+			lo = lo_write ? lo_temp : lo;
+			hi_write = lo_write = false;
+		}
+	}
 
-	// fprintf(stderr,"PC=0x%08x [%08x]\t%08x ",pc,real_pc,instr);
-	// disasm->disassemble(PL_REGS[IF_STAGE]->pc, PL_REGS[IF_STAGE]->instr);
+	//if no stall/exception, process each stage
+	if (!data_hazard && !interlock) {
+		reg_commit();
+		mem_access();
+		execute();
+		decode(); //decode must be processed after execute/mem_access due to forwarding
+
+		//go ahead pipeline
+		for (int i = PIPELINE_STAGES - 1; i > 0; i--) {
+			PL_REGS[i] = PL_REGS[i - 1];
+		}
+
+		fetch();
+	} else {
+		machine->stall_count++;
+	}
 
 };
 

@@ -106,7 +106,7 @@ vmips::refresh_options(void)
 vmips::vmips(int argc, char *argv[])
 	: opt(new Options), state(HALT),
 	  clock(0), clock_device(0), halt_device(0), spim_console(0),
-	  num_instrs(0), interactor(0)
+	  num_instrs(0), interactor(0), stall_count(0)
 {
     opt->process_options (argc, argv);
 	refresh_options();
@@ -623,8 +623,8 @@ vmips::run()
 	if (opt_instcounts) {
 		double elapsed = (double) timediff(&end, &start) / 1000000.0;
 		fprintf(stderr, "%u instructions in %.5f seconds (%.3f "
-			"instructions per second)\n", num_instrs, elapsed,
-			((double) num_instrs) / elapsed);
+			"instructions per second) (stall ratio %.3f%%)\n", num_instrs, elapsed,
+			((double) num_instrs) / elapsed, ((double) stall_count / (double)num_instrs) * 100);
 	}
 
 	if (opt_memdump) {
