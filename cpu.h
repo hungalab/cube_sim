@@ -412,9 +412,7 @@ public:
 
 	// Control-flow methods.
 	void step ();
-	void mystep ();
 	void reset ();
-
 
 	// Methods which are only for use by the CPU and its coprocessors.
 	void branch (uint32 instr, uint32 current_pc);

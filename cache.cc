@@ -17,7 +17,7 @@ Cache::Cache(unsigned int block_count_, unsigned int block_size_, unsigned int w
 			blocks[i][j].data = new uint32[block_size / 4];
 			blocks[i][j].dirty = false;
 			blocks[i][j].valid = false;
-			blocks[i][j].last_access = machine->num_instrs;
+			blocks[i][j].last_access = machine->num_cycles;
 		}
 	}
 

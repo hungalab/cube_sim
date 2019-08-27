@@ -376,6 +376,8 @@ static Option nametable[] = {
     //bsize&bnum must be the powers of two
     /* cache configration*/
 
+    { "mem_bandwidth", NUM },
+
 
     { NULL, 0 }
 };
@@ -397,7 +399,7 @@ static const char *defaults_table[] = {
     "mipstoolprefix=/nonexistent/mips/bin/mipsel-ecoff-",
     "execname=none", "nofpu", "notestdev", "nocacheprof",
     "icacheway=2", "dcacheway=2", "icachebsize=64", "dcachebsize=64",
-    "icachebnum=64", "dcachebnum=64",
+    "icachebnum=64", "dcachebnum=64", "mem_bandwidth=1",
     NULL
 };
 

@@ -43,20 +43,6 @@ public:
 	virtual void step () = 0;
 	virtual void reset () = 0;
 
-	/*notification of stall*/
-	virtual void stall(int cause) {
-		stall_stat = true;
-		stall_cause = cause;
-	};
-
-private:
-	/* Device status*/
-	// DeviceState *state;
-	bool stall_stat;
-	int stall_cause;
-
-
-
 };
 
 #endif /* _DEVICEEXC_H_ */

@@ -98,6 +98,7 @@ vmips::refresh_options(void)
 	opt_decserial = opt->option("decserial")->flag;
 	opt_spimconsole = opt->option("spimconsole")->flag;
 	opt_testdev = opt->option("testdev")->flag;
+	mem_bandwidth = opt->option("mem_bandwidth")->num;
 }
 
 /* Set up some machine globals, and process command line arguments,
@@ -106,7 +107,7 @@ vmips::refresh_options(void)
 vmips::vmips(int argc, char *argv[])
 	: opt(new Options), state(HALT),
 	  clock(0), clock_device(0), halt_device(0), spim_console(0),
-	  num_instrs(0), interactor(0), stall_count(0)
+	  num_cycles(0), interactor(0), stall_count(0)
 {
     opt->process_options (argc, argv);
 	refresh_options();
@@ -380,7 +381,14 @@ vmips::step(void)
 {
 	/* Process instructions. */
 	cpu->step();
-	//cpu->mystep();
+	physmem->step();
+	for (int i = 0; i < mem_bandwidth; i++) {
+		/*
+		cpu->icache->step();
+		cpu->dcache->step();
+		dmac->step();
+		*/
+	}
 
 	/* Keep track of time passing. Each instruction either takes
 	 * clock_nanos nanoseconds, or we use pass_realtime() to check the
@@ -394,7 +402,7 @@ vmips::step(void)
 	/* If user requested it, dump registers from CPU and/or CP0. */
     dump_cpu_info (opt_dumpcpu, opt_dumpcp0);
 
-	num_instrs++;
+	num_cycles++;
 }
 
 long 
@@ -623,8 +631,8 @@ vmips::run()
 	if (opt_instcounts) {
 		double elapsed = (double) timediff(&end, &start) / 1000000.0;
 		fprintf(stderr, "%u instructions in %.5f seconds (%.3f "
-			"instructions per second) (stall ratio %.3f%%)\n", num_instrs, elapsed,
-			((double) num_instrs) / elapsed, ((double) stall_count / (double)num_instrs) * 100);
+			"instructions per second) (stall ratio %.3f%%)\n", num_cycles, elapsed,
+			((double) num_cycles) / elapsed, ((double) stall_count / (double)num_cycles) * 100);
 	}
 
 	if (opt_memdump) {

@@ -45,6 +45,17 @@ Mapper::~Mapper()
 		delete *i;
 }
 
+/* For now, it always returns true */
+bool Mapper::ready(uint32 addr, DeviceExc *client)
+{
+	return true;
+}
+
+void Mapper::step()
+{
+
+}
+
 /* Add range R to the mapping. R must not overlap with any existing
  * ranges in the mapping. Return 0 if R added sucessfully or -1 if
  * R overlapped with an existing range.

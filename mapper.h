@@ -97,12 +97,18 @@ public:
 	   the access should be cacheable. CLIENT receives any exceptions
 	   which may be generated. */
 	/* cacheable was removed by kojima */
-	uint32 fetch_word(uint32 addr, int32 mode, 	DeviceExc *client);
+	uint32 fetch_word(uint32 addr, int32 mode, DeviceExc *client);
 	uint16 fetch_halfword(uint32 addr, DeviceExc *client);
 	uint8 fetch_byte(uint32 addr, DeviceExc *client);
 	void store_word(uint32 addr, uint32 data, DeviceExc *client);
 	void store_halfword(uint32 addr, uint16 data, DeviceExc *client);
 	void store_byte(uint32 addr, uint8 data, DeviceExc *client);
+
+	/* control flow */
+	void step();
+
+	/* check if mem access is available */
+	bool ready(uint32 addr, DeviceExc *client);
 
 	/* Returns the Range object which would be used for a fetch or store to
 	   physical address P. Ordinarily, you shouldn't mess with these. */
