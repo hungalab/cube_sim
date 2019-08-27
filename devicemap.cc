@@ -119,3 +119,10 @@ DeviceMap::canWrite(uint32 offset)
 {
     return true;
 }
+
+bool
+DeviceMap::ready(uint32 offset, DeviceExc *client)
+{
+	// Return true when slave(range) is memory.
+	return true;
+}

@@ -72,6 +72,7 @@ public:
        partially read-only. See the definitions in class Range for details.  */
     virtual bool canRead(uint32 offset);
     virtual bool canWrite(uint32 offset);
+    virtual bool ready(uint32 offset, DeviceExc *client);
 };
 
 #endif /* _DEVICEMAP_H_ */
