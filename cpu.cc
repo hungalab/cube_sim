@@ -66,7 +66,10 @@ PipelineRegs::PipelineRegs(uint32 pc_, uint32 instr_):
 	result = r_mem_data = imm = shamt = 0;
 }
 
-
+PipelineRegs::~PipelineRegs()
+{
+	excBuf.clear();
+}
 
 CPU::CPU (Mapper &m, IntCtrl &i)
   : tracing (false), last_epc (0), last_prio (0), mem (&m),
@@ -1217,7 +1220,10 @@ void CPU::reg_commit()
 
 void CPU::step()
 {
+	// control signals
 	bool data_hazard, interlock, fetch_miss, data_miss;
+	//keep pregs in 2 cycles because of forwarding
+	static PipelineRegs *late_preg, *late_late_preg;
 
 	// Decrement Random register every clock cycle.
 	cpzero->adjust_random();
@@ -1265,12 +1271,18 @@ void CPU::step()
 		decode(); //decode must be processed after execute/mem_access due to forwarding
 		if (suspend == true) {
 			//IF stage stay until suspension
+			delete late_late_preg;
+			late_late_preg = late_preg;
+			late_preg = PL_REGS[WB_STAGE];
 			for (int i = PIPELINE_STAGES - 1; i > EX_STAGE; i--) {
 				PL_REGS[i] = PL_REGS[i - 1];
 			}
 			PL_REGS[EX_STAGE] = new PipelineRegs(pc, NOP_INSTR);
 		} else {
 			//go ahead pipeline
+			delete late_late_preg;
+			late_late_preg = late_preg;
+			late_preg = PL_REGS[WB_STAGE];
 			for (int i = PIPELINE_STAGES - 1; i > 0; i--) {
 				PL_REGS[i] = PL_REGS[i - 1];
 			}

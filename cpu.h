@@ -77,6 +77,7 @@ struct ExcInfo {
 class PipelineRegs {
 public:
 	PipelineRegs(uint32 pc, uint32 instr);
+	~PipelineRegs();
 	uint32 instr, pc;
 	uint32 *alu_src_a, *alu_src_b;
 	uint32 *w_reg_data, *w_mem_data;
