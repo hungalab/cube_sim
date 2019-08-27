@@ -61,7 +61,7 @@ PipelineRegs::PipelineRegs(uint32 pc_, uint32 instr_):
 	alu_src_a = &(this->shamt);
 	alu_src_b = &(this->shamt);
 	w_reg_data = w_mem_data = lwrl_reg_prev = NULL;
-	mem_read_op = false;
+	mem_read_op = delay_slot = false;
 	src_a = src_b = dst = NONE_REG;
 	result = r_mem_data = imm = shamt = 0;
 }
@@ -307,8 +307,7 @@ CPU::exception(uint16 excCode, int mode /* = ANY */, int coprocno /* = -1 */)
 	exc_signal->excCode = excCode;
 	exc_signal->mode = mode;
 	exc_signal->coprocno = coprocno;
-	exception_pending = false; //will be removed
-	catch_exception = true;
+	exception_pending = true;
 }
 
 void CPU::exc_handle(PipelineRegs *preg)
@@ -366,7 +365,11 @@ void CPU::exc_handle(PipelineRegs *preg)
 	/* step() ensures that next_epc will always contain the correct
 	 * ne whenever exception() is called.
 	 */
-	epc = preg->pc;
+	if (preg->delay_slot) {
+		epc = preg->pc - 4;
+	} else {
+		epc = preg->pc;
+	}
 
 	/* Set processor to Kernel mode, disable interrupts, and save 
 	 * exception PC.
@@ -732,14 +735,12 @@ CPU::stop_tracing()
 	tracing = false;
 }
 
-void CPU::fetch()
+void CPU::fetch(bool& fetch_miss)
 {
 
 	bool cacheable;
 	uint32 real_pc;
 	uint32 fetch_instr;
-
-	pc += 4;
 
 	if (pc % 4 != 0) {
 		//Addr Error
@@ -748,11 +749,11 @@ void CPU::fetch()
 		real_pc = cpzero->address_trans(pc,INSTFETCH,&cacheable, this);
 	}
 
-	if (catch_exception) {
+	if (exception_pending) {
 		PL_REGS[IF_STAGE] = new PipelineRegs(pc, NOP_INSTR);
 		PL_REGS[IF_STAGE]->excBuf.emplace_back(exc_signal);
 		//reset signal
-		catch_exception = false;
+		exception_pending = false;
 	} else {
 		// Fetch next instruction.
 		if (cacheable) {
@@ -933,10 +934,10 @@ void CPU::pre_decode(bool& data_hazard)
 	}
 
 	//store exception
-	if (catch_exception) {
+	if (exception_pending) {
 		preg->excBuf.emplace_back(exc_signal);
 		//reset signal
-		catch_exception = false;
+		exception_pending = false;
 	}
 }
 
@@ -982,10 +983,10 @@ void CPU::decode()
 	}
 
 	//store exception (cpzero)
-	if (catch_exception) {
+	if (exception_pending) {
 		preg->excBuf.emplace_back(exc_signal);
 		//reset signal
-		catch_exception = false;
+		exception_pending = false;
 	}
 
 }
@@ -1025,14 +1026,14 @@ void CPU::execute()
 	}
 
 	//store exception
-	if (catch_exception) {
+	if (exception_pending) {
 		preg->excBuf.emplace_back(exc_signal);
 		//reset signal
-		catch_exception = false;
+		exception_pending = false;
 	}
 }
 
-void CPU::pre_mem_access(bool& cache_miss)
+void CPU::pre_mem_access(bool& data_miss)
 {
 	PipelineRegs *preg = PL_REGS[MEM_STAGE];
 	uint32 mem_instr = preg->instr;
@@ -1069,10 +1070,10 @@ void CPU::pre_mem_access(bool& cache_miss)
 	}
 
 	//store exception
-	if (catch_exception) {
+	if (exception_pending) {
 		preg->excBuf.emplace_back(exc_signal);
 		//reset signal
-		catch_exception = false;
+		exception_pending = false;
 	}
 }
 
@@ -1091,6 +1092,8 @@ void CPU::mem_access()
 	uint32 vaddr = preg->result;
 
 	if (mem_write_flag[mem_opcode]) {
+		//if pending execption exists
+		if (preg->excBuf.size() > 0) return;
 		//Store
 		uint32 data = *(preg->w_mem_data);
 		phys = cpzero->address_trans(vaddr, DATASTORE, &cacheable, this);
@@ -1214,18 +1217,30 @@ void CPU::reg_commit()
 
 void CPU::step()
 {
-	bool data_hazard, interlock, dcache_miss;
+	bool data_hazard, interlock, fetch_miss, data_miss;
 
 	// Decrement Random register every clock cycle.
 	cpzero->adjust_random();
 
-	if (machine->state == vmips::HALT) return;
+	// Check for a (hardware or software) interrupt.
+	if (cpzero->interrupt_pending()) {
+		exception(Int);
+		PL_REGS[WB_STAGE]->excBuf.emplace_back(exc_signal);
+		//reset signal
+		exception_pending = false;
+	}
+
+	//try to fetch next instr
+	if (PL_REGS[IF_STAGE] == NULL) {
+		fetch(fetch_miss);
+	}
 
 	//check exception & stall
 	pre_decode(data_hazard);
-	pre_mem_access(dcache_miss);
+	pre_mem_access(data_miss);
 	pre_execute(interlock);
-	exc_handle(PL_REGS[MEM_STAGE]);
+
+	exc_handle(PL_REGS[WB_STAGE]);
 
 	// emulate mult/div unit stall
 	if (mul_div_remain > 0) {
@@ -1243,12 +1258,13 @@ void CPU::step()
 
 	//if no stall/exception, process each stage
 	if (!data_hazard && !interlock) {
+		//without any stall, update hardware status like regfile and memory
 		reg_commit();
 		mem_access();
 		execute();
 		decode(); //decode must be processed after execute/mem_access due to forwarding
 		if (suspend == true) {
-			//IF stage stay in same stage until suspension
+			//IF stage stay until suspension
 			for (int i = PIPELINE_STAGES - 1; i > EX_STAGE; i--) {
 				PL_REGS[i] = PL_REGS[i - 1];
 			}
@@ -1258,7 +1274,10 @@ void CPU::step()
 			for (int i = PIPELINE_STAGES - 1; i > 0; i--) {
 				PL_REGS[i] = PL_REGS[i - 1];
 			}
-			fetch();
+			//next pc
+			pc += 4;
+			//prepare next fetch
+			PL_REGS[IF_STAGE] = NULL;
 		}
 
 	} else {
@@ -1629,6 +1648,7 @@ void
 CPU::branch(uint32 instr, uint32 current_pc)
 {
     pc = current_pc + (s_immed(instr) << 2); //+4 later
+    PL_REGS[IF_STAGE]->delay_slot = true;
 }
 
 
@@ -2008,7 +2028,7 @@ void CPU::j_exec()
 {
 	PipelineRegs *preg = PL_REGS[ID_STAGE];
 	pc = (((preg->pc + 4) & 0xf0000000) | (jumptarg(preg->instr) << 2) - 4); //+4 later
-	//fprintf(stderr, "go to %X\n", pc);
+	PL_REGS[IF_STAGE]->delay_slot = true;
 }
 
 void CPU::jal_exec()
@@ -2016,6 +2036,7 @@ void CPU::jal_exec()
 	PipelineRegs *preg = PL_REGS[ID_STAGE];
 	pc = (((preg->pc + 4) & 0xf0000000) | (jumptarg(preg->instr) << 2) - 4); //+4 later
 	preg->result = preg->pc + 8;
+	PL_REGS[IF_STAGE]->delay_slot = true;
 }
 
 void CPU::beq_exec()
@@ -2023,6 +2044,7 @@ void CPU::beq_exec()
 	PipelineRegs *preg = PL_REGS[ID_STAGE];
 	if (*(preg->alu_src_a) == *(preg->alu_src_b)) {
 		pc = preg->pc + (preg->imm << 2); //+4 later
+		PL_REGS[IF_STAGE]->delay_slot = true;
 	}
 }
 
@@ -2031,6 +2053,7 @@ void CPU::bne_exec()
 	PipelineRegs *preg = PL_REGS[ID_STAGE];
 	if (*(preg->alu_src_a) != *(preg->alu_src_b)) {
 		pc = preg->pc + (preg->imm << 2); //+4 later
+		PL_REGS[IF_STAGE]->delay_slot = true;
 	}
 }
 
@@ -2040,6 +2063,7 @@ void CPU::blez_exec()
 	if (*(preg->alu_src_a) == 0 ||
 		 *(preg->alu_src_a) & 0x80000000) {
 		pc = preg->pc + (preg->imm << 2); //+4 later
+		PL_REGS[IF_STAGE]->delay_slot = true;
 	}
 }
 
@@ -2049,6 +2073,7 @@ void CPU::bgtz_exec()
 	if (*(preg->alu_src_a) != 0 &&
 		(*(preg->alu_src_a) & 0x80000000) == 0) {
 		pc = preg->pc + (preg->imm << 2); //+4 later
+		PL_REGS[IF_STAGE]->delay_slot = true;
 	}
 }
 
@@ -2157,7 +2182,7 @@ void CPU::jr_exec()
 {
 	PipelineRegs *preg = PL_REGS[ID_STAGE];
 	pc = *(preg->alu_src_a) - 4; //+4 later
-	//fprintf(stderr, "go to %X\n", pc);
+	PL_REGS[IF_STAGE]->delay_slot = true;
 }
 
 void CPU::jalr_exec()
@@ -2165,7 +2190,7 @@ void CPU::jalr_exec()
 	PipelineRegs *preg = PL_REGS[ID_STAGE];
 	pc = *(preg->alu_src_a) - 4; //+4 later
 	preg->result = preg->pc + 8;
-	fprintf(stderr, "go to %X\n", pc);
+	PL_REGS[IF_STAGE]->delay_slot = true;
 }
 
 void CPU::syscall_exec()
@@ -2341,6 +2366,7 @@ void CPU::bltz_exec()
 	PipelineRegs *preg = PL_REGS[ID_STAGE];
 	if ((int32)*(preg->alu_src_a) < 0) {
 		pc = preg->pc + (preg->imm << 2); //+4 later
+		PL_REGS[IF_STAGE]->delay_slot = true;
 	}
 }
 
@@ -2349,6 +2375,7 @@ void CPU::bgez_exec()
 	PipelineRegs *preg = PL_REGS[ID_STAGE];
 	if ((int32)*(preg->alu_src_a) >= 0) {
 		pc = preg->pc + (preg->imm << 2); //+4 later
+		PL_REGS[IF_STAGE]->delay_slot = true;
 	}
 }
 
@@ -2360,6 +2387,7 @@ void CPU::bltzal_exec()
 	PipelineRegs *preg = PL_REGS[ID_STAGE];
 	if ((int32)*(preg->alu_src_a) < 0) {
 		pc = preg->pc + 4 + (preg->imm << 2); //+4 later
+		PL_REGS[IF_STAGE]->delay_slot = true;
 	}
 	preg->result = preg->pc + 8;
 }
@@ -2369,6 +2397,7 @@ void CPU::bgezal_exec()
 	PipelineRegs *preg = PL_REGS[ID_STAGE];
 	if ((int32)*(preg->alu_src_a) >= 0) {
 		pc = preg->pc + (preg->imm << 2); //+4 later
+		PL_REGS[IF_STAGE]->delay_slot = true;
 	}
 	preg->result = preg->pc + 8;
 }

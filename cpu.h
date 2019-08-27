@@ -88,6 +88,7 @@ public:
 	uint32 imm;
 	uint32 shamt;
 	bool mem_read_op;
+	bool delay_slot;
 	std::vector<ExcInfo*> excBuf;
 };
 
@@ -221,12 +222,12 @@ class CPU : public DeviceExc {
 	int opt_dcachebsize;
 
 	//each stage
-	void fetch();
+	void fetch(bool& fetch_miss);
 	void pre_decode(bool& data_hazard);
 	void decode();
 	void pre_execute(bool& interlock);
 	void execute();
-	void pre_mem_access(bool& dcache_miss);
+	void pre_mem_access(bool& data_miss);
 	void mem_access();
 	void exc_handle(PipelineRegs* preg);
 	void reg_commit();

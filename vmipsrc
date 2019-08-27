@@ -37,6 +37,7 @@ instcounts
 # nomemdump
 # norealtime
 # noreportirq
+reportirq
 # notestdev
 # notracing
 # tracing
