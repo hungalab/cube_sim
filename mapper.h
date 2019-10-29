@@ -112,7 +112,7 @@ public:
 	/* request for memory access */
 	/* If the request is first time, regist it to entry*/
 	/* Otherwise, it is ignored */
-	void requstWord(uint32 addr, int32 mode, DeviceExc *client);
+	void requestWord(uint32 addr, int32 mode, DeviceExc *client);
 
 
 	/* Returns the Range object which would be used for a fetch or store to
