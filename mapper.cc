@@ -46,9 +46,14 @@ Mapper::~Mapper()
 }
 
 /* For now, it always returns true */
-bool Mapper::ready(uint32 addr, DeviceExc *client)
+bool Mapper::ready(uint32 addr, int32 mode, DeviceExc *client)
 {
 	return true;
+}
+
+void Mapper::requstWord(uint32 addr, int32 mode, DeviceExc *client)
+{
+	/* to be implemented */
 }
 
 void Mapper::step()

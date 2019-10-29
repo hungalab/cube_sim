@@ -108,7 +108,12 @@ public:
 	void step();
 
 	/* check if mem access is available */
-	bool ready(uint32 addr, DeviceExc *client);
+	bool ready(uint32 addr, int32 mode, DeviceExc *client);
+	/* request for memory access */
+	/* If the request is first time, regist it to entry*/
+	/* Otherwise, it is ignored */
+	void requstWord(uint32 addr, int32 mode, DeviceExc *client);
+
 
 	/* Returns the Range object which would be used for a fetch or store to
 	   physical address P. Ordinarily, you shouldn't mess with these. */
