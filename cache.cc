@@ -23,14 +23,17 @@ Cache::Cache(Mapper* mem, unsigned int block_count_, unsigned int block_size_, u
 		}
 	}
 
+	// analyze bit format
 	offset_len = int(std::log2(block_size));
 	index_len = int(std::log2(block_count));
 
+	// init cache profile
 	cache_hit_counts = 0;
 	cache_miss_counts = 0;
 	cache_wb_counts = 0;
 	isisolated = false;
 
+	// init cache status
 	status = next_status = CACHE_IDLE;
 }
 
@@ -63,12 +66,14 @@ uint32 Cache::calc_addr(uint32 way, uint32 index)
 
 bool Cache::ready(uint32 addr)
 {
+	// just return whether the cache block is available
 	uint32 index, way, offset;
 	return cache_hit(addr, index, way, offset);
 }
 
 bool Cache::cache_hit(uint32 addr, uint32 &index, uint32 &way, uint32 &offset)
 {
+	// in case of cache hit index, way, offset will be set
 	uint32 tag;
 	addr_separete(addr, tag, index, offset);
 	for (way = 0; way < way_size; way++) {
@@ -109,14 +114,23 @@ void Cache::request_block(uint32 addr, int mode, DeviceExc* client)
 		if (!find) {
 			way = least_recent_used_way;
 			//check if WB is needed
-			if (blocks[way][index].dirty) {
+			if (!isisolated && mode != INSTFETCH && blocks[way][index].dirty) {
 				next_status = CACHE_WB;
+#if defined(CACHE_DEBUG)
+				fprintf(stderr, "WB cache block way(%d) index(%d) is used for addr(0x%x)\n", way, index, addr);
+#endif
 			} else {
 				next_status = CACHE_FETCH;
 			}
 		} else {
 			next_status = CACHE_FETCH;
 		}
+
+#if defined(CACHE_DEBUG)
+		if (next_status == CACHE_FETCH) {
+			fprintf(stderr, "cache block way(%d) index(%d) is used for addr(0x%x)\n", way, index, addr);
+		}
+#endif
 		// regist replaced cache block & statue
 		cache_op_state = new CacheOpState{word_size, addr, way, index, mode, client};
 		cache_miss_counts++;
@@ -124,32 +138,43 @@ void Cache::request_block(uint32 addr, int mode, DeviceExc* client)
 }
 
 
-// void Cache::cache_wb(Mapper* physmem, int mode, DeviceExc *client, uint32 index, uint32 way)
 void Cache::cache_wb()
 {
 	uint32 wb_addr = calc_addr(cache_op_state->way, cache_op_state->index);
 	wb_addr += (word_size - cache_op_state->counter) * 4;
-	uint32 wb_offset = 0;
+	// uint32 wb_offset = 0;
 	unsigned int way = cache_op_state->way;
 	unsigned int index = cache_op_state->index;
-	Range *l = NULL;
+	// Range *l = NULL;
 
-	l = physmem->find_mapping_range(wb_addr);
-	if (!l) {
-		physmem->bus_error(cache_op_state->client, cache_op_state->mode, wb_addr, 4);
-		return;
-	}
-	wb_offset = wb_addr - l->getBase();
-	l->store_word(wb_offset,
-					physmem->host_to_mips_word(blocks[way][index].data[word_size - cache_op_state->counter]),
-					cache_op_state->client);
+	// l = physmem->find_mapping_range(wb_addr);
+	// if (!l) {
+	// 	physmem->bus_error(cache_op_state->client, cache_op_state->mode, wb_addr, 4);
+	// 	return;
+	// }
+	// wb_offset = wb_addr - l->getBase();
 
-	if (--cache_op_state->counter == 0) {
-		next_status = CACHE_FETCH;
-		cache_op_state->counter = word_size;
-		cache_wb_counts++;
+	// request for access at first
+	if (cache_op_state->counter == word_size) {
+		for (int i = 0; i < word_size; i++) {
+			physmem->requestWord(wb_addr + (4 * i), cache_op_state->mode, cache_op_state->client);
+		}
 	}
-	//cache_wb_counts++;
+
+	// if access is ready, write back the data
+	if (physmem->ready(wb_addr, cache_op_state->mode, cache_op_state->client)) {
+		physmem->store_word(wb_addr,
+			physmem->host_to_mips_word(blocks[way][index].data[word_size - cache_op_state->counter]),
+			cache_op_state->client);
+
+		if (--cache_op_state->counter == 0) {
+			//finish write back
+			next_status = CACHE_FETCH;
+			cache_op_state->counter = word_size;
+			cache_wb_counts++;
+		}
+	}
+
 }
 
 void Cache::cache_fetch()
@@ -158,92 +183,41 @@ void Cache::cache_fetch()
 	uint32 fetch_addr = (cache_op_state->requested_addr & ~((1 << offset_len) - 1))
 							+ ((word_size - cache_op_state->counter) * 4);
 
-	Range *l = NULL;
-	uint32 fetch_offset;
+	// Range *l = NULL;
+	// uint32 fetch_offset;
 	way = cache_op_state->way;
 	index = cache_op_state->index;
-	l = physmem->find_mapping_range(fetch_addr);
-	if (!l) {
-		physmem->bus_error(cache_op_state->client, cache_op_state->mode, fetch_addr, 4);
-		blocks[way][index].valid = false;
-		return;
-	}
-	fetch_offset = fetch_addr - l->getBase();
-	blocks[way][index].data[word_size - cache_op_state->counter] =
-		physmem->host_to_mips_word(l->fetch_word(fetch_offset, cache_op_state->mode, cache_op_state->client));
+	// l = physmem->find_mapping_range(fetch_addr);
+	// if (!l) {
+	// 	physmem->bus_error(cache_op_state->client, cache_op_state->mode, fetch_addr, 4);
+	// 	blocks[way][index].valid = false;
+	// 	return;
+	// }
+	// fetch_offset = fetch_addr - l->getBase();
 
-	if (--cache_op_state->counter == 0) {
-		next_status = CACHE_IDLE;
-		addr_separete(fetch_addr, tag, index, offset);
-		blocks[way][index].tag = tag;
-		blocks[way][index].valid = true;
-		blocks[way][index].dirty = false;
-		delete cache_op_state;
+	// request for access at first
+	if (cache_op_state->counter == word_size) {
+		for (int i = 0; i < word_size; i++) {
+			physmem->requestWord(fetch_addr + (4 * i), cache_op_state->mode, cache_op_state->client);
+		}
+	}
+
+	// if access is ready, fetch the data
+	if (physmem->ready(fetch_addr, cache_op_state->mode, cache_op_state->client)) {
+		blocks[way][index].data[word_size - cache_op_state->counter] =
+			physmem->host_to_mips_word(physmem->fetch_word(fetch_addr, cache_op_state->mode, cache_op_state->client));
+
+		if (--cache_op_state->counter == 0) {
+			// finish cache fetch
+			next_status = CACHE_IDLE;
+			addr_separete(fetch_addr, tag, index, offset);
+			blocks[way][index].tag = tag;
+			blocks[way][index].valid = true;
+			blocks[way][index].dirty = false;
+			delete cache_op_state;
+		}
 	}
 }
-
-//void Cache::cache_fetch(uint32 addr, Mapper* physmem, int mode, DeviceExc *client, uint32 &index, uint32 &way, uint32 &offset)
-// {
-// 	int least_recent_used_way = 0;
-// 	uint32 tag;
-
-// 	addr_separete(addr, tag, index, offset);
-// 	bool find = false;
-// 	Range *l = NULL;
-
-// 	//find free block and LRU block
-// 	for (way = 0; way < way_size; way++) {
-// 		if (blocks[least_recent_used_way][index].last_access >
-// 				blocks[way][index].last_access) {
-// 			//update
-// 			least_recent_used_way = way;
-// 		}
-// 		if (!blocks[way][index].valid) {
-// 			find = true;
-// 			break;
-// 		}
-// 	}
-
-// 	if (!find) {
-// 		way = least_recent_used_way;
-// 		//check if WB is needed
-// 		if (!isisolated && mode != INSTFETCH && blocks[way][index].dirty) {
-// 			//cache WB
-// #if defined(CACHE_DEBUG)
-// 			printf("WB cache block way(%d) index(%d) is used for addr(0x%x)\n", way, index, addr);
-// #endif
-// 			cache_wb(physmem, mode, client, index, way);
-// 		}
-// 	}
-
-// #if defined(CACHE_DEBUG)
-// 	printf("cache block way(%d) index(%d) is used for addr(0x%x)\n", way, index, addr);
-// #endif
-
-// 	blocks[way][index].tag = tag;
-// 	blocks[way][index].valid = true;
-// 	blocks[way][index].dirty = false;
-
-// 	if (isisolated && mode != INSTFETCH) {
-// 		// no need to fetch
-// 		return;
-// 	}
-
-// 	//set line
-// 	l = NULL;
-// 	uint32 fetch_offset;
-// 	addr = calc_addr(way, index);
-// 	for (int i = 0; i < block_size / 4; i++) {
-// 		l = physmem->find_mapping_range(addr + 4 * i);
-// 		if (!l) {
-// 			physmem->bus_error(client, mode, addr + 4 * i, 4);
-// 			blocks[way][index].valid = false;
-// 			return;
-// 		}
-// 		fetch_offset = addr + 4 * i - l->getBase();
-// 		blocks[way][index].data[i] = physmem->host_to_mips_word(l->fetch_word(fetch_offset, mode, client));
-// 	}
-// }
 
 uint32 Cache::fetch_word(uint32 addr, int32 mode, DeviceExc *client)
 {
