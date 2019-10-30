@@ -128,8 +128,8 @@ CPU::reset(void)
 	pc = 0xbfc00000 - 4; //+4 later
 	cpzero->reset();
 	//generate cache
-	icache = new Cache(opt_icachebnum, opt_icachebsize, opt_icacheway);	/* 64Byte * 64Block * 2way = 8KB*/
-	dcache = new Cache(opt_dcachebnum, opt_dcachebsize, opt_dcacheway);
+	icache = new Cache(mem, opt_icachebnum, opt_icachebsize, opt_icacheway);	/* 64Byte * 64Block * 2way = 8KB*/
+	dcache = new Cache(mem, opt_dcachebnum, opt_dcachebsize, opt_dcacheway);
 	//fill NOP for each Pipeline stage
 	volatilize_pipeline();
 }
@@ -738,12 +738,12 @@ CPU::stop_tracing()
 	tracing = false;
 }
 
-void CPU::fetch(bool& fetch_miss)
+void CPU::fetch(bool& fetch_miss, bool data_miss)
 {
-
 	bool cacheable;
 	uint32 real_pc;
 	uint32 fetch_instr;
+	Cache *cache = cpzero->caches_swapped() ? dcache : icache;
 
 	if (pc % 4 != 0) {
 		//Addr Error
@@ -760,21 +760,31 @@ void CPU::fetch(bool& fetch_miss)
 	} else {
 		// Fetch next instruction.
 		if (cacheable) {
-			if (cpzero->caches_swapped()) {
-				fetch_instr = dcache->fetch_word(mem, real_pc,INSTFETCH, this);
-			} else {
-				fetch_instr = icache->fetch_word(mem, real_pc,INSTFETCH, this);
+			fetch_miss = !cache->ready(real_pc);
+			if (fetch_miss & !data_miss) {
+				cache->request_block(real_pc, INSTFETCH, this);
 			}
 		} else {
-			fetch_instr = mem->fetch_word(real_pc,INSTFETCH,this);
+			fetch_miss = !mem->ready(real_pc,INSTFETCH,this);
+			if (fetch_miss & !data_miss) {
+				mem->requestWord(real_pc,INSTFETCH,this);
+			}
 		}
+		// in case of no stall
+		if (!fetch_miss) {
+			if (cacheable) {
+				fetch_instr = cache->fetch_word(real_pc,INSTFETCH, this);
+			} else {
+				fetch_instr = mem->fetch_word(real_pc,INSTFETCH,this);
+			}
 
-		PL_REGS[IF_STAGE] = new PipelineRegs(pc, fetch_instr);
+			PL_REGS[IF_STAGE] = new PipelineRegs(pc, fetch_instr);
 
-		// Disassemble the instruction, if the user requested it.
-		if (opt_instdump) {
-			fprintf(stderr,"PC=0x%08x [%08x]\t%08x ",pc,real_pc,fetch_instr);
-			machine->disasm->disassemble(pc,fetch_instr);
+			// Disassemble the instruction, if the user requested it.
+			if (opt_instdump) {
+				fprintf(stderr,"PC=0x%08x [%08x]\t%08x ",pc,real_pc,fetch_instr);
+				machine->disasm->disassemble(pc,fetch_instr);
+			}
 		}
 	}
 
@@ -1045,8 +1055,10 @@ void CPU::pre_mem_access(bool& data_miss)
 	uint32 phys;
 	bool cacheable;
 	Cache *cache = cpzero->caches_swapped() ? icache : dcache;
-
 	uint32 vaddr = preg->result;
+	int mode;
+
+	data_miss = false;
 
 	//Address Error check
 	switch (mem_opcode) {
@@ -1067,9 +1079,26 @@ void CPU::pre_mem_access(bool& data_miss)
 
 	//Exception may be occured
 	if (mem_write_flag[mem_opcode]) {
-		phys = cpzero->address_trans(vaddr, DATASTORE, &cacheable, this);
+		mode = DATASTORE;
 	} else if (mem_read_flag[mem_opcode]) {
-		phys = cpzero->address_trans(vaddr, DATALOAD, &cacheable, this);
+		mode = DATALOAD;
+	}
+
+	if (mem_write_flag[mem_opcode] || mem_read_flag[mem_opcode]) {
+		phys = cpzero->address_trans(vaddr, mode, &cacheable, this);
+		//check stall
+		if (cacheable) {
+			Cache *cache = cpzero->caches_swapped() ? icache : dcache;
+			data_miss = !cache->ready(phys);
+			if (data_miss) {
+				cache->request_block(phys, mode, this);
+			}
+		} else {
+			data_miss = !mem->ready(phys, mode, this);
+			if (data_miss) {
+				mem->requestWord(phys, mode, this);
+			}
+		}
 	}
 
 	//store exception
@@ -1105,11 +1134,11 @@ void CPU::mem_access()
 			switch (mem_opcode) {
 				case OP_SB:
 					data &= 0x0FF;
-					cache->store_byte(mem, phys, data, this);
+					cache->store_byte(phys, data, this);
 					break;
 				case OP_SH:
 					data &= 0x0FFFF;
-					cache->store_halfword(mem, phys, data, this);
+					cache->store_halfword(phys, data, this);
 					break;
 				case OP_SWL:
 					wordvirt = vaddr & ~0x03UL;
@@ -1117,7 +1146,7 @@ void CPU::mem_access()
 					fprintf(stderr, "Not implemented SWL\n");
 					break;
 				case OP_SW:
-					cache->store_word(mem, phys, data, this);
+					cache->store_word(phys, data, this);
 					break;
 				case OP_SWR:
 					wordvirt = vaddr & ~0x03UL;
@@ -1150,16 +1179,16 @@ void CPU::mem_access()
 			switch (mem_opcode) {
 				case OP_LB:
 				case OP_LBU:
-					preg->r_mem_data = cache->fetch_byte(mem, phys, this);
+					preg->r_mem_data = cache->fetch_byte(phys, this);
 					break;
 				case OP_LH:
 				case OP_LHU:
-					preg->r_mem_data = cache->fetch_halfword(mem, phys, this);
+					preg->r_mem_data = cache->fetch_halfword(phys, this);
 					break;
 				case OP_LWL:
 				case OP_LW:
 				case OP_LWR:
-					preg->r_mem_data = cache->fetch_word(mem, phys, DATALOAD, this);
+					preg->r_mem_data = cache->fetch_word(phys, DATALOAD, this);
 				break;
 			}
 		} else {
@@ -1236,15 +1265,15 @@ void CPU::step()
 		exception_pending = false;
 	}
 
-	//try to fetch next instr
-	if (PL_REGS[IF_STAGE] == NULL) {
-		fetch(fetch_miss);
-	}
-
 	//check exception & stall
 	pre_decode(data_hazard);
 	pre_mem_access(data_miss);
 	pre_execute(interlock);
+
+	//try to fetch next instr
+	if (PL_REGS[IF_STAGE] == NULL) {
+		fetch(fetch_miss, data_miss);
+	}
 
 	exc_handle(PL_REGS[WB_STAGE]);
 
@@ -1262,8 +1291,11 @@ void CPU::step()
 		cop_remain--;
 	}
 
+	dcache->step();
+	icache->step();
+
 	//if no stall/exception, process each stage
-	if (!data_hazard && !interlock) {
+	if (!data_hazard && !interlock && !data_miss && !fetch_miss) {
 		//without any stall, update hardware status like regfile and memory
 		reg_commit();
 		mem_access();

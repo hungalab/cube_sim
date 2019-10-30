@@ -223,7 +223,7 @@ class CPU : public DeviceExc {
 	int opt_dcachebsize;
 
 	//each stage
-	void fetch(bool& fetch_miss);
+	void fetch(bool& fetch_miss, bool data_miss);
 	void pre_decode(bool& data_hazard);
 	void decode();
 	void pre_execute(bool& interlock);
