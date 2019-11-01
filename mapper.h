@@ -37,6 +37,15 @@ public:
 		uint32 data;
 	};
 
+	class AccessDelayCounter {
+	public:
+		AccessDelayCounter();
+		DeviceExc *source_client;
+		int32 mode;
+		int32 counter;
+		void step();
+	};
+
 	/* Record information about a bad access that caused a bus error,
 	   and then signal the exception to CLIENT. */
 	void bus_error (DeviceExc *client, int32 mode, uint32 addr, int32 width,

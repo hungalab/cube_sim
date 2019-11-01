@@ -460,3 +460,20 @@ Mapper::dump_mem(FILE *f, uint32 phys)
 		}
 	}
 }
+
+/* 
+ * Mapper::AccessDelayCounter implementation
+ */
+
+Mapper::AccessDelayCounter::AccessDelayCounter()
+{
+	uint32 mem_bandwidth = machine->opt->option("mem_bandwidth")->num;
+	uint32 mem_access_latency = machine->opt->option("mem_access_latency")->num;
+
+	counter = mem_bandwidth * mem_access_latency;
+}
+
+void Mapper::AccessDelayCounter::step()
+{
+	--counter;
+}
