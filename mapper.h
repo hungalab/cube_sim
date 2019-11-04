@@ -23,6 +23,7 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 #include "range.h"
 #include <cstdio>
 #include <vector>
+#include <unordered_map>
 
 class DeviceExc;
 
@@ -37,9 +38,26 @@ public:
 		uint32 data;
 	};
 
-	class AccessDelayCounter {
+	struct RequestsKey {
+		uint32 requested_addr;
+		DeviceExc *requester;
+	};
+
+	struct RequestsHash {
+		std::size_t operator()(const struct RequestsKey &key) const {
+			size_t h = 0;
+			uintptr_t key_ptr = (uintptr_t) &key;
+			for (int i  = 0; i < sizeof(key_ptr) / sizeof(int); ++i) {
+				h = (key_ptr >> (sizeof(int) * i * 8)) & 0xffff;
+			}
+			h = (h << (sizeof(int) * 8)) & key.requested_addr;
+			return h;
+		}
+	};
+
+	class RequestsAccessDelayCounter {
 	public:
-		AccessDelayCounter();
+		RequestsAccessDelayCounter();
 		DeviceExc *source_client;
 		int32 mode;
 		int32 counter;
@@ -54,6 +72,8 @@ public:
 	bool byteswapped;
 
 private:
+
+	std::unordered_map<RequestsKey, RequestsAccessDelayCounter, RequestsHash> access_requests;
 	/* We keep lists of ranges in a vector of pointers to range
 	   objects. */
 	typedef std::vector<Range *> Ranges;
