@@ -110,6 +110,7 @@ public:
 	uint32		num_cycles;
 	uint32 		stall_count;
 	uint32		mem_bandwidth;
+	uint32		mem_access_latency;
 
 private:
 	Interactor *interactor;

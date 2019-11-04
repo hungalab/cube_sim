@@ -99,6 +99,7 @@ vmips::refresh_options(void)
 	opt_spimconsole = opt->option("spimconsole")->flag;
 	opt_testdev = opt->option("testdev")->flag;
 	mem_bandwidth = opt->option("mem_bandwidth")->num;
+	mem_access_latency = opt->option("mem_access_latency")->num;
 }
 
 /* Set up some machine globals, and process command line arguments,
