@@ -157,7 +157,7 @@ void Cache::cache_wb()
 	// request for access at first
 	if (cache_op_state->counter == word_size) {
 		for (int i = 0; i < word_size; i++) {
-			physmem->requestWord(wb_addr + (4 * i), cache_op_state->mode, cache_op_state->client);
+			physmem->request_word(wb_addr + (4 * i), cache_op_state->mode, cache_op_state->client);
 		}
 	}
 
@@ -198,7 +198,7 @@ void Cache::cache_fetch()
 	// request for access at first
 	if (cache_op_state->counter == word_size) {
 		for (int i = 0; i < word_size; i++) {
-			physmem->requestWord(fetch_addr + (4 * i), cache_op_state->mode, cache_op_state->client);
+			physmem->request_word(fetch_addr + (4 * i), cache_op_state->mode, cache_op_state->client);
 		}
 	}
 

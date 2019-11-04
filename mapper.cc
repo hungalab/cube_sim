@@ -51,7 +51,7 @@ bool Mapper::ready(uint32 addr, int32 mode, DeviceExc *client)
 	return true;
 }
 
-void Mapper::requestWord(uint32 addr, int32 mode, DeviceExc *client)
+void Mapper::request_word(uint32 addr, int32 mode, DeviceExc *client)
 {
 	/* to be implemented */
 }

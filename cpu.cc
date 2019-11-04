@@ -767,7 +767,7 @@ void CPU::fetch(bool& fetch_miss, bool data_miss)
 		} else {
 			fetch_miss = !mem->ready(real_pc,INSTFETCH,this);
 			if (fetch_miss & !data_miss) {
-				mem->requestWord(real_pc,INSTFETCH,this);
+				mem->request_word(real_pc,INSTFETCH,this);
 			}
 		}
 		// in case of no stall
@@ -1096,7 +1096,7 @@ void CPU::pre_mem_access(bool& data_miss)
 		} else {
 			data_miss = !mem->ready(phys, mode, this);
 			if (data_miss) {
-				mem->requestWord(phys, mode, this);
+				mem->request_word(phys, mode, this);
 			}
 		}
 	}
