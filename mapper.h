@@ -58,7 +58,6 @@ public:
 	class RequestsAccessDelayCounter {
 	public:
 		RequestsAccessDelayCounter();
-		DeviceExc *source_client;
 		int32 mode;
 		int32 counter;
 		void step();
