@@ -57,7 +57,7 @@ public:
 
 	class RequestsAccessDelayCounter {
 	public:
-		RequestsAccessDelayCounter();
+		RequestsAccessDelayCounter(int32 mode);
 		int32 mode;
 		int32 counter;
 		void step();
