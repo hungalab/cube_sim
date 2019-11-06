@@ -44,15 +44,11 @@ public:
 	};
 
 	struct RequestsHash {
-		std::size_t operator()(const struct RequestsKey &key) const {
-			size_t h = 0;
-			uintptr_t key_ptr = (uintptr_t) &key;
-			for (int i  = 0; i < sizeof(key_ptr) / sizeof(int); ++i) {
-				h = (key_ptr >> (sizeof(int) * i * 8)) & 0xffff;
-			}
-			h = (h << (sizeof(int) * 8)) & key.requested_addr;
-			return h;
-		}
+		std::size_t operator()(const struct RequestsKey &key) const;
+	};
+
+	struct RequestsKeyEqual {
+		bool operator()(struct RequestsKey a, struct RequestsKey b) const;
 	};
 
 	class RequestsAccessDelayCounter {
@@ -72,7 +68,7 @@ public:
 
 private:
 
-	std::unordered_map<RequestsKey, RequestsAccessDelayCounter, RequestsHash> access_requests;
+	std::unordered_map<RequestsKey, RequestsAccessDelayCounter, RequestsHash, RequestsKeyEqual> access_requests;
 	/* We keep lists of ranges in a vector of pointers to range
 	   objects. */
 	typedef std::vector<Range *> Ranges;

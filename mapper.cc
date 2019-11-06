@@ -28,6 +28,7 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 #include "range.h"
 #include "vmips.h"
 #include <cassert>
+#include <unordered_map>
 
 Mapper::Mapper () :
 	last_used_mapping (NULL)
@@ -53,12 +54,30 @@ bool Mapper::ready(uint32 addr, int32 mode, DeviceExc *client)
 
 void Mapper::request_word(uint32 addr, int32 mode, DeviceExc *client)
 {
-	/* to be implemented */
+	struct RequestsKey key = {
+		addr,
+		client
+	};
+
+	bool constainsKeys = (access_requests.find(key) != access_requests.end());
+
+	if (constainsKeys) {
+		return;
+	}
+
+	RequestsAccessDelayCounter access_delay_counter(mode);
+
+	access_requests.emplace(key, access_delay_counter);
 }
 
 void Mapper::step()
 {
-
+	for (auto request_it = access_requests.begin();
+			request_it != access_requests.end();
+			++request_it) {
+		request_it->second.step();
+		// あやしい
+	}
 }
 
 /* Add range R to the mapping. R must not overlap with any existing
@@ -459,6 +478,21 @@ Mapper::dump_mem(FILE *f, uint32 phys)
 			fprintf(f, "%08x ", data);
 		}
 	}
+}
+
+std::size_t Mapper::RequestsHash::operator()(const struct RequestsKey &key) const {
+	size_t h = 0;
+	uintptr_t key_ptr = (uintptr_t) &key;
+	for (int i  = 0; i < sizeof(key_ptr) / sizeof(int); ++i) {
+		h = (key_ptr >> (sizeof(int) * i * 8)) & 0xffff;
+	}
+	h = (h << (sizeof(int) * 8)) & key.requested_addr;
+	return h;
+}
+
+bool Mapper::RequestsKeyEqual::operator()(struct RequestsKey a, struct RequestsKey b) const {
+	struct RequestsHash hash;
+	return hash(a) == hash(b);
 }
 
 /* 
