@@ -24,7 +24,7 @@ libopcodes_mips_a_OBJECTS = dis-buf.$(OBJEXT) \
 
 .SUFFIXES:
 .SUFFIXES: .c .o .obj
-.PHONY: all
+.PHONY: all clean
 
 all: libopcodes_mips.a
 
@@ -57,3 +57,6 @@ mips-opc.o: mips-opc.c \
 mips16-opc.o: mips16-opc.c \
   sysdep.h config.h ansidecl.h \
   opcode/mips.h
+
+clean:
+	-rm -f *.o

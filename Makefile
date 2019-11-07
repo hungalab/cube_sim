@@ -69,9 +69,13 @@ libopcodes_mips/libopcodes_mips.a:
 .SUFFIXES:
 .SUFFIXES: .cc .o .obj
 
-.PHONY: all
+.PHONY: all clean
 
 all: $(PACKAGE)$(EXEEXT)
+
+clean:
+	cd libopcodes_mips && $(MAKE) clean
+	-rm -f *.o
 
 cpu.o: cpu.cc cpu.h deviceexc.h accesstypes.h types.h config.h state.h \
   vmips.h mapper.h range.h \
