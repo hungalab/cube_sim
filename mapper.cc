@@ -57,17 +57,20 @@ bool Mapper::ready(uint32 addr, int32 mode, DeviceExc *client)
 	};
 
 
-	bool constainsKey = (access_requests.find(key) != access_requests.end());
+	bool constainsKey = (access_requests_time.find(key) != access_requests_time.end());
 
 	if (!constainsKey) {
 		return false;
 	}
 
-	int32 counter = access_requests[key];
+	int32 issue_time = access_requests_time[key];
+	uint32 mem_bandwidth = machine->opt->option("mem_bandwidth")->num;
+	uint32 mem_access_latency = machine->opt->option("mem_access_latency")->num;
+	uint32 mem_delay_cycle = mem_bandwidth * mem_access_latency;
 
-	bool isReady = (counter == 0);
+	bool isReady = (machine->num_cycles - issue_time) >= mem_delay_cycle;
 
-	// printf("addr: 0x%x; mode: %d; counter: %d\n", addr, mode, counter);
+	// printf("addr: 0x%x; now cycle: %d; issue time: %d;\n", addr, machine->num_cycles, issue_time);
 
 	return isReady;
 }
@@ -80,17 +83,13 @@ void Mapper::request_word(uint32 addr, int32 mode, DeviceExc *client)
 		client
 	};
 
-	bool constainsKey = (access_requests.find(key) != access_requests.end());
+	bool constainsKey = (access_requests_time.find(key) != access_requests_time.end());
 
 	if (constainsKey) {
 		return;
 	}
 
-	uint32 mem_bandwidth = machine->opt->option("mem_bandwidth")->num;
-	uint32 mem_access_latency = machine->opt->option("mem_access_latency")->num;
-    uint32 initial_counter = mem_bandwidth * mem_access_latency;
-
-	access_requests.insert(std::make_pair(key, initial_counter));
+	access_requests_time.insert(std::make_pair(key, machine->num_cycles));
 }
 
 /**
@@ -99,13 +98,7 @@ void Mapper::request_word(uint32 addr, int32 mode, DeviceExc *client)
  */
 void Mapper::step()
 {
-	for (auto request_it = access_requests.begin();
-			request_it != access_requests.end();
-			++request_it) {
-		if (request_it->second != 0) {
-			request_it->second--;
-		}
-	}
+	// do nothing
 }
 
 /* Add range R to the mapping. R must not overlap with any existing
@@ -280,14 +273,18 @@ Mapper::fetch_word(uint32 addr, int32 mode, DeviceExc *client)
 		client
 	};
 
-	bool constainsKey = (access_requests.find(key) != access_requests.end());
+	bool constainsKey = (access_requests_time.find(key) != access_requests_time.end());
 
 	if (constainsKey) {
-		int32 counter = access_requests[key];
-		bool isReady = (counter == 0);
+		int32 issue_time = access_requests_time[key];
+		uint32 mem_bandwidth = machine->opt->option("mem_bandwidth")->num;
+		uint32 mem_access_latency = machine->opt->option("mem_access_latency")->num;
+		uint32 mem_delay_cycle = mem_bandwidth * mem_access_latency;
+
+		bool isReady = (machine->num_cycles - issue_time) >= mem_delay_cycle;
 
 		if (isReady) {
-			access_requests.erase(key);
+			access_requests_time.erase(key);
 		}
 	}
 
@@ -340,14 +337,18 @@ Mapper::fetch_halfword(uint32 addr, DeviceExc *client)
 		client
 	};
 
-	bool constainsKey = (access_requests.find(key) != access_requests.end());
+	bool constainsKey = (access_requests_time.find(key) != access_requests_time.end());
 
 	if (constainsKey) {
-		int32 counter = access_requests[key];
-		bool isReady = (counter == 0);
+		int32 issue_time = access_requests_time[key];
+		uint32 mem_bandwidth = machine->opt->option("mem_bandwidth")->num;
+		uint32 mem_access_latency = machine->opt->option("mem_access_latency")->num;
+		uint32 mem_delay_cycle = mem_bandwidth * mem_access_latency;
+
+		bool isReady = (machine->num_cycles - issue_time) >= mem_delay_cycle;
 
 		if (isReady) {
-			access_requests.erase(key);
+			access_requests_time.erase(key);
 		}
 	}
 
@@ -388,14 +389,18 @@ Mapper::fetch_byte(uint32 addr, DeviceExc *client)
 		client
 	};
 
-	bool constainsKey = (access_requests.find(key) != access_requests.end());
+	bool constainsKey = (access_requests_time.find(key) != access_requests_time.end());
 
 	if (constainsKey) {
-		int32 counter = access_requests[key];
-		bool isReady = (counter == 0);
+		int32 issue_time = access_requests_time[key];
+		uint32 mem_bandwidth = machine->opt->option("mem_bandwidth")->num;
+		uint32 mem_access_latency = machine->opt->option("mem_access_latency")->num;
+		uint32 mem_delay_cycle = mem_bandwidth * mem_access_latency;
+
+		bool isReady = (machine->num_cycles - issue_time) >= mem_delay_cycle;
 
 		if (isReady) {
-			access_requests.erase(key);
+			access_requests_time.erase(key);
 		}
 	}
 

@@ -61,7 +61,7 @@ public:
 
 private:
 
-	std::unordered_map<RequestsKey, int32, RequestsHash, RequestsKeyEqual> access_requests;
+	std::unordered_map<RequestsKey, uint32, RequestsHash, RequestsKeyEqual> access_requests_time;
 	/* We keep lists of ranges in a vector of pointers to range
 	   objects. */
 	typedef std::vector<Range *> Ranges;
