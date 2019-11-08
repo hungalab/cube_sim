@@ -40,8 +40,8 @@ public:
 
 	struct RequestsKey {
 		uint32 requested_addr;
-		DeviceExc *requester;
 		int32 mode;
+		DeviceExc *requester;
 	};
 
 	struct RequestsHash {

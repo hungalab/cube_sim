@@ -51,6 +51,7 @@ bool Mapper::ready(uint32 addr, int32 mode, DeviceExc *client)
 {
 	struct RequestsKey key = {
 		addr,
+		mode,
 		client
 	};
 
@@ -60,7 +61,6 @@ bool Mapper::ready(uint32 addr, int32 mode, DeviceExc *client)
 	if (!constainsKey) {
 		return false;
 	}
-
 
 	int32 counter = access_requests[key];
 
@@ -73,6 +73,7 @@ void Mapper::request_word(uint32 addr, int32 mode, DeviceExc *client)
 {
 	struct RequestsKey key = {
 		addr,
+		mode,
 		client
 	};
 
@@ -270,6 +271,22 @@ Mapper::fetch_word(uint32 addr, int32 mode, DeviceExc *client)
 		/* Reads from write-only ranges return ones */
 		return 0xffffffff;
 	}
+
+	RequestsKey key = {
+		addr,
+		mode,
+		client
+	};
+
+	bool constainsKey = (access_requests.find(key) != access_requests.end());
+
+	if (!constainsKey) {
+		return false;
+	}
+
+	int32 counter = access_requests[key];
+
+	bool isReady = (counter == 0);
 
 	return host_to_mips_word(l->fetch_word(offset, mode, client));
 }
@@ -506,13 +523,13 @@ Mapper::dump_mem(FILE *f, uint32 phys)
 }
 
 std::size_t Mapper::RequestsHash::operator()(const struct RequestsKey &key) const {
-	size_t h = 0;
-	uintptr_t key_ptr = (uintptr_t) &key;
-	for (int i  = 0; i < sizeof(key_ptr) / sizeof(int); ++i) {
-		h = (key_ptr >> (sizeof(int) * i * 8)) & 0xffff;
-	}
-	h = (h << (sizeof(int) * 8)) & key.requested_addr;
-	return h;
+	uintptr_t requester_ptr = (uintptr_t) key.requester;
+
+	std::size_t h0 = std::hash<unsigned int>{}(key.requested_addr);
+	std::size_t h1 = std::hash<int>{}(key.mode);
+	std::size_t h2 = std::hash<unsigned int>{}(requester_ptr);
+
+	return (h0 << 2) ^ (h1 << 1) ^ (h2);
 }
 
 bool Mapper::RequestsKeyEqual::operator()(struct RequestsKey a, struct RequestsKey b) const {
