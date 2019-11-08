@@ -244,6 +244,7 @@ uint32 Cache::fetch_word(uint32 addr, int32 mode, DeviceExc *client)
 	if (isisolated) {
 		printf("Isolated word read returned 0x%x\n", entry->data[offset>>2]);
 	}
+	entry->last_access = machine->num_cycles;
 	return entry->data[offset>>2];
 }
 
@@ -278,6 +279,7 @@ uint16 Cache::fetch_halfword(uint32 addr, DeviceExc *client)
 	if (isisolated) {
 		printf("Isolated word read returned 0x%x\n", ((uint16 *)(&entry->data[offset>>2]))[n]);
 	}
+	entry->last_access = machine->num_cycles;
 	return ((uint16 *)(&entry->data[offset>>2]))[n];
 
 }
@@ -306,9 +308,8 @@ uint8 Cache::fetch_byte(uint32 addr, DeviceExc *client)
 	if (isisolated) {
 		printf("Isolated word read returned 0x%x\n", ((uint8 *)(&entry->data[offset>>2]))[n]);
 	}
+	entry->last_access = machine->num_cycles;
 	return ((uint8 *)(&entry->data[offset>>2]))[n];
-
-
 }
 
 void Cache::store_word(uint32 addr, uint32 data, DeviceExc *client)
@@ -336,6 +337,7 @@ void Cache::store_word(uint32 addr, uint32 data, DeviceExc *client)
 	}
 	entry->data[offset>>2] = data;
 	entry->dirty = true;
+	entry->last_access = machine->num_cycles;
 	return;
 
 }
@@ -369,6 +371,7 @@ void Cache::store_halfword(uint32 addr, uint16 data,  DeviceExc *client)
 	    n = 1 - n;
 	((uint16 *)(&entry->data[offset>>2]))[n] = (uint16)data;
 	entry->dirty = true;
+	entry->last_access = machine->num_cycles;
 	return;
 }
 
@@ -396,6 +399,7 @@ void Cache::store_byte(uint32 addr, uint8 data, DeviceExc *client)
 	    n = 3 - n;
 	((uint8 *)(&entry->data[offset>>2]))[n] = (uint8)data;
 	entry->dirty = true;
+	entry->last_access = machine->num_cycles;
 	return;
 }
 
