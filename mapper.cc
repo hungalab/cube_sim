@@ -70,8 +70,6 @@ bool Mapper::ready(uint32 addr, int32 mode, DeviceExc *client)
 
 	bool isReady = (machine->num_cycles - issue_time) >= mem_delay_cycle;
 
-	// printf("addr: 0x%x; now cycle: %d; issue time: %d;\n", addr, machine->num_cycles, issue_time);
-
 	return isReady;
 }
 
@@ -267,31 +265,16 @@ Mapper::fetch_word(uint32 addr, int32 mode, DeviceExc *client)
 		return 0xffffffff;
 	}
 
+	if (!ready(addr, mode, client)) {
+		bus_error (client, mode, addr, 4);
+		return 0xffffffff;
+	}
+
 	RequestsKey key = {
 		addr,
 		mode,
 		client
 	};
-
-	bool constainsKey = (access_requests_time.find(key) != access_requests_time.end());
-
-	if (!constainsKey) {
-		bus_error (client, mode, addr, 4);
-		return 0xffffffff;
-	}
-
-	int32 issue_time = access_requests_time[key];
-
-	uint32 mem_bandwidth = machine->opt->option("mem_bandwidth")->num;
-	uint32 mem_access_latency = machine->opt->option("mem_access_latency")->num;
-	uint32 mem_delay_cycle = mem_bandwidth * mem_access_latency;
-
-	bool isReady = (machine->num_cycles - issue_time) >= mem_delay_cycle;
-
-	if (!isReady) {
-		bus_error (client, mode, addr, 4);
-		return 0xffffffff;
-	}
 
 	access_requests_time.erase(key);
 	return host_to_mips_word(l->fetch_word(offset, mode, client));
@@ -337,31 +320,16 @@ Mapper::fetch_halfword(uint32 addr, DeviceExc *client)
 		return 0xffff;
 	}
 
+	if (!ready(addr, DATALOAD, client)) {
+		bus_error (client, DATALOAD, addr, 2);
+		return 0xffff;
+	}
+
 	RequestsKey key = {
 		addr,
 		DATALOAD,
 		client
 	};
-
-	bool constainsKey = (access_requests_time.find(key) != access_requests_time.end());
-
-	if (!constainsKey) {
-		bus_error (client, DATALOAD, addr, 2);
-		return 0xffff;
-	}
-
-	int32 issue_time = access_requests_time[key];
-
-	uint32 mem_bandwidth = machine->opt->option("mem_bandwidth")->num;
-	uint32 mem_access_latency = machine->opt->option("mem_access_latency")->num;
-	uint32 mem_delay_cycle = mem_bandwidth * mem_access_latency;
-
-	bool isReady = (machine->num_cycles - issue_time) >= mem_delay_cycle;
-
-	if (!isReady) {
-		bus_error (client, DATALOAD, addr, 2);
-		return 0xffff;
-	}
 
 	access_requests_time.erase(key);
 	return host_to_mips_halfword(l->fetch_halfword(offset, client));
@@ -395,31 +363,16 @@ Mapper::fetch_byte(uint32 addr, DeviceExc *client)
 		return 0xff;
 	}
 
+	if (!ready(addr, DATALOAD, client)) {
+		bus_error (client, DATALOAD, addr, 1);
+		return 0xff;
+	}
+
 	RequestsKey key = {
 		addr,
 		DATALOAD,
 		client
 	};
-
-	bool constainsKey = (access_requests_time.find(key) != access_requests_time.end());
-
-	if (!constainsKey) {
-		bus_error (client, DATALOAD, addr, 1);
-		return 0xff;
-	}
-
-	int32 issue_time = access_requests_time[key];
-
-	uint32 mem_bandwidth = machine->opt->option("mem_bandwidth")->num;
-	uint32 mem_access_latency = machine->opt->option("mem_access_latency")->num;
-	uint32 mem_delay_cycle = mem_bandwidth * mem_access_latency;
-
-	bool isReady = (machine->num_cycles - issue_time) >= mem_delay_cycle;
-
-	if (!isReady) {
-		bus_error (client, DATALOAD, addr, 1);
-		return 0xff;
-	}
 
 	access_requests_time.erase(key);
 	return l->fetch_byte(offset, client);
@@ -458,31 +411,16 @@ Mapper::store_word(uint32 addr, uint32 data, DeviceExc *client)
 		return;
 	}
 
+	if (!ready(addr, DATASTORE, client)) {
+		bus_error (client, DATASTORE, addr, 4, data);
+		return;
+	}
+
 	RequestsKey key = {
 		addr,
 		DATASTORE,
 		client
 	};
-
-	bool constainsKey = (access_requests_time.find(key) != access_requests_time.end());
-
-	if (!constainsKey) {
-		bus_error (client, DATASTORE, addr, 4, data);
-		return;
-	}
-
-	int32 issue_time = access_requests_time[key];
-
-	uint32 mem_bandwidth = machine->opt->option("mem_bandwidth")->num;
-	uint32 mem_access_latency = machine->opt->option("mem_access_latency")->num;
-	uint32 mem_delay_cycle = mem_bandwidth * mem_access_latency;
-
-	bool isReady = (machine->num_cycles - issue_time) >= mem_delay_cycle;
-
-	if (!isReady) {
-		bus_error (client, DATASTORE, addr, 4, data);
-		return;
-	}
 
 	access_requests_time.erase(key);
 	l->store_word(addr - l->getBase(), mips_to_host_word(data), client);
@@ -520,31 +458,16 @@ Mapper::store_halfword(uint32 addr, uint16 data, DeviceExc *client)
 		return;
 	}
 
+	if (!ready(addr, DATASTORE, client)) {
+		bus_error (client, DATASTORE, addr, 2, data);
+		return;
+	}
+
 	RequestsKey key = {
 		addr,
 		DATASTORE,
 		client
 	};
-
-	bool constainsKey = (access_requests_time.find(key) != access_requests_time.end());
-
-	if (!constainsKey) {
-		bus_error (client, DATASTORE, addr, 2, data);
-		return;
-	}
-
-	int32 issue_time = access_requests_time[key];
-
-	uint32 mem_bandwidth = machine->opt->option("mem_bandwidth")->num;
-	uint32 mem_access_latency = machine->opt->option("mem_access_latency")->num;
-	uint32 mem_delay_cycle = mem_bandwidth * mem_access_latency;
-
-	bool isReady = (machine->num_cycles - issue_time) >= mem_delay_cycle;
-
-	if (!isReady) {
-		bus_error (client, DATASTORE, addr, 2, data);
-		return;
-	}
 
 	access_requests_time.erase(key);
 	l->store_halfword(addr - l->getBase(), mips_to_host_halfword(data), client);
@@ -575,31 +498,16 @@ Mapper::store_byte(uint32 addr, uint8 data, DeviceExc *client)
 		return;
 	}
 
+	if (!ready(addr, DATASTORE, client)) {
+		bus_error (client, DATASTORE, addr, 1, data);
+		return;
+	}
+
 	RequestsKey key = {
 		addr,
 		DATASTORE,
 		client
 	};
-
-	bool constainsKey = (access_requests_time.find(key) != access_requests_time.end());
-
-	if (!constainsKey) {
-		bus_error (client, DATASTORE, addr, 1, data);
-		return;
-	}
-
-	int32 issue_time = access_requests_time[key];
-
-	uint32 mem_bandwidth = machine->opt->option("mem_bandwidth")->num;
-	uint32 mem_access_latency = machine->opt->option("mem_access_latency")->num;
-	uint32 mem_delay_cycle = mem_bandwidth * mem_access_latency;
-
-	bool isReady = (machine->num_cycles - issue_time) >= mem_delay_cycle;
-
-	if (!isReady) {
-		bus_error (client, DATASTORE, addr, 1, data);
-		return;
-	}
 
 	access_requests_time.erase(key);
 	l->store_byte(addr - l->getBase(), data, client);
@@ -669,5 +577,7 @@ std::size_t Mapper::RequestsHash::operator()(const struct RequestsKey &key) cons
 
 bool Mapper::RequestsKeyEqual::operator()(struct RequestsKey a, struct RequestsKey b) const {
 	struct RequestsHash hash;
-	return hash(a) == hash(b);
+	return ((a.requested_addr == b.requested_addr)
+		&& (a.mode == b.mode)
+		&& (a.requester == b.requester));
 }
