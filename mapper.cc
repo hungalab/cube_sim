@@ -38,6 +38,7 @@ Mapper::Mapper () :
 	opt_bigendian = machine->opt->option("bigendian")->flag;
 	byteswapped = (((opt_bigendian) && (!machine->host_bigendian))
 			   || ((!opt_bigendian) && machine->host_bigendian));
+	mem_access_latency = machine->mem_access_latency;
 }
 
 /* Deconstruction. Deallocate the range list. */
@@ -64,11 +65,8 @@ bool Mapper::ready(uint32 addr, int32 mode, DeviceExc *client)
 	}
 
 	int32 issue_time = access_requests_time[key];
-	uint32 mem_bandwidth = machine->opt->option("mem_bandwidth")->num;
-	uint32 mem_access_latency = machine->opt->option("mem_access_latency")->num;
-	uint32 mem_delay_cycle = mem_bandwidth * mem_access_latency;
 
-	bool isReady = (machine->num_cycles - issue_time) >= mem_delay_cycle;
+	bool isReady = (machine->num_cycles - issue_time) >= mem_access_latency;
 
 	return isReady;
 }
