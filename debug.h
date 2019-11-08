@@ -52,6 +52,8 @@ public:
 	int serverloop(void);
 	void exception(uint16 excCode, int mode, int coprocno);
 
+	void reset();
+	void step();
 private:
 	int setup_listener_socket(void);
 	int set_nonblocking(int fd);

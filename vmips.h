@@ -107,17 +107,10 @@ public:
 	char		*opt_memdumpfile;
 	char		*opt_ttydev;
 	char		*opt_ttydev2;
-	uint32	num_instrs;
-	uint32		cycle_counts;
-
-	struct CacheProf
-	{
-		uint32 cache_hit_counts;
-		uint32 cache_miss_counts;
-		uint32 cache_wb_counts;
-	};
-
-	CacheProf icache_prof, dcache_prof;
+	uint32		num_cycles;
+	uint32 		stall_count;
+	uint32		mem_bandwidth;
+	uint32		mem_access_latency;
 
 private:
 	Interactor *interactor;

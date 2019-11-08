@@ -25,6 +25,7 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 class CPU;
 class DeviceExc;
 class IntCtrl;
+class PipelineRegs;
 
 #define TLB_ENTRIES 64
 
@@ -44,7 +45,7 @@ class CPZero
 	// Return the currently pending interrupts.
 	uint32 getIP(void);
 
-	void mfc0_emulate(uint32 instr, uint32 pc);
+	void mfc0_emulate(PipelineRegs *preg);
 	void mtc0_emulate(uint32 instr, uint32 pc);
 	void bc0x_emulate(uint32 instr, uint32 pc);
 	void tlbr_emulate(uint32 instr, uint32 pc);
@@ -99,7 +100,8 @@ public:
 	bool caches_swapped(void);
 
 	bool cop_usable (int coprocno);
-	void cpzero_emulate(uint32 instr, uint32 pc);
+	// void cpzero_emulate(uint32 instr, uint32 pc);
+	void cpzero_emulate(PipelineRegs *preg);
 
 	// Write the state of the CP0 registers to stream F.
 	void dump_regs(FILE *f);

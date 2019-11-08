@@ -98,6 +98,8 @@ vmips::refresh_options(void)
 	opt_decserial = opt->option("decserial")->flag;
 	opt_spimconsole = opt->option("spimconsole")->flag;
 	opt_testdev = opt->option("testdev")->flag;
+	mem_bandwidth = opt->option("mem_bandwidth")->num;
+	mem_access_latency = opt->option("mem_access_latency")->num;
 }
 
 /* Set up some machine globals, and process command line arguments,
@@ -106,12 +108,10 @@ vmips::refresh_options(void)
 vmips::vmips(int argc, char *argv[])
 	: opt(new Options), state(HALT),
 	  clock(0), clock_device(0), halt_device(0), spim_console(0),
-	  num_instrs(0), interactor(0)
+	  num_cycles(0), interactor(0), stall_count(0)
 {
     opt->process_options (argc, argv);
 	refresh_options();
-	icache_prof = CacheProf{0, 0, 0};
-	dcache_prof = CacheProf{0, 0, 0};
 }
 
 vmips::~vmips()
@@ -382,6 +382,13 @@ vmips::step(void)
 {
 	/* Process instructions. */
 	cpu->step();
+	for (int i = 0; i < mem_bandwidth; i++) {
+		/*
+		cpu->icache->step();
+		cpu->dcache->step();
+		dmac->step();
+		*/
+	}
 
 	/* Keep track of time passing. Each instruction either takes
 	 * clock_nanos nanoseconds, or we use pass_realtime() to check the
@@ -395,7 +402,7 @@ vmips::step(void)
 	/* If user requested it, dump registers from CPU and/or CP0. */
     dump_cpu_info (opt_dumpcpu, opt_dumpcp0);
 
-	num_instrs++;
+	num_cycles++;
 }
 
 long 
@@ -623,9 +630,9 @@ vmips::run()
 
 	if (opt_instcounts) {
 		double elapsed = (double) timediff(&end, &start) / 1000000.0;
-		fprintf(stderr, "%u instructions in %.5f seconds (%.3f "
-			"instructions per second)\n", num_instrs, elapsed,
-			((double) num_instrs) / elapsed);
+		fprintf(stderr, "%u cycles in %.5f seconds (%.3f "
+			"instructions per second) (stall ratio %.3f%%)\n", num_cycles, elapsed,
+			((double) (num_cycles - stall_count)) / elapsed, ((double) stall_count / (double)num_cycles) * 100);
 	}
 
 	if (opt_memdump) {
@@ -640,14 +647,10 @@ vmips::run()
 	}
 
 	if (opt_cache_prof) {
-		uint32 icache_access = icache_prof.cache_miss_counts + icache_prof.cache_hit_counts;
-		uint32 dcache_access = dcache_prof.cache_miss_counts + dcache_prof.cache_hit_counts;
-		fprintf(stderr, "Instruction Cache Miss Ratio %.5f%%\n",
-			(double)icache_prof.cache_miss_counts / (double)icache_access * 100.0);
-		fprintf(stderr, "Data Cache Miss Ratio %.5f%%\n",
-			(double)dcache_prof.cache_miss_counts / (double)dcache_access * 100.0);
-		fprintf(stderr, "\twrite back ratio %.5f%%\n",
-			(double)dcache_prof.cache_wb_counts / (double)dcache_prof.cache_miss_counts * 100.0);
+		fprintf(stderr, "Instruction Cache Profile\n");
+		cpu->icache->report_prof();
+		fprintf(stderr, "Data Cache Profile\n");
+		cpu->dcache->report_prof();
 	}
 
 	/* We're done. */

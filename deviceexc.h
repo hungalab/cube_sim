@@ -22,10 +22,12 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 
 #include "accesstypes.h"
 #include "types.h"
+#include "state.h"
 
 /* An abstract class which describes a device that can handle exceptions. */
 
 class DeviceExc {
+
 public:
 	/* This message notifies the device that an exception of type EXCCODE
 	   has been generated. The memory access (if any) is of type MODE,
@@ -36,6 +38,11 @@ public:
 
 	/* A flag which says whether an exception is ready to be handled. */
 	bool exception_pending;
+
+	// Control-flow methods.
+	virtual void step () = 0;
+	virtual void reset () = 0;
+
 };
 
 #endif /* _DEVICEEXC_H_ */
