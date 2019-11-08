@@ -58,10 +58,10 @@ $(PACKAGE)$(EXEEXT): $(OBJECTS) $(DEPENDENCIES)
 	@rm -f $(PACKAGE)$(EXEEXT)
 	$(CXXLINK) $(OBJECTS) $(LDADD) $(LIBS)
 
-.cc.o:
+%.o: %.cc
 	$(CXXCOMPILE) -c -o $@ $<
 
-.cc.obj:
+%.obj: %.cc
 	$(CXXCOMPILE) -c -o $@ $<
 
 libopcodes_mips/libopcodes_mips.a:
@@ -70,9 +70,12 @@ libopcodes_mips/libopcodes_mips.a:
 .SUFFIXES:
 .SUFFIXES: .cc .o .obj
 
-.PHONY: all clean
+.PHONY: all test clean
 
 all: $(PACKAGE)$(EXEEXT)
+
+test:
+	cd test_vec && $(MAKE) all
 
 clean:
 	cd libopcodes_mips && $(MAKE) clean

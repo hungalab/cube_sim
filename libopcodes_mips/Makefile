@@ -31,10 +31,10 @@ libopcodes_mips_a_OBJECTS = dis-buf.$(OBJEXT) \
 
 all: libopcodes_mips.a
 
-.c.o:
+%.o: %.c
 	$(COMPILE) -c -o $@ $<
 
-.c.obj:
+%.obj: %.c
 	$(COMPILE) -c -o $@ $<
 
 # dependencies
