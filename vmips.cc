@@ -382,7 +382,6 @@ vmips::step(void)
 {
 	/* Process instructions. */
 	cpu->step();
-	physmem->step();
 	for (int i = 0; i < mem_bandwidth; i++) {
 		/*
 		cpu->icache->step();

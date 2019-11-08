@@ -88,15 +88,6 @@ void Mapper::request_word(uint32 addr, int32 mode, DeviceExc *client)
 	access_requests_time.insert(std::make_pair(key, machine->num_cycles));
 }
 
-/**
- * Decrements the counter of all request
- * to emulate access delay to physical memory
- */
-void Mapper::step()
-{
-	// do nothing
-}
-
 /* Add range R to the mapping. R must not overlap with any existing
  * ranges in the mapping. Return 0 if R added sucessfully or -1 if
  * R overlapped with an existing range.
