@@ -402,6 +402,7 @@ void Cache::store_byte(uint32 addr, uint8 data, DeviceExc *client)
 void Cache::report_prof()
 {
 	uint32 cache_access = cache_miss_counts + cache_hit_counts;
+	fprintf(stderr, "\tAccess Count %d\n", cache_access);
 	fprintf(stderr, "\tCache Miss Ratio %.5f%%\n",
 		(double)cache_miss_counts / (double)cache_access * 100.0);
 	fprintf(stderr, "\twrite back ratio %.5f%%\n",

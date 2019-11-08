@@ -334,7 +334,7 @@ static Option nametable[] = {
     /** If the tracing option is set, then this is the PC value which will
         trigger the end of tracing. Otherwise it has no effect. **/
 
-    { "mipstoolprefix", STR },
+    // { "mipstoolprefix", STR },
     /** vmipstool uses this option to locate your MIPS-targetted cross
         compilation tools, if you have them installed. If your MIPS GCC
         is installed as /opt/mips/bin/mips-elf-gcc, then you should set
@@ -396,7 +396,6 @@ static const char *defaults_table[] = {
     "nodbemsg", "nodecrtc", "nodeccsr", "nodecstat", "nodecserial",
     "spimconsole", "notracing", "tracesize=100000", "nobigendian",
     "tracestartpc=0", "traceendpc=0",
-    "mipstoolprefix=/nonexistent/mips/bin/mipsel-ecoff-",
     "execname=none", "nofpu", "notestdev", "nocacheprof",
     "icacheway=2", "dcacheway=2", "icachebsize=64", "dcachebsize=64",
     "icachebnum=64", "dcachebnum=64", "mem_bandwidth=1",

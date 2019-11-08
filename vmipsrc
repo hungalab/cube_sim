@@ -61,4 +61,3 @@ dcachebsize=64
 ## The following options have defaults set by `configure':
 ##
 nobigendian
-mipstoolprefix=''
