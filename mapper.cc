@@ -440,6 +440,27 @@ Mapper::store_word(uint32 addr, uint32 data, DeviceExc *client)
 		return;
 	}
 
+	RequestsKey key = {
+		addr,
+		DATASTORE,
+		client
+	};
+
+	bool constainsKey = (access_requests_time.find(key) != access_requests_time.end());
+
+	if (constainsKey) {
+		int32 issue_time = access_requests_time[key];
+		uint32 mem_bandwidth = machine->opt->option("mem_bandwidth")->num;
+		uint32 mem_access_latency = machine->opt->option("mem_access_latency")->num;
+		uint32 mem_delay_cycle = mem_bandwidth * mem_access_latency;
+
+		bool isReady = (machine->num_cycles - issue_time) >= mem_delay_cycle;
+
+		if (isReady) {
+			access_requests_time.erase(key);
+		}
+	}
+
 	l->store_word(addr - l->getBase(), mips_to_host_word(data), client);
 
 }
@@ -476,6 +497,27 @@ Mapper::store_halfword(uint32 addr, uint16 data, DeviceExc *client)
 		return;
 	}
 
+	RequestsKey key = {
+		addr,
+		DATASTORE,
+		client
+	};
+
+	bool constainsKey = (access_requests_time.find(key) != access_requests_time.end());
+
+	if (constainsKey) {
+		int32 issue_time = access_requests_time[key];
+		uint32 mem_bandwidth = machine->opt->option("mem_bandwidth")->num;
+		uint32 mem_access_latency = machine->opt->option("mem_access_latency")->num;
+		uint32 mem_delay_cycle = mem_bandwidth * mem_access_latency;
+
+		bool isReady = (machine->num_cycles - issue_time) >= mem_delay_cycle;
+
+		if (isReady) {
+			access_requests_time.erase(key);
+		}
+	}
+
 	l->store_halfword(addr - l->getBase(), mips_to_host_halfword(data), client);
 
 }
@@ -503,6 +545,27 @@ Mapper::store_byte(uint32 addr, uint8 data, DeviceExc *client)
 		fprintf(stderr, "Attempt to write read-only memory: 0x%08x\n",
 			addr);
 		return;
+	}
+
+	RequestsKey key = {
+		addr,
+		DATASTORE,
+		client
+	};
+
+	bool constainsKey = (access_requests_time.find(key) != access_requests_time.end());
+
+	if (constainsKey) {
+		int32 issue_time = access_requests_time[key];
+		uint32 mem_bandwidth = machine->opt->option("mem_bandwidth")->num;
+		uint32 mem_access_latency = machine->opt->option("mem_access_latency")->num;
+		uint32 mem_delay_cycle = mem_bandwidth * mem_access_latency;
+
+		bool isReady = (machine->num_cycles - issue_time) >= mem_delay_cycle;
+
+		if (isReady) {
+			access_requests_time.erase(key);
+		}
 	}
 
 	l->store_byte(addr - l->getBase(), data, client);
