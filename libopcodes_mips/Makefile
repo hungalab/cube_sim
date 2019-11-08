@@ -1,19 +1,22 @@
+# Main project directory
+top_builddir = ..
 
-libopcodes_mips_a_SOURCES = \
-	dis-buf.c libbfd-support.c mips-dis.c mips-opc.c mips16-opc.c \
-	opintl.h sysdep.h config.h bfd.h elf-bfd.h libbfd.h ansidecl.h \
-	bfdlink.h dis-asm.h symcat.h
-
-
+# commands & flags
+#	C compile
 CC = gcc
 DEFS = -DHAVE_CONFIG_H
 DEFAULT_INCLUDES = -I. -I$(top_builddir)
 INCLUDES =
 CPPFLAGS =
 CFLAGS = -g -O2
-top_builddir = ..
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(CPPFLAGS) $(CFLAGS)
+#	Lib archive
 RANLIB = ranlib
+
+libopcodes_mips_a_SOURCES = \
+	dis-buf.c libbfd-support.c mips-dis.c mips-opc.c mips16-opc.c \
+	opintl.h sysdep.h config.h bfd.h elf-bfd.h libbfd.h ansidecl.h \
+	bfdlink.h dis-asm.h symcat.h
 
 OBJEXT = o
 
@@ -29,6 +32,9 @@ libopcodes_mips_a_OBJECTS = dis-buf.$(OBJEXT) \
 all: libopcodes_mips.a
 
 .c.o:
+	$(COMPILE) -c -o $@ $<
+
+.c.obj:
 	$(COMPILE) -c -o $@ $<
 
 # dependencies

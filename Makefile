@@ -1,24 +1,22 @@
-
+# Config
 SYSCONFDIR = "."
 DEFS = -DHAVE_CONFIG_H
 DEFAULT_INCLUDES = -I.
 INCLUDES =
 EXEEXT =
-PACKAGE = vmips
+PACKAGE = cube_sim
 MAKE = make
 
 # commands & flags
+#		CPP compile
 CXX = g++
-CPPFLAGS = -std=c++11
-CXXFLAGS = -g -O2 -fno-strict-aliasing -I./libopcodes_mips -DSYSCONFDIR=\"$(SYSCONFDIR)\"
+CPPFLAGS =
+CXXFLAGS = -g -O2 -std=c++11 -fno-strict-aliasing -I./libopcodes_mips -DSYSCONFDIR=\"$(SYSCONFDIR)\"
 CXXCOMPILE = $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(CPPFLAGS) $(CXXFLAGS)
+#		Linker
 LDFLAGS =
 CXXLD = $(CXX)
 CXXLINK = $(CXXLD) $(CXXFLAGS) $(LDFLAGS) -o $@
-# COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
-# 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
-# CCLD = $(CC)
-# LINK = $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
 
 OBJEXT = o
 
@@ -61,6 +59,9 @@ $(PACKAGE)$(EXEEXT): $(OBJECTS) $(DEPENDENCIES)
 	$(CXXLINK) $(OBJECTS) $(LDADD) $(LIBS)
 
 .cc.o:
+	$(CXXCOMPILE) -c -o $@ $<
+
+.cc.obj:
 	$(CXXCOMPILE) -c -o $@ $<
 
 libopcodes_mips/libopcodes_mips.a:
