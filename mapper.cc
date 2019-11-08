@@ -29,6 +29,7 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 #include "vmips.h"
 #include <cassert>
 #include <unordered_map>
+#include <functional>
 
 Mapper::Mapper () :
 	last_used_mapping (NULL)
@@ -66,6 +67,8 @@ bool Mapper::ready(uint32 addr, int32 mode, DeviceExc *client)
 
 	bool isReady = (counter == 0);
 
+	// printf("addr: 0x%x; mode: %d; counter: %d\n", addr, mode, counter);
+
 	return isReady;
 }
 
@@ -87,7 +90,7 @@ void Mapper::request_word(uint32 addr, int32 mode, DeviceExc *client)
 	uint32 mem_access_latency = machine->opt->option("mem_access_latency")->num;
     uint32 initial_counter = mem_bandwidth * mem_access_latency;
 
-	access_requests.emplace(key, initial_counter);
+	access_requests.insert(std::make_pair(key, initial_counter));
 }
 
 /**
@@ -99,9 +102,8 @@ void Mapper::step()
 	for (auto request_it = access_requests.begin();
 			request_it != access_requests.end();
 			++request_it) {
-		RequestsKey key = request_it->first;
-		if (access_requests[key] != 0) {
-			access_requests.emplace(key, access_requests[key] - 1);
+		if (request_it->second != 0) {
+			request_it->second--;
 		}
 	}
 }
@@ -280,13 +282,14 @@ Mapper::fetch_word(uint32 addr, int32 mode, DeviceExc *client)
 
 	bool constainsKey = (access_requests.find(key) != access_requests.end());
 
-	if (!constainsKey) {
-		return false;
+	if (constainsKey) {
+		int32 counter = access_requests[key];
+		bool isReady = (counter == 0);
+
+		if (isReady) {
+			access_requests.erase(key);
+		}
 	}
-
-	int32 counter = access_requests[key];
-
-	bool isReady = (counter == 0);
 
 	return host_to_mips_word(l->fetch_word(offset, mode, client));
 }
@@ -331,6 +334,23 @@ Mapper::fetch_halfword(uint32 addr, DeviceExc *client)
 		return 0xffff;
 	}
 
+	RequestsKey key = {
+		addr,
+		DATALOAD,
+		client
+	};
+
+	bool constainsKey = (access_requests.find(key) != access_requests.end());
+
+	if (constainsKey) {
+		int32 counter = access_requests[key];
+		bool isReady = (counter == 0);
+
+		if (isReady) {
+			access_requests.erase(key);
+		}
+	}
+
 	return host_to_mips_halfword(l->fetch_halfword(offset, client));
 }
 
@@ -360,6 +380,23 @@ Mapper::fetch_byte(uint32 addr, DeviceExc *client)
 	if (!l->canRead(offset)) {
 		/* Reads from write-only ranges return ones */
 		return 0xff;
+	}
+
+	RequestsKey key = {
+		addr,
+		DATALOAD,
+		client
+	};
+
+	bool constainsKey = (access_requests.find(key) != access_requests.end());
+
+	if (constainsKey) {
+		int32 counter = access_requests[key];
+		bool isReady = (counter == 0);
+
+		if (isReady) {
+			access_requests.erase(key);
+		}
 	}
 
 	return l->fetch_byte(offset, client);
@@ -525,11 +562,7 @@ Mapper::dump_mem(FILE *f, uint32 phys)
 std::size_t Mapper::RequestsHash::operator()(const struct RequestsKey &key) const {
 	uintptr_t requester_ptr = (uintptr_t) key.requester;
 
-	std::size_t h0 = std::hash<unsigned int>{}(key.requested_addr);
-	std::size_t h1 = std::hash<int>{}(key.mode);
-	std::size_t h2 = std::hash<unsigned int>{}(requester_ptr);
-
-	return (h0 << 2) ^ (h1 << 1) ^ (h2);
+	return ((size_t) key.requested_addr << 32) ^ key.mode << 28 ^ requester_ptr;
 }
 
 bool Mapper::RequestsKeyEqual::operator()(struct RequestsKey a, struct RequestsKey b) const {
