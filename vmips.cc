@@ -630,7 +630,7 @@ vmips::run()
 
 	if (opt_instcounts) {
 		double elapsed = (double) timediff(&end, &start) / 1000000.0;
-		fprintf(stderr, "%u instructions in %.5f seconds (%.3f "
+		fprintf(stderr, "%u cycles in %.5f seconds (%.3f "
 			"instructions per second) (stall ratio %.3f%%)\n", num_cycles, elapsed,
 			((double) (num_cycles - stall_count)) / elapsed, ((double) stall_count / (double)num_cycles) * 100);
 	}
