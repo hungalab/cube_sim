@@ -41,6 +41,7 @@ public:
 	struct RequestsKey {
 		uint32 requested_addr;
 		DeviceExc *requester;
+		int32 mode;
 	};
 
 	struct RequestsHash {
@@ -49,14 +50,6 @@ public:
 
 	struct RequestsKeyEqual {
 		bool operator()(struct RequestsKey a, struct RequestsKey b) const;
-	};
-
-	class RequestsAccessDelayCounter {
-	public:
-		RequestsAccessDelayCounter(int32 mode);
-		int32 mode;
-		int32 counter;
-		void step();
 	};
 
 	/* Record information about a bad access that caused a bus error,
@@ -68,7 +61,7 @@ public:
 
 private:
 
-	std::unordered_map<RequestsKey, RequestsAccessDelayCounter, RequestsHash, RequestsKeyEqual> access_requests;
+	std::unordered_map<RequestsKey, int32, RequestsHash, RequestsKeyEqual> access_requests;
 	/* We keep lists of ranges in a vector of pointers to range
 	   objects. */
 	typedef std::vector<Range *> Ranges;

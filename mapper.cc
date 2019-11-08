@@ -49,7 +49,24 @@ Mapper::~Mapper()
 /* For now, it always returns true */
 bool Mapper::ready(uint32 addr, int32 mode, DeviceExc *client)
 {
-	return true;
+	struct RequestsKey key = {
+		addr,
+		client
+	};
+
+
+	bool constainsKey = (access_requests.find(key) != access_requests.end());
+
+	if (!constainsKey) {
+		return false;
+	}
+
+
+	int32 counter = access_requests[key];
+
+	bool isReady = (counter == 0);
+
+	return isReady;
 }
 
 void Mapper::request_word(uint32 addr, int32 mode, DeviceExc *client)
@@ -59,24 +76,32 @@ void Mapper::request_word(uint32 addr, int32 mode, DeviceExc *client)
 		client
 	};
 
-	bool constainsKeys = (access_requests.find(key) != access_requests.end());
+	bool constainsKey = (access_requests.find(key) != access_requests.end());
 
-	if (constainsKeys) {
+	if (constainsKey) {
 		return;
 	}
 
-	RequestsAccessDelayCounter access_delay_counter(mode);
+	uint32 mem_bandwidth = machine->opt->option("mem_bandwidth")->num;
+	uint32 mem_access_latency = machine->opt->option("mem_access_latency")->num;
+    uint32 initial_counter = mem_bandwidth * mem_access_latency;
 
-	access_requests.emplace(key, access_delay_counter);
+	access_requests.emplace(key, initial_counter);
 }
 
+/**
+ * Decrements the counter of all request
+ * to emulate access delay to physical memory
+ */
 void Mapper::step()
 {
 	for (auto request_it = access_requests.begin();
 			request_it != access_requests.end();
 			++request_it) {
-		request_it->second.step();
-		// あやしい
+		RequestsKey key = request_it->first;
+		if (access_requests[key] != 0) {
+			access_requests.emplace(key, access_requests[key] - 1);
+		}
 	}
 }
 
@@ -493,22 +518,4 @@ std::size_t Mapper::RequestsHash::operator()(const struct RequestsKey &key) cons
 bool Mapper::RequestsKeyEqual::operator()(struct RequestsKey a, struct RequestsKey b) const {
 	struct RequestsHash hash;
 	return hash(a) == hash(b);
-}
-
-/* 
- * Mapper::RequestsAccessDelayCounter implementation
- */
-
-Mapper::RequestsAccessDelayCounter::RequestsAccessDelayCounter(int32 mode)
-{
-	uint32 mem_bandwidth = machine->opt->option("mem_bandwidth")->num;
-	uint32 mem_access_latency = machine->opt->option("mem_access_latency")->num;
-
-	this->counter = mem_bandwidth * mem_access_latency;
-	this->mode = mode;
-}
-
-void Mapper::RequestsAccessDelayCounter::step()
-{
-	--counter;
 }
