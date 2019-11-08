@@ -111,7 +111,7 @@ void Cache::request_block(uint32 addr, int mode, DeviceExc* client)
 				break;
 			}
 		}
-		if (!find) {
+		if (!find) { // in case of no free block
 			way = least_recent_used_way;
 			//check if WB is needed
 			if (!isisolated && mode != INSTFETCH && blocks[way][index].dirty) {
@@ -142,27 +142,18 @@ void Cache::cache_wb()
 {
 	uint32 wb_addr = calc_addr(cache_op_state->way, cache_op_state->index);
 	wb_addr += (word_size - cache_op_state->counter) * 4;
-	// uint32 wb_offset = 0;
 	unsigned int way = cache_op_state->way;
 	unsigned int index = cache_op_state->index;
-	// Range *l = NULL;
-
-	// l = physmem->find_mapping_range(wb_addr);
-	// if (!l) {
-	// 	physmem->bus_error(cache_op_state->client, cache_op_state->mode, wb_addr, 4);
-	// 	return;
-	// }
-	// wb_offset = wb_addr - l->getBase();
 
 	// request for access at first
 	if (cache_op_state->counter == word_size) {
 		for (int i = 0; i < word_size; i++) {
-			physmem->request_word(wb_addr + (4 * i), cache_op_state->mode, cache_op_state->client);
+			physmem->request_word(wb_addr + (4 * i), DATASTORE, cache_op_state->client);
 		}
 	}
 
 	// if access is ready, write back the data
-	if (physmem->ready(wb_addr, cache_op_state->mode, cache_op_state->client)) {
+	if (physmem->ready(wb_addr, DATASTORE, cache_op_state->client)) {
 		physmem->store_word(wb_addr,
 			physmem->host_to_mips_word(blocks[way][index].data[word_size - cache_op_state->counter]),
 			cache_op_state->client);
@@ -183,29 +174,22 @@ void Cache::cache_fetch()
 	uint32 fetch_addr = (cache_op_state->requested_addr & ~((1 << offset_len) - 1))
 							+ ((word_size - cache_op_state->counter) * 4);
 
-	// Range *l = NULL;
-	// uint32 fetch_offset;
 	way = cache_op_state->way;
 	index = cache_op_state->index;
-	// l = physmem->find_mapping_range(fetch_addr);
-	// if (!l) {
-	// 	physmem->bus_error(cache_op_state->client, cache_op_state->mode, fetch_addr, 4);
-	// 	blocks[way][index].valid = false;
-	// 	return;
-	// }
-	// fetch_offset = fetch_addr - l->getBase();
+
+	int mode = cache_op_state->mode == INSTFETCH ? INSTFETCH : DATALOAD;
 
 	// request for access at first
 	if (cache_op_state->counter == word_size) {
 		for (int i = 0; i < word_size; i++) {
-			physmem->request_word(fetch_addr + (4 * i), cache_op_state->mode, cache_op_state->client);
+			physmem->request_word(fetch_addr + (4 * i), mode, cache_op_state->client);
 		}
 	}
 
 	// if access is ready, fetch the data
-	if (physmem->ready(fetch_addr, cache_op_state->mode, cache_op_state->client)) {
+	if (physmem->ready(fetch_addr, mode, cache_op_state->client)) {
 		blocks[way][index].data[word_size - cache_op_state->counter] =
-			physmem->host_to_mips_word(physmem->fetch_word(fetch_addr, cache_op_state->mode, cache_op_state->client));
+			physmem->host_to_mips_word(physmem->fetch_word(fetch_addr, mode, cache_op_state->client));
 
 		if (--cache_op_state->counter == 0) {
 			// finish cache fetch
@@ -244,6 +228,7 @@ uint32 Cache::fetch_word(uint32 addr, int32 mode, DeviceExc *client)
 	if (isisolated) {
 		printf("Isolated word read returned 0x%x\n", entry->data[offset>>2]);
 	}
+	entry->last_access = machine->num_cycles;
 	return entry->data[offset>>2];
 }
 
@@ -278,6 +263,7 @@ uint16 Cache::fetch_halfword(uint32 addr, DeviceExc *client)
 	if (isisolated) {
 		printf("Isolated word read returned 0x%x\n", ((uint16 *)(&entry->data[offset>>2]))[n]);
 	}
+	entry->last_access = machine->num_cycles;
 	return ((uint16 *)(&entry->data[offset>>2]))[n];
 
 }
@@ -306,9 +292,8 @@ uint8 Cache::fetch_byte(uint32 addr, DeviceExc *client)
 	if (isisolated) {
 		printf("Isolated word read returned 0x%x\n", ((uint8 *)(&entry->data[offset>>2]))[n]);
 	}
+	entry->last_access = machine->num_cycles;
 	return ((uint8 *)(&entry->data[offset>>2]))[n];
-
-
 }
 
 void Cache::store_word(uint32 addr, uint32 data, DeviceExc *client)
@@ -336,6 +321,7 @@ void Cache::store_word(uint32 addr, uint32 data, DeviceExc *client)
 	}
 	entry->data[offset>>2] = data;
 	entry->dirty = true;
+	entry->last_access = machine->num_cycles;
 	return;
 
 }
@@ -369,6 +355,7 @@ void Cache::store_halfword(uint32 addr, uint16 data,  DeviceExc *client)
 	    n = 1 - n;
 	((uint16 *)(&entry->data[offset>>2]))[n] = (uint16)data;
 	entry->dirty = true;
+	entry->last_access = machine->num_cycles;
 	return;
 }
 
@@ -396,6 +383,7 @@ void Cache::store_byte(uint32 addr, uint8 data, DeviceExc *client)
 	    n = 3 - n;
 	((uint8 *)(&entry->data[offset>>2]))[n] = (uint8)data;
 	entry->dirty = true;
+	entry->last_access = machine->num_cycles;
 	return;
 }
 
