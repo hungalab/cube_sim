@@ -48,6 +48,16 @@ Mapper::~Mapper()
 		delete *i;
 }
 
+bool Mapper::acquire_bus(DeviceExc *client)
+{
+	return true;
+}
+
+void Mapper::release_bus(DeviceExc *client)
+{
+	// TODO: implement
+}
+
 /* For now, it always returns true */
 bool Mapper::ready(uint32 addr, int32 mode, DeviceExc *client)
 {

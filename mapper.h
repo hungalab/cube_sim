@@ -122,6 +122,10 @@ public:
 	void store_halfword(uint32 addr, uint16 data, DeviceExc *client);
 	void store_byte(uint32 addr, uint8 data, DeviceExc *client);
 
+	/* Acquires/Releases the bus(mapper) grant for DeviceExc */
+	bool acquire_bus(DeviceExc *client);
+	void release_bus(DeviceExc *client);
+
 	/* check if mem access is available */
 	bool ready(uint32 addr, int32 mode, DeviceExc *client);
 	/* request for memory access */
