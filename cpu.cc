@@ -102,6 +102,7 @@ CPU::CPU (Mapper &m, IntCtrl &i)
 	opt_icachebsize = machine->opt->option("icachebsize")->num;
 	opt_dcachebsize = machine->opt->option("dcachebsize")->num;
 
+	exception_pending = false;
 }
 
 CPU::~CPU ()
