@@ -138,7 +138,7 @@ CPU::reset(void)
 void CPU::volatilize_pipeline()
 {
 	for (int i = 0; i < PIPELINE_STAGES; i++) {
-		PL_REGS[i] = new PipelineRegs(0, NOP_INSTR);
+		PL_REGS[i] = new PipelineRegs(pc + 4, NOP_INSTR);
 	}
 }
 
@@ -374,6 +374,11 @@ void CPU::exc_handle(PipelineRegs *preg)
 	} else {
 		epc = preg->pc;
 	}
+
+	/* reset cache status */
+	icache->reset_stat();
+	dcache->reset_stat();
+	mem->release_bus(this);
 
 	/* Set processor to Kernel mode, disable interrupts, and save 
 	 * exception PC.
@@ -746,6 +751,8 @@ void CPU::fetch(bool& fetch_miss, bool data_miss)
 	uint32 fetch_instr;
 	Cache *cache = cpzero->caches_swapped() ? dcache : icache;
 
+	fetch_miss = true;
+
 	if (pc % 4 != 0) {
 		//Addr Error
 		exception(AdEL);
@@ -766,9 +773,11 @@ void CPU::fetch(bool& fetch_miss, bool data_miss)
 				cache->request_block(real_pc, INSTFETCH, this);
 			}
 		} else {
-			fetch_miss = !mem->ready(real_pc,INSTFETCH,this);
-			if (fetch_miss & !data_miss) {
-				mem->request_word(real_pc,INSTFETCH,this);
+			if (mem->acquire_bus(this)) {
+				fetch_miss = !mem->ready(real_pc,INSTFETCH,this);
+				if (fetch_miss & !data_miss) {
+					mem->request_word(real_pc,INSTFETCH,this);
+				}
 			}
 		}
 		// in case of no stall
@@ -777,6 +786,7 @@ void CPU::fetch(bool& fetch_miss, bool data_miss)
 				fetch_instr = cache->fetch_word(real_pc,INSTFETCH, this);
 			} else {
 				fetch_instr = mem->fetch_word(real_pc,INSTFETCH,this);
+				mem->release_bus(this);
 			}
 
 			PL_REGS[IF_STAGE] = new PipelineRegs(pc, fetch_instr);
@@ -785,6 +795,13 @@ void CPU::fetch(bool& fetch_miss, bool data_miss)
 			if (opt_instdump) {
 				fprintf(stderr,"PC=0x%08x [%08x]\t%08x ",pc,real_pc,fetch_instr);
 				machine->disasm->disassemble(pc,fetch_instr);
+			}
+			//check exception
+			if (exception_pending) {
+				PL_REGS[IF_STAGE] = new PipelineRegs(pc, NOP_INSTR);
+				PL_REGS[IF_STAGE]->excBuf.emplace_back(exc_signal);
+				//reset signal
+				exception_pending = false;
 			}
 		}
 	}
@@ -1095,9 +1112,13 @@ void CPU::pre_mem_access(bool& data_miss)
 				cache->request_block(phys, mode, this);
 			}
 		} else {
-			data_miss = !mem->ready(phys, mode, this);
-			if (data_miss) {
-				mem->request_word(phys, mode, this);
+			if (mem->acquire_bus(this)) {
+				data_miss = !mem->ready(phys, mode, this);
+				if (data_miss) {
+					mem->request_word(phys, mode, this);
+				}
+			} else {
+				data_miss = true;
 			}
 		}
 	}
@@ -1126,12 +1147,15 @@ void CPU::mem_access()
 
 	if (mem_write_flag[mem_opcode]) {
 		//if pending execption exists
-		if (preg->excBuf.size() > 0) return;
+		if (preg->excBuf.size() > 0) {
+			mem->release_bus(this);
+			return;
+		}
 		//Store
 		uint32 data = *(preg->w_mem_data);
 		phys = cpzero->address_trans(vaddr, DATASTORE, &cacheable, this);
 		if (cacheable) {
-			//store from cache
+			//store to cache
 			switch (mem_opcode) {
 				case OP_SB:
 					data &= 0x0FF;
@@ -1156,7 +1180,7 @@ void CPU::mem_access()
 					break;
 			}
 		} else {
-			//store from mapper
+			//store to mapper
 			switch (mem_opcode) {
 				case OP_SB:
 					mem->store_byte(phys, data, this);
@@ -1170,6 +1194,7 @@ void CPU::mem_access()
 					mem->store_word(phys, data, this);
 				break;
 			}
+			mem->release_bus(this);
 		}
 	} else if (mem_read_flag[mem_opcode]) {
 		//Load
@@ -1209,6 +1234,7 @@ void CPU::mem_access()
 					preg->r_mem_data = mem->fetch_word(phys, DATALOAD, this);
 				break;
 			}
+			mem->release_bus(this);
 		}
 		//Check Exception
 		//Finalize loaded data
@@ -1293,7 +1319,20 @@ void CPU::step()
 	}
 
 	dcache->step();
+	// dcache brings exceptions
+	if (exception_pending) {
+		PL_REGS[WB_STAGE]->excBuf.emplace_back(exc_signal);
+		exception_pending = false;
+		exc_handle(PL_REGS[WB_STAGE]);
+	}
+
 	icache->step();
+	// icache brings exceptions
+	if (exception_pending) {
+		PL_REGS[WB_STAGE]->excBuf.emplace_back(exc_signal);
+		exception_pending = false;
+		exc_handle(PL_REGS[WB_STAGE]);
+	}
 
 	//if no stall/exception, process each stage
 	if (!data_hazard && !interlock && !data_miss && !fetch_miss) {

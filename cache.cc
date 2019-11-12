@@ -52,6 +52,16 @@ void Cache::step()
 	}
 }
 
+void Cache::reset_stat()
+{
+	// If exception occurs while cache working, cache must be reset
+	if (status != CACHE_IDLE) {
+		status = CACHE_IDLE;
+		physmem->release_bus(cache_op_state->client);
+		delete cache_op_state;
+	}
+}
+
 void Cache::addr_separete(uint32 addr, uint32 &tag, uint32 &index, uint32 &offset)
 {
 	tag = addr >> (offset_len + index_len);
@@ -98,7 +108,8 @@ void Cache::request_block(uint32 addr, int mode, DeviceExc* client)
 	uint32 tag, index, way, offset;
 	addr_separete(addr, tag, index, offset);
 
-	if (status == CACHE_IDLE) { //if cache is working, request is ignored
+	//if cache is working or bus is busy, request is ignored
+	if (status == CACHE_IDLE && physmem->acquire_bus(client)) {
 		//find free block and LRU block
 		for (way = 0; way < way_size; way++) {
 			if (blocks[least_recent_used_way][index].last_access >
@@ -131,7 +142,7 @@ void Cache::request_block(uint32 addr, int mode, DeviceExc* client)
 			fprintf(stderr, "cache block way(%d) index(%d) is used for addr(0x%x)\n", way, index, addr);
 		}
 #endif
-		// regist replaced cache block & statue
+		// regist replaced cache block & status
 		cache_op_state = new CacheOpState{word_size, addr, way, index, mode, client};
 		cache_miss_counts++;
 	}
@@ -199,6 +210,7 @@ void Cache::cache_fetch()
 			blocks[way][index].valid = true;
 			blocks[way][index].dirty = false;
 			delete cache_op_state;
+			physmem->release_bus(cache_op_state->client);
 		}
 	}
 }
