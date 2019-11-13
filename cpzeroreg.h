@@ -192,7 +192,7 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 #define WatchHi_MASK 0x00000000
 
 /* (20) CPUID */
-#define CPUID_MASK 0x00000000
+#define CPUID_MASK 0xffffffff
 
 /* (21-25) reserved */
 

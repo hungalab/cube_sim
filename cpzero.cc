@@ -38,7 +38,7 @@ static uint32 read_masks[] = {
 	PageMask_MASK, Wired_MASK, Error_MASK, BadVAddr_MASK, Count_MASK,
 	EntryHi_MASK, Compare_MASK, Status_MASK, Cause_MASK, EPC_MASK,
 	PRId_MASK, Config_MASK, LLAddr_MASK, WatchLo_MASK, WatchHi_MASK,
-	0, 0, 0, 0, 0, 0, ECC_MASK, CacheErr_MASK, TagLo_MASK, TagHi_MASK,
+	CPUID_MASK, 0, 0, 0, 0, 0, ECC_MASK, CacheErr_MASK, TagLo_MASK, TagHi_MASK,
 	ErrorEPC_MASK, 0
 };
 
@@ -47,7 +47,7 @@ static uint32 write_masks[] = {
 	PageMask_MASK, Wired_MASK, Error_MASK, 0, Count_MASK,
 	EntryHi_MASK, Compare_MASK, Status_MASK,
 	Cause_MASK & ~Cause_IP_Ext_MASK, 0, 0, Config_MASK, LLAddr_MASK,
-	WatchLo_MASK, WatchHi_MASK, CPUID_MASK, 0, 0, 0, 0, 0, ECC_MASK,
+	WatchLo_MASK, WatchHi_MASK, 0, 0, 0, 0, 0, 0, ECC_MASK,
 	CacheErr_MASK, TagLo_MASK, TagHi_MASK, ErrorEPC_MASK, 0
 };
 
@@ -211,7 +211,7 @@ CPZero::tlb_translate(uint32 seg, uint32 vaddr, int mode, bool *cacheable,
 uint32
 CPZero::read_reg(const uint16 r)
 {
-        if (r == Cause) {
+    if (r == Cause) {
 		/* Update IP field of Cause register. */
 		reg[Cause] = (reg[Cause] & ~Cause_IP_MASK) | getIP();
 	}
