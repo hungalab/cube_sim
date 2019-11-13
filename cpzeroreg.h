@@ -78,7 +78,8 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 #define LLAddr 17	/* Inconsistencies in naming... sigh. */
 #define WatchLo 18	/* R4k hardware watchpoint data */
 #define WatchHi 19	/* R4k hardware watchpoint data */
-/* 20-25 - reserved */
+#define CPUID 20
+/* 19-25 - reserved */
 #define ECC 26		/* R4k cache Error Correction Code */
 #define CacheErr 27	/* R4k read-only cache error codes */
 #define TagLo 28	/* R4k primary or secondary cache tag and parity */
@@ -190,7 +191,10 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 /* (19) WatchHi is only on the R4k */
 #define WatchHi_MASK 0x00000000
 
-/* (20-25) reserved */
+/* (20) CPUID */
+#define CPUID_MASK 0x00000000
+
+/* (21-25) reserved */
 
 /* (26) ECC is only on the R4k */
 #define ECC_MASK 0x00000000

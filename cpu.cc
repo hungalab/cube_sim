@@ -71,9 +71,9 @@ PipelineRegs::~PipelineRegs()
 	excBuf.clear();
 }
 
-CPU::CPU (Mapper &m, IntCtrl &i)
+CPU::CPU (Mapper &m, IntCtrl &i, int cpuid)
   : tracing (false), last_epc (0), last_prio (0), mem (&m),
-    cpzero (new CPZero (this, &i)), fpu (0), delay_state (NORMAL),
+    cpzero (new CPZero (this, &i, cpuid)), fpu (0), delay_state (NORMAL),
     mul_div_remain(0), suspend(false)
 {
 	opt_fpu = machine->opt->option("fpu")->flag;
