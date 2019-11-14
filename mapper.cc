@@ -27,6 +27,7 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 #include "options.h"
 #include "range.h"
 #include "vmips.h"
+#include "busarbiter.h"
 #include <cassert>
 #include <unordered_map>
 #include <functional>
@@ -39,6 +40,7 @@ Mapper::Mapper () :
 	byteswapped = (((opt_bigendian) && (!machine->host_bigendian))
 			   || ((!opt_bigendian) && machine->host_bigendian));
 	mem_access_latency = machine->mem_access_latency;
+	bus_arbiter = new BusArbiter();
 }
 
 /* Deconstruction. Deallocate the range list. */
@@ -50,12 +52,12 @@ Mapper::~Mapper()
 
 bool Mapper::acquire_bus(DeviceExc *client)
 {
-	return true;
+	return bus_arbiter->acquire_bus(client);
 }
 
 void Mapper::release_bus(DeviceExc *client)
 {
-	// TODO: implement
+	bus_arbiter->release_bus(client);
 }
 
 /* For now, it always returns true */

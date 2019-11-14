@@ -21,6 +21,7 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 #define _MAPPER_H_
 
 #include "range.h"
+#include "busarbiter.h"
 #include <cstdio>
 #include <vector>
 #include <unordered_map>
@@ -63,6 +64,7 @@ private:
 	uint32 mem_access_latency;
 
 	std::unordered_map<RequestsKey, uint32, RequestsHash, RequestsKeyEqual> access_requests_time;
+	BusArbiter *bus_arbiter;
 	/* We keep lists of ranges in a vector of pointers to range
 	   objects. */
 	typedef std::vector<Range *> Ranges;
