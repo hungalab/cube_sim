@@ -3,7 +3,7 @@ SIMFLAGS = -F ../vmipsrc
 SIM = $(SIMULATOR) $(SIMFLAGS)
 
 TEST_BENCH = test-adpcm test-aes test-bf test-cp_test test-gsm\
-			 test-jpeg test-mpeg2 test-printf test-sha
+			 test-jpeg test-mpeg2 test-printf test-sha test-sum_asm
 
 all: $(TEST_BENCH)
 
@@ -24,4 +24,6 @@ test-mpeg2: mpeg2.bin
 test-printf: printf.bin
 	$(SIM) $<
 test-sha: sha.bin
+	$(SIM) $<
+test-sum_asm: sum_asm.bin
 	$(SIM) $<

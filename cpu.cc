@@ -1300,6 +1300,8 @@ void CPU::step()
 	//try to fetch next instr
 	if (PL_REGS[IF_STAGE] == NULL) {
 		fetch(fetch_miss, data_miss);
+	} else {
+		fetch_miss = false;
 	}
 
 	exc_handle(PL_REGS[WB_STAGE]);
