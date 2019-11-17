@@ -27,7 +27,7 @@ SOURCES = cpu.cc cpzero.cc devicemap.cc \
   clock.cc terminalcontroller.cc haltdev.cc decrtc.cc deccsr.cc \
   decstat.cc decserial.cc rommodule.cc fileutils.cc exeloader.cc fpu.cc \
   interactor.cc testdev.cc \
-  rs232c.cc cache.cc\
+  rs232c.cc cache.cc busarbiter.cc \
   cpu.h cpzero.h cpzeroreg.h deviceint.h \
   devicemap.h intctrl.h mapper.h memorymodule.h options.h optiontbl.h \
   range.h spimconsole.h spimconsreg.h \
@@ -37,7 +37,7 @@ SOURCES = cpu.cc cpzero.cc devicemap.cc \
   haltreg.h wipe.h stub-dis.h decrtc.h decrtcreg.h deccsr.h deccsrreg.h \
   decstat.h decserial.h decserialreg.h rommodule.h gccattr.h mmapglue.h \
   types.h endiantest.h fileutils.h fpu.h interactor.h testdev.h \
-  rs232c.h cache.h
+  rs232c.h cache.h busarbiter.h
 
 OBJECTS = cpu.$(OBJEXT) cpzero.$(OBJEXT) devicemap.$(OBJEXT) \
 	mapper.$(OBJEXT) options.$(OBJEXT) range.$(OBJEXT) \
@@ -48,7 +48,7 @@ OBJECTS = cpu.$(OBJEXT) cpzero.$(OBJEXT) devicemap.$(OBJEXT) \
 	decrtc.$(OBJEXT) deccsr.$(OBJEXT) decstat.$(OBJEXT) \
 	decserial.$(OBJEXT) rommodule.$(OBJEXT) fileutils.$(OBJEXT) \
 	exeloader.$(OBJEXT) fpu.$(OBJEXT) interactor.$(OBJEXT) \
-	testdev.$(OBJEXT) rs232c.$(OBJEXT) cache.$(OBJEXT)
+	testdev.$(OBJEXT) rs232c.$(OBJEXT) cache.$(OBJEXT) busarbiter.$(OBJEXT)
 
 LDADD = libopcodes_mips/libopcodes_mips.a
 
@@ -101,7 +101,7 @@ devicemap.o: devicemap.cc accesstypes.h range.h types.h config.h \
 mapper.o: mapper.cc cpu.h deviceexc.h accesstypes.h types.h config.h \
   vmips.h mapper.h range.h \
   devicemap.h error.h gccattr.h excnames.h memorymodule.h rommodule.h \
-  options.h
+  options.h busarbiter.h
 
 options.o: options.cc error.h gccattr.h config.h fileutils.h \
   types.h options.h \
@@ -216,3 +216,4 @@ cache.o: cache.cc cache.h \
   mapper.h range.h \
   excnames.h
 
+busarbiter.o: busarbiter.cc busarbiter.h

@@ -30,6 +30,7 @@ public:
 
     bool ready(uint32 addr);
     void request_block(uint32 addr, int mode, DeviceExc* client);
+    void reset_stat();
 
     uint32 fetch_word(uint32 addr, int32 mode, DeviceExc *client);
     uint16 fetch_halfword(uint32 addr, DeviceExc *client);

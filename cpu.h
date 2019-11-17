@@ -393,7 +393,7 @@ public:
 
 
 	// Constructor & destructor.
-	CPU (Mapper &m, IntCtrl &i);
+	CPU (Mapper &m, IntCtrl &i, int cpuid = 0);
 	virtual ~CPU ();
 
 	// For printing out the register file, stack, CP0 registers, and TLB

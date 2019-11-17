@@ -36,6 +36,8 @@ class CPZero
 	CPU *cpu;
 	IntCtrl *intc;
 
+	int cpuid;
+
 	// Return TRUE if interrupts are enabled, FALSE otherwise.
 	bool interrupts_enabled(void) const;
 
@@ -77,7 +79,7 @@ public:
 	   for CP0. */
 	bool cpCond() const { return true; }
 
-	CPZero(CPU *m, IntCtrl *i) : cpu (m), intc (i) { }
+	CPZero(CPU *m, IntCtrl *i, int __cpuid) : cpu (m), intc (i), cpuid (__cpuid) { }
 	void reset(void);
 
 	/* Request to translate virtual address VADDR, while the processor is
