@@ -76,9 +76,16 @@ bool Mapper::ready(uint32 addr, int32 mode, DeviceExc *client)
 		return false;
 	}
 
+	Range* l = find_mapping_range(addr);
+	if (!l) {
+		//raise Bus Error
+		bus_error (client, mode, addr);
+	}
+
 	int32 issue_time = access_requests_time[key];
 
-	bool isReady = (machine->num_cycles - issue_time) >= mem_access_latency;
+	bool isReady = ((machine->num_cycles - issue_time) >= mem_access_latency) 
+					& l->ready(addr, mode, client);
 
 	return isReady;
 }
@@ -220,23 +227,17 @@ Mapper::host_to_mips_halfword(uint16 h)
 }
 
 void
-Mapper::bus_error (DeviceExc *client, int32 mode, uint32 addr,
-                   int32 width, uint32 data)
+Mapper::bus_error (DeviceExc *client, int32 mode, uint32 addr)
 {
 	last_berr_info.valid = true;
 	last_berr_info.client = client;
 	last_berr_info.mode = mode;
 	last_berr_info.addr = addr;
-	last_berr_info.width = width;
-	last_berr_info.data = data;
 	if (machine->opt->option("dbemsg")->flag) {
-		fprintf (stderr, "%s %s %s physical address 0x%x caused bus error",
+		fprintf (stderr, "%s %s physical address 0x%x caused bus error",
 			(mode == DATASTORE) ? "store" : "load",
-			(width == 4) ? "word" : ((width == 2) ? "halfword" : "byte"),
 			(mode == DATASTORE) ? "to" : "from",
 			addr);
-		if (mode == DATASTORE)
-			fprintf (stderr, ", data = 0x%x", data);
 		fprintf (stderr, "\n");
 	}
 	client->exception((mode == INSTFETCH ? IBE : DBE), mode);
@@ -256,10 +257,7 @@ Mapper::fetch_word(uint32 addr, int32 mode, DeviceExc *client)
 	}
 
 	l = find_mapping_range(addr);
-	if (!l) {
-		bus_error (client, mode, addr, 4);
-		return 0xffffffff;
-	}
+
 	offset = oaddr - l->getBase();
 	if (!l->canRead(offset)) {
 		/* Reads from write-only ranges return ones */
@@ -267,7 +265,7 @@ Mapper::fetch_word(uint32 addr, int32 mode, DeviceExc *client)
 	}
 
 	if (!ready(addr, mode, client)) {
-		bus_error (client, mode, addr, 4);
+		bus_error (client, mode, addr);
 		return 0xffffffff;
 	}
 
@@ -311,10 +309,7 @@ Mapper::fetch_halfword(uint32 addr, DeviceExc *client)
 	}
 
 	l = find_mapping_range(addr);
-	if (!l) {
-		bus_error (client, DATALOAD, addr, 2);
-		return 0xffff;
-	}
+
 	offset = oaddr - l->getBase();
 	if (!l->canRead(offset)) {
 		/* Reads from write-only ranges return ones */
@@ -322,7 +317,7 @@ Mapper::fetch_halfword(uint32 addr, DeviceExc *client)
 	}
 
 	if (!ready(addr, DATALOAD, client)) {
-		bus_error (client, DATALOAD, addr, 2);
+		bus_error (client, DATALOAD, addr);
 		return 0xffff;
 	}
 
@@ -354,10 +349,7 @@ Mapper::fetch_byte(uint32 addr, DeviceExc *client)
 	uint32 result, oaddr = addr;
 
 	l = find_mapping_range(addr);
-	if (!l) {
-		bus_error (client, DATALOAD, addr, 1);
-		return 0xff;
-	}
+
 	offset = oaddr - l->getBase();
 	if (!l->canRead(offset)) {
 		/* Reads from write-only ranges return ones */
@@ -365,7 +357,7 @@ Mapper::fetch_byte(uint32 addr, DeviceExc *client)
 	}
 
 	if (!ready(addr, DATALOAD, client)) {
-		bus_error (client, DATALOAD, addr, 1);
+		bus_error (client, DATALOAD, addr);
 		return 0xff;
 	}
 
@@ -401,10 +393,7 @@ Mapper::store_word(uint32 addr, uint32 data, DeviceExc *client)
 	}
 
 	l = find_mapping_range(addr);
-	if (!l) {
-		bus_error (client, DATASTORE, addr, 4, data);
-		return;
-	}
+
 	offset = addr - l->getBase();
 	if (!l->canWrite(offset)) {
 		fprintf(stderr, "Attempt to write read-only memory: 0x%08x\n",
@@ -413,7 +402,7 @@ Mapper::store_word(uint32 addr, uint32 data, DeviceExc *client)
 	}
 
 	if (!ready(addr, DATASTORE, client)) {
-		bus_error (client, DATASTORE, addr, 4, data);
+		bus_error (client, DATASTORE, addr);
 		return;
 	}
 
@@ -448,10 +437,7 @@ Mapper::store_halfword(uint32 addr, uint16 data, DeviceExc *client)
 	}
 
 	l = find_mapping_range(addr);
-	if (!l) {
-		bus_error (client, DATASTORE, addr, 2, data);
-		return;
-	}
+
 	offset = addr - l->getBase();
 	if (!l->canWrite(offset)) {
 		fprintf(stderr, "Attempt to write read-only memory: 0x%08x\n",
@@ -460,7 +446,7 @@ Mapper::store_halfword(uint32 addr, uint16 data, DeviceExc *client)
 	}
 
 	if (!ready(addr, DATASTORE, client)) {
-		bus_error (client, DATASTORE, addr, 2, data);
+		bus_error (client, DATASTORE, addr);
 		return;
 	}
 
@@ -488,10 +474,7 @@ Mapper::store_byte(uint32 addr, uint8 data, DeviceExc *client)
 	uint32 offset;
 
 	l = find_mapping_range(addr);
-	if (!l) {
-		bus_error (client, DATASTORE, addr, 1, data);
-		return;
-	}
+
 	offset = addr - l->getBase();
 	if (!l->canWrite(offset)) {
 		fprintf(stderr, "Attempt to write read-only memory: 0x%08x\n",
@@ -500,7 +483,7 @@ Mapper::store_byte(uint32 addr, uint8 data, DeviceExc *client)
 	}
 
 	if (!ready(addr, DATASTORE, client)) {
-		bus_error (client, DATASTORE, addr, 1, data);
+		bus_error (client, DATASTORE, addr);
 		return;
 	}
 

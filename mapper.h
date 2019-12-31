@@ -35,8 +35,6 @@ public:
 		DeviceExc *client;
 		int32 mode;
 		uint32 addr;
-		int32 width;
-		uint32 data;
 	};
 
 	struct RequestsKey {
@@ -55,8 +53,7 @@ public:
 
 	/* Record information about a bad access that caused a bus error,
 	   and then signal the exception to CLIENT. */
-	void bus_error (DeviceExc *client, int32 mode, uint32 addr, int32 width,
-		uint32 data = 0xffffffff);
+	void bus_error (DeviceExc *client, int32 mode, uint32 addr);
 
 	bool byteswapped;
 
