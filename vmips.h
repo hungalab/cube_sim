@@ -43,6 +43,7 @@ class DECSerialDevice;
 class TestDev;
 class Disassembler;
 class Interactor;
+class RouterInterface;
 
 long timediff(struct timeval *after, struct timeval *before);
 
@@ -73,6 +74,7 @@ public:
 	DECStatDevice	*decstat_device;
 	DECSerialDevice	*decserial_device;
 	TestDev		*test_device;
+	RouterInterface *rtif;
 
 	/* Cached versions of options: */
 	bool		opt_bootmsg;
@@ -153,6 +155,8 @@ private:
   	virtual bool setup_rs232c();
 
 	virtual bool setup_exe();
+
+	virtual bool setup_router();
 
 	bool load_elf (FILE *fp);
 	bool load_ecoff (FILE *fp);

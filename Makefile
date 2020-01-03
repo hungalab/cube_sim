@@ -134,8 +134,7 @@ vmips.o: vmips.cc clock.h task.h types.h config.h \
   decrtcreg.h deccsr.h deccsrreg.h decstat.h decserial.h decserialreg.h \
   testdev.h stub-dis.h libopcodes_mips/bfd.h libopcodes_mips/ansidecl.h \
   libopcodes_mips/symcat.h libopcodes_mips/dis-asm.h rommodule.h \
-  interactor.h \
-  rs232c.h
+  interactor.h rs232c.h routerinterface.h
 
 deviceint.o: deviceint.cc deviceint.h intctrl.h types.h config.h \
   vmips.h
@@ -219,4 +218,4 @@ cache.o: cache.cc cache.h \
 
 busarbiter.o: busarbiter.cc busarbiter.h
 
-routerinterface.o: routerinterface.cc routerinterface.h range.h range.cc
+routerinterface.o: routerinterface.cc routerinterface.h devicemap.h deviceexc.h

@@ -55,6 +55,7 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 #include <string>
 #include <exception>
 #include "rs232c.h"
+#include <routerinterface.h>
 
 vmips *machine;
 
@@ -476,9 +477,7 @@ vmips::setup_ram ()
 {
   // Make a new RAM module and install it at base physical address 0.
   memmod = new MemoryModule(opt_memsize);
-  MemoryModule* memmod2 = new MemoryModule(0x1000000 / 4);
   physmem->map_at_physical_address(memmod, 0);
-  physmem->map_at_physical_address(memmod2, 0xba000000);
 
   boot_msg( "Mapping RAM module (host=%p, %uKB) to physical address 0x%x\n",
 	    memmod->getAddress (), memmod->getExtent () / 1024, memmod->getBase ());
@@ -502,6 +501,14 @@ vmips::setup_rs232c()
 {
   Rs232c *rs232c = new Rs232c();
   physmem->map_at_physical_address(rs232c, 0xb4000000);
+  return true;
+}
+
+bool
+vmips::setup_router()
+{
+  rtif = new RouterInterface();
+  physmem->map_at_physical_address(rtif, 0xba000000);
   return true;
 }
 
@@ -580,6 +587,9 @@ vmips::run()
 	//   return 1;
 
 	if (!setup_rs232c())
+	  return 1;
+
+	if (!setup_router())
 	  return 1;
 
 	signal (SIGQUIT, halt_machine_by_signal);
