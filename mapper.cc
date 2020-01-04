@@ -84,10 +84,14 @@ bool Mapper::ready(uint32 addr, int32 mode, DeviceExc *client)
 
 	int32 issue_time = access_requests_time[key];
 
-	bool isReady = ((machine->num_cycles - issue_time) >= mem_access_latency) 
-					& l->ready(addr, mode, client);
+	bool isReady = ((machine->num_cycles - issue_time) >= mem_access_latency);
 
-	return isReady;
+	if (isReady) {
+		return l->ready(addr, mode, client);
+	} else {
+		return false;
+	}
+
 }
 
 void Mapper::request_word(uint32 addr, int32 mode, DeviceExc *client)

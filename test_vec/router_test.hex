@@ -10,10 +10,62 @@ ba01
 ad05  //10: sw a1,16(t0) 
 ba40
 3c09  //14: lui t1,0xba40 
+0020
+0000  //18: add zero,zero,zero 
+0020
+0000  //1c: add zero,zero,zero 
 0000
-8d2a  //18: lw t2,0(t1) 
+8d2a  //20: lw t2,0(t1) 
+0020
+0000  //24: add zero,zero,zero 
+0020
+0000  //28: add zero,zero,zero 
+0020
+0000  //2c: add zero,zero,zero 
+0004
+214a  //30: addi t2,t2,4 
+0020
+0000  //34: add zero,zero,zero 
+0020
+0000  //38: add zero,zero,zero 
+0000
+ad2a  //3c: sw t2,0(t1) 
+0020
+0000  //40: add zero,zero,zero 
+0020
+0000  //44: add zero,zero,zero 
+9a40
+3c09  //48: lui t1,0x9a40 
+0020
+0000  //4c: add zero,zero,zero 
+0020
+0000  //50: add zero,zero,zero 
+0000
+912a  //54: lbu t2,0(t1) 
+0020
+0000  //58: add zero,zero,zero 
+0020
+0000  //5c: add zero,zero,zero 
+0020
+0000  //60: add zero,zero,zero 
+0004
+214a  //64: addi t2,t2,4 
+0020
+0000  //68: add zero,zero,zero 
+0020
+0000  //6c: add zero,zero,zero 
+0000
+a12a  //70: sb t2,0(t1) 
+0020
+0000  //74: add zero,zero,zero 
+0020
+0000  //78: add zero,zero,zero 
+1000
+ad2a  //7c: sw t2,4096(t1) 
+2000
+ad2a  //80: sw t2,8192(t1) 
 000d
-0000  //1c: break 
+0000  //84: break 
 0720
 0000  //0: 0x720 
 0000
@@ -28,6 +80,30 @@ ba40
 0007  //8: sll zero,a3,0x4 
 0000
 0104  //c: 0x1040000 
+0000
+0000
+0000
+0000
+0000
+0000
+0000
+0000
+0000
+0000
+0000
+0000
+0000
+0000
+0000
+0000
+0000
+0000
+0000
+0000
+0000
+0000
+0000
+0000
 0000
 0000
 0000

@@ -44,6 +44,8 @@ class TestDev;
 class Disassembler;
 class Interactor;
 class RouterInterface;
+class RouterRange;
+class RouterIOReg;
 
 long timediff(struct timeval *after, struct timeval *before);
 
@@ -75,6 +77,8 @@ public:
 	DECSerialDevice	*decserial_device;
 	TestDev		*test_device;
 	RouterInterface *rtif;
+	RouterIOReg *rtIO;
+	RouterRange *rtrange_kseg0, *rtrange_kseg1;
 
 	/* Cached versions of options: */
 	bool		opt_bootmsg;

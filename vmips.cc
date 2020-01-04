@@ -389,6 +389,7 @@ vmips::step(void)
 		cpu->dcache->step();
 		dmac->step();
 		*/
+		rtif->step();
 	}
 
 	/* Keep track of time passing. Each instruction either takes
@@ -499,17 +500,42 @@ vmips::setup_clock ()
 bool
 vmips::setup_rs232c()
 {
-  Rs232c *rs232c = new Rs232c();
-  physmem->map_at_physical_address(rs232c, 0xb4000000);
-  return true;
+	Rs232c *rs232c = new Rs232c();
+	if (physmem->map_at_physical_address(rs232c, 0xb4000000) == 0) {
+		boot_msg("Suceeded in setup rs232c serial IO\n");
+		return true;
+	} else {
+		boot_msg("Failed in setup rs232c serial IO\n");
+		return false;
+	}
 }
 
 bool
 vmips::setup_router()
 {
-  rtif = new RouterInterface();
-  physmem->map_at_physical_address(rtif, 0xba000000);
-  return true;
+	rtif = new RouterInterface();
+	rtIO = new RouterIOReg(rtif);
+	rtrange_kseg0 = new RouterRange(rtif, false);
+	rtrange_kseg1 = new RouterRange(rtif, true);
+
+	if (physmem->map_at_physical_address(rtIO, 0xba010000) == 0) {
+		if (physmem->map_at_physical_address(rtrange_kseg0, 0xba400000) == 0) {
+			if (physmem->map_at_physical_address(rtrange_kseg1, 0x9a400000) == 0) {
+				boot_msg("Suceeded in setup cube router\n");
+				return true;
+			} else {
+				boot_msg("Failed in setup router range (kseg1)\n");
+				return false;
+			}
+		} else {
+			boot_msg("Failed in setup router range (kseg0)\n");
+			return false;
+		}
+	} else {
+		boot_msg("Failed in setup router IO reg\n");
+		return false;
+	}
+
 }
 
 static void
