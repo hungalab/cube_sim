@@ -129,13 +129,39 @@ RouterRange::RouterRange(RouterInterface *_rtif, bool block_en) :
 }
 
 bool RouterRange::ready(uint32 offset, int32 mode, DeviceExc *client) {
-	if (rtif->isBusy()) {
-		return true;
+
+	if (mode == DATALOAD) {
+		if (!rtif->isBusy()) {
+			rtif->start(offset, mode, client, block_mode);
+			return false;
+		} else {
+			if (/*data recieved*/) {
+				return true;
+			} else {
+				return false;
+			}
+		}
+	} else if (mode == DATASTORE) {
+		if (!rtif->isBusy()) {
+			rtif->start(offset, mode, client, block_mode);
+			return true;
+		} else {
+			if (/*waiting data*/) {
+				return true;
+			} else {
+				return false;
+			}
+		}
 	} else {
-		// router idle
-		rtif->start(offset, mode, client, block_mode);
-		return true;
+		//Bus Error
+		if (machine->opt->option("dbemsg")->flag) {
+			fprintf(stderr, "instruction load is not available",
+					" at physical address 0x%x via router\n", offset);
+		}
+		client->exception((mode == INSTFETCH ? IBE : DBE), mode);
+		return false;
 	}
+
 }
 
 uint32 RouterRange::fetch_word(uint32 offset, int mode, DeviceExc *client) {
@@ -160,16 +186,6 @@ void RouterInterface::start(uint32 offset, int32 mode,
 		next_state = RT_STATE_BW_HEAD;
 	} else if (mode == DATASTORE && !block_mode) {
 		next_state = RT_STATE_SW_HEAD;
-	} else {
-		//Bus Error
-		if (machine->opt->option("dbemsg")->flag) {
-			fprintf (stderr, "%s %s physical address 0x%x via router caused bus error ",
-				(mode == DATASTORE) ? "store" : "load",
-				(mode == DATASTORE) ? "to" : "from",
-				offset);
-			fprintf (stderr, "\n");
-		}
-		client->exception((mode == INSTFETCH ? IBE : DBE), mode);
 	}
 }
 

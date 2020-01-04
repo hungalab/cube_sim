@@ -48,6 +48,7 @@
 #define RT_STATE_BW_HEAD	0x4
 #define RT_STATE_SW_DATA	0x5
 #define RT_STATE_BW_DATA	0x6
+#define RT_READ_DONE		0x7
 
 
 typedef std::queue<uint32> FIFO;
