@@ -625,6 +625,8 @@ vmips::run()
 	/* Reset the CPU. */
 	boot_msg( "\n*************RESET*************\n\n" );
 	cpu->reset();
+	/* Reset Router interface */
+	rtif->reset();
 
 	if (!setup_exe ())
 	  return 1;

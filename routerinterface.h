@@ -56,6 +56,9 @@
 #define RT_STATE_DATA_RDY	0xB //waiting for arrived data is read
 
 class RouterUtils;
+class Router;
+class RouterPortMaster;
+class RouterPortSlave;
 
 typedef std::queue<uint32> FIFO;
 
@@ -75,6 +78,7 @@ private:
 	//Send/Recv FIFO
 	FIFO send_fifo, recv_fifo;
 	uint32 req_addr;
+	uint32 use_vch;
 
 	//router status
 	int state, next_state;
@@ -82,6 +86,12 @@ private:
 	int getNodeID(uint32 addr);
 
 	RTConfig_t* config;
+
+    //data to/from router
+	RouterPortSlave *rtRx;
+	RouterPortMaster *rtTx;
+	Router *localRouter;
+	bool recvRdy[VCH_SIZE];
 
 public:
 	//Constructor
@@ -107,7 +117,6 @@ public:
     void enqueue(uint32 data);
     uint32 dequeue();
 
-    //data to/from router
 };
 
 class RouterIOReg: public DeviceMap {

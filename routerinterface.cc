@@ -190,6 +190,10 @@ void RouterRange::store_word(uint32 offset, uint32 data, DeviceExc *client) {
 RouterInterface::RouterInterface() {
 	next_state = state = RT_STATE_IDLE;
 	packet_size = machine->opt->option("dcachebsize")->num / 4; //word size
+
+	rtRx = new RouterPortSlave(recvRdy);
+	rtTx = new RouterPortMaster();
+	localRouter = new Router(rtTx, rtRx, NULL);
 }
 
 int RouterInterface::getNodeID(uint32 addr)
@@ -223,6 +227,20 @@ void RouterInterface::step() {
 	FLIT_t flit;
 	int node_id;
 	uint32 send_data;
+	uint32 dummy_vch;
+
+	// exec router
+	localRouter->step();
+
+	if (rtRx->haveData()) {
+		fprintf(stderr, "data recv\n");
+		rtRx->getData(&flit, &dummy_vch);
+		if (flit.ftype == FTYPE_DATA || flit.ftype == FTYPE_TAIL) {
+			recv_fifo.push(flit.data);
+		}
+	}
+
+	//update status
 	state = next_state;
 	if (state != RT_STATE_IDLE) {
 		switch (state) {
@@ -238,55 +256,71 @@ void RouterInterface::step() {
 				break;
 			case RT_STATE_SR_HEAD:
 				node_id = getNodeID(req_addr);
-				RouterUtils::make_head_flit(&flit, req_addr, MTYPE_SR, config->data_vch[node_id],
+				use_vch = config->data_vch[node_id];
+				if (rtTx->slaveReady(use_vch)) {
+					RouterUtils::make_head_flit(&flit, req_addr, MTYPE_SR, use_vch ,
 											config->router_id, getNodeID(req_addr), true);
-				next_state = RT_STATE_SR_WAIT;
+					rtTx->send(&flit, use_vch);
+					next_state = RT_STATE_SR_WAIT;
+				}
 				break;
 			case RT_STATE_SW_HEAD:
 				node_id = getNodeID(req_addr);
-				RouterUtils::make_head_flit(&flit, req_addr, MTYPE_SW, config->data_vch[node_id],
+				use_vch = config->data_vch[node_id];
+				if (rtTx->slaveReady(use_vch)) {
+					RouterUtils::make_head_flit(&flit, req_addr, MTYPE_SW, use_vch,
 											config->router_id, getNodeID(req_addr));
-				next_state = RT_STATE_SW_DATA;
+					rtTx->send(&flit, use_vch);
+					next_state = RT_STATE_SW_DATA;
+				}
 				break;
 			case RT_STATE_BR_HEAD:
 				node_id = getNodeID(req_addr);
-				RouterUtils::make_head_flit(&flit, req_addr, MTYPE_BR, config->data_vch[node_id],
+				use_vch = config->data_vch[node_id];
+				if (rtTx->slaveReady(use_vch)) {
+					RouterUtils::make_head_flit(&flit, req_addr, MTYPE_BR, use_vch,
 											config->router_id, getNodeID(req_addr), true);
-				next_state = RT_STATE_BR_WAIT;
+					rtTx->send(&flit, use_vch);
+					next_state = RT_STATE_BR_WAIT;
+				}
 				break;
 			case RT_STATE_BW_HEAD:
 				node_id = getNodeID(req_addr);
-				RouterUtils::make_head_flit(&flit, req_addr, MTYPE_BW, config->data_vch[node_id],
+				use_vch = config->data_vch[node_id];
+				if (rtTx->slaveReady(use_vch)) {
+					RouterUtils::make_head_flit(&flit, req_addr, MTYPE_BW, use_vch,
 											config->router_id, getNodeID(req_addr));
-				next_state = RT_STATE_BW_DATA;
+					rtTx->send(&flit, use_vch);
+					next_state = RT_STATE_BW_DATA;
+				}
 				break;
 			case RT_STATE_SW_DATA:
-				send_data = send_fifo.front();
-				send_fifo.pop();
-				RouterUtils::make_data_flit(&flit, send_data);
-				next_state = RT_STATE_IDLE;
+				if (rtTx->slaveReady(use_vch)) {
+					send_data = send_fifo.front();
+					send_fifo.pop();
+					RouterUtils::make_data_flit(&flit, send_data);
+					rtTx->send(&flit, use_vch);
+					next_state = RT_STATE_IDLE;
+				}
 				break;
 			case RT_STATE_BW_DATA:
-				send_data = send_fifo.front();
-				send_fifo.pop();
-				RouterUtils::make_data_flit(&flit, send_data, send_fifo.size() == 0);
-				if (send_fifo.size() == 0)
-					next_state = RT_STATE_IDLE;
+				if (rtTx->slaveReady(use_vch)) {
+					send_data = send_fifo.front();
+					send_fifo.pop();
+					RouterUtils::make_data_flit(&flit, send_data, send_fifo.size() == 0);
+					rtTx->send(&flit, use_vch);
+					if (send_fifo.size() == 0)
+						next_state = RT_STATE_IDLE;
+				}
 				break;
 			case RT_STATE_SR_WAIT:
 				if (recv_fifo.size() == 1) {
 					next_state = RT_STATE_DATA_RDY;
-				} else {
-					//dummy
-					recv_fifo.push(0);
 				}
 				break;
 			case RT_STATE_BR_WAIT:
 				if (recv_fifo.size() == packet_size) {
 					next_state = RT_STATE_DATA_RDY;
-				} else {
-					//dummy
-					recv_fifo.push(0);
 				}
 				break;
 			case RT_STATE_DATA_RDY:
@@ -304,6 +338,11 @@ void RouterInterface::reset() {
 	// clear
 	std::swap(send_fifo, empty0);
 	std::swap(recv_fifo, empty1);
+
+	for (int i = 0; i < VCH_SIZE; i++) {
+		recvRdy[i] = true;
+	}
+	localRouter->reset();
 }
 
 void RouterInterface::abort() {

@@ -2,6 +2,7 @@
 #define _ROUTER_H_
 
 #include "types.h"
+#include <queue>
 
 //Ftype
 #define FTYPE_IDLE		0x0
@@ -29,6 +30,7 @@
 #define FLIT_MT_MASK	0x380 //11_1000_0000
 #define FLIT_MEMA_MSB	10
 
+#define VCH_SIZE		8
 
 struct FLIT_t {
 	uint32 ftype;
@@ -41,6 +43,67 @@ public:
 								uint32 dst, bool tail = false);
 	static void make_data_flit(FLIT_t* flit, uint32 data, bool tail = false);
 	//static FLIT_t make_ack_flit();
+};
+
+class RouterPortSlave {
+private:
+	struct SlaveBufEntry_t
+	{
+		FLIT_t flit;
+		uint32 vch;
+	};
+	bool *readyStat;
+	std::queue<SlaveBufEntry_t> buf;
+public:
+	//Constructor
+	RouterPortSlave(bool *readyStat_) : readyStat(readyStat_) {};
+	~RouterPortSlave() {};
+
+	void clearBuf();
+
+	//used by master
+	bool isReady(uint32 vch);
+	void pushData(FLIT_t *flit, uint32 vch);
+
+	//used by router/core
+	bool haveData() { return !buf.empty(); } ;
+	void getData(FLIT_t *flit, uint32 *vch);
+
+	void debug() { fprintf(stderr, "buf data %lu\n", buf.size()); };
+};
+
+class RouterPortMaster {
+private:
+	RouterPortSlave *connectedSlave;
+public:
+	//Constructor
+	RouterPortMaster();
+	~RouterPortMaster() {};
+
+	void connect(RouterPortSlave* slave_) {connectedSlave = slave_; } ;
+	void send(FLIT_t *flit, uint32 vch);
+	bool slaveReady(uint32 vch);
+
+};
+
+class Router {
+private:
+	int myid;
+public:
+	//Constructor
+	Router(RouterPortMaster* localTx, RouterPortSlave* localRx,	Router* upperRouter, int myid_ = 0);
+	~Router() {};
+
+	// control flow
+	void step();
+	void reset();
+
+	//Ports
+	RouterPortSlave *fromLocal, *fromLower, *fromUpper;
+	RouterPortMaster *toLocal, *toLower, *toUpper;
+	bool rdyToLocal[VCH_SIZE], rdyToUpper[VCH_SIZE], rdyToLower[VCH_SIZE];
+
+	void setID(int id) { myid = id; };
 };
 
 
