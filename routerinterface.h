@@ -1,8 +1,9 @@
-#ifndef _ROUTER_H_
-#define _ROUTER_H_
+#ifndef _ROUTERINTERFACE_H_
+#define _ROUTERINTERFACE_H_
 
 #include "deviceexc.h"
 #include "devicemap.h"
+#include "router.h"
 #include <queue>
 
 // router setting regs
@@ -22,9 +23,9 @@
 #define ROUTER_RESET_BIT			0x1
 #define ROUTER_ABORT_BIT			0x2
 #define ROUTER_BERR_ABORT_BIT		0x4 //not implemented
-#define ROUTER_NODE0_OFFSET			0x400000
-#define ROUTER_NODE1_OFFSET			0x800000
-#define ROUTER_NODE2_OFFSET			0xC00000
+#define ROUTER_NODE0_OFFSET			0x000000 //Actually + BA40_0000: BA40_0000
+#define ROUTER_NODE1_OFFSET			0x400000 //Actually + BA40_0000: BA80_0000
+#define ROUTER_NODE2_OFFSET			0x800000 //Actually + BA40_0000: BAC0_0000
 //BITMASK
 #define ROUTER_ID_BITMASK			0x3
 #define ROUTER_DVCH_NODE0_BITMASK	0x7
@@ -42,24 +43,45 @@
 
 //ROUTER IF STATE
 #define RT_STATE_IDLE		0x0
-#define RT_STATE_SR_HEAD	0x1
-#define RT_STATE_SW_HEAD	0x2
-#define RT_STATE_BR_HEAD	0x3
-#define RT_STATE_BW_HEAD	0x4
-#define RT_STATE_SW_DATA	0x5
-#define RT_STATE_BW_DATA	0x6
-#define RT_READ_DONE		0x7
+#define RT_STATE_SW_SETUP	0x1 //waiting for send data from core (single)
+#define RT_STATE_BW_SETUP	0x2 //waiting for send data from core (block)
+#define RT_STATE_SR_HEAD	0x3
+#define RT_STATE_SW_HEAD	0x4
+#define RT_STATE_BR_HEAD	0x5
+#define RT_STATE_BW_HEAD	0x6
+#define RT_STATE_SW_DATA	0x7
+#define RT_STATE_BW_DATA	0x8
+#define RT_STATE_SR_WAIT	0x9
+#define RT_STATE_BR_WAIT	0xA
+#define RT_STATE_DATA_RDY	0xB //waiting for arrived data is read
 
+class RouterUtils;
 
 typedef std::queue<uint32> FIFO;
 
 class RouterInterface : public DeviceExc {
+public:
+	struct RTConfig_t {
+		uint32 router_id;
+		uint32 data_vch[3];
+		uint32 iready;
+		uint32 int_vch[3];
+		uint32 done_status, dmac_status;
+		uint32 done_mask, dmac_mask;
+	};
+
 private:
+	int packet_size; //equals to data cache block size
 	//Send/Recv FIFO
 	FIFO send_fifo, recv_fifo;
+	uint32 req_addr;
 
 	//router status
 	int state, next_state;
+
+	int getNodeID(uint32 addr);
+
+	RTConfig_t* config;
 
 public:
 	//Constructor
@@ -71,21 +93,28 @@ public:
 	void reset ();
 	void exception(uint16 excCode, int mode = ANY,
 		int coprocno = -1) { };
-	bool isBusy() { return next_state != RT_STATE_IDLE; };
-	void start(uint32 offset, int32 mode, DeviceExc *client, bool block_mode);
 
+	// router control
+	bool isBusy() { return next_state != RT_STATE_IDLE; };
+	bool isDataArrived() { return state == RT_STATE_DATA_RDY; };
+	bool isUnderSetup() { return state == RT_STATE_SW_SETUP || state == RT_STATE_BW_SETUP ||
+									next_state == RT_STATE_SW_SETUP || next_state == RT_STATE_BW_SETUP; };
+	void start(uint32 offset, int32 mode, DeviceExc *client, bool block_mode); //kick data trans. via router
+    void abort(); //stop sending & waiting for data
+    void setConfig(RTConfig_t* config_);
+
+    //data to/from core
+    void enqueue(uint32 data);
+    uint32 dequeue();
+
+    //data to/from router
 };
 
 class RouterIOReg: public DeviceMap {
 private:
 	//IO Regs
-	uint32 router_id;
-	uint32 data_vch0, data_vch1, data_vch2;
-	uint32 iready;
-	uint32 int_vch0, int_vch1, int_vch2;
-	uint32 done_status, dmac_status;
-	uint32 done_mask, dmac_mask;
-	uint32 abort, prev_abort;
+	RouterInterface::RTConfig_t *config;
+	uint32 abort;
 	RouterInterface *rtif;
 	//clear regs.
 	void clear_reg();
@@ -93,7 +122,7 @@ private:
 public:
 	//Constructor
 	RouterIOReg(RouterInterface *_rtif);
-	~RouterIOReg() {};
+	~RouterIOReg();
 
 	//access interface
 	bool ready(uint32 offset, int32 mode, DeviceExc *client);
@@ -121,4 +150,4 @@ public:
 	void store_word(uint32 offset, uint32 data, DeviceExc *client);
 };
 
-#endif /* _ROUTER_H_ */
+#endif /* _ROUTERINTERFACE_H_ */
