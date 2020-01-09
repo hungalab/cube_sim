@@ -39,10 +39,13 @@ struct FLIT_t {
 
 class RouterUtils {
 public:
-	static void make_head_flit(FLIT_t* flit, uint32 addr, uint32 mtype, uint32 src, uint32 vch,
+	static void make_head_flit(FLIT_t* flit, uint32 addr, uint32 mtype, uint32 vch, uint32 src,
 								uint32 dst, bool tail = false);
 	static void make_data_flit(FLIT_t* flit, uint32 data, bool tail = false);
 	//static FLIT_t make_ack_flit();
+
+	static void decode_headflit(FLIT_t* flit, uint32 *addr, uint32 *mtype, uint32 *vch, uint32 *src,
+								uint32 *dst);
 };
 
 class RouterPortSlave {
@@ -57,9 +60,11 @@ private:
 public:
 	//Constructor
 	RouterPortSlave(bool *readyStat_) : readyStat(readyStat_) {};
+	RouterPortSlave() {};
 	~RouterPortSlave() {};
 
 	void clearBuf();
+	void setReadyStat(bool *readyStat_) { readyStat = readyStat_; };
 
 	//used by master
 	bool isReady(uint32 vch);

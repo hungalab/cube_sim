@@ -6,6 +6,7 @@
 #include "router.h"
 #include <queue>
 
+#define REMOTE_NODE_COUNT			0x3
 // router setting regs
 #define ROUTER_ID_OFFSET			0x0000 //2bit
 #define ROUTER_DVCH_NODE0_OFFSET	0x0004 //3bit virtual channel for data trans
@@ -26,6 +27,10 @@
 #define ROUTER_NODE0_OFFSET			0x000000 //Actually + BA40_0000: BA40_0000
 #define ROUTER_NODE1_OFFSET			0x400000 //Actually + BA40_0000: BA80_0000
 #define ROUTER_NODE2_OFFSET			0x800000 //Actually + BA40_0000: BAC0_0000
+#define INIT_IREADY					{false, false, false, false, false, false, false, false}
+#define INIT_DONEDMAC_STAT			{false, false, false}
+#define INIT_DONEDMAC_MASK			{false, false, false}
+
 //BITMASK
 #define ROUTER_ID_BITMASK			0x3
 #define ROUTER_DVCH_NODE0_BITMASK	0x7
@@ -67,10 +72,12 @@ public:
 	struct RTConfig_t {
 		uint32 router_id;
 		uint32 data_vch[3];
-		uint32 iready;
+		bool iready[VCH_SIZE];
 		uint32 int_vch[3];
-		uint32 done_status, dmac_status;
-		uint32 done_mask, dmac_mask;
+		bool done_status[REMOTE_NODE_COUNT];
+		bool dmac_status[REMOTE_NODE_COUNT];
+		bool done_mask[REMOTE_NODE_COUNT];
+		bool dmac_mask[REMOTE_NODE_COUNT];
 	};
 
 private:
@@ -83,17 +90,19 @@ private:
 	//router status
 	int state, next_state;
 
-	int getNodeID(uint32 addr);
-
-	RTConfig_t* config;
-
     //data to/from router
 	RouterPortSlave *rtRx;
 	RouterPortMaster *rtTx;
 	Router *localRouter;
-	bool recvRdy[VCH_SIZE];
+
+	RTConfig_t* config;
+
+	int getNodeID(uint32 addr);
+	void clear_send_fifo();
+	void clear_recv_fifo();
 
 public:
+
 	//Constructor
 	RouterInterface();
 	~RouterInterface() {};
@@ -127,6 +136,8 @@ private:
 	RouterInterface *rtif;
 	//clear regs.
 	void clear_reg();
+	void bin2bool(uint32 bindata, bool *boolarray, int len);
+	uint32 bool2bin(bool *boolarray, int len);
 
 public:
 	//Constructor
