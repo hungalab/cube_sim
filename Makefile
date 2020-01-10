@@ -37,7 +37,8 @@ SOURCES = cpu.cc cpzero.cc devicemap.cc \
   haltreg.h wipe.h stub-dis.h decrtc.h decrtcreg.h deccsr.h deccsrreg.h \
   decstat.h decserial.h decserialreg.h rommodule.h gccattr.h mmapglue.h \
   types.h endiantest.h fileutils.h fpu.h interactor.h testdev.h \
-  rs232c.h cache.h busarbiter.h routerinterface.cc routerinterface.h router.cc router.h
+  rs232c.h cache.h busarbiter.h routerinterface.cc routerinterface.h router.cc router.h \
+  accelerator.h
 
 OBJECTS = cpu.$(OBJEXT) cpzero.$(OBJEXT) devicemap.$(OBJEXT) \
 	mapper.$(OBJEXT) options.$(OBJEXT) range.$(OBJEXT) \
@@ -218,6 +219,6 @@ cache.o: cache.cc cache.h \
 
 busarbiter.o: busarbiter.cc busarbiter.h
 
-routerinterface.o: routerinterface.cc routerinterface.h devicemap.h deviceexc.h router.h
+routerinterface.o: routerinterface.cc routerinterface.h devicemap.h deviceexc.h router.h accelerator.h
 
 router.o: router.cc router.h

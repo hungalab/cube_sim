@@ -1,6 +1,8 @@
 #include "router.h"
 #include <stdio.h>
 
+//for debug
+#include "vmips.h"
 
 /*******************************  RouterUtils  *******************************/
 void RouterUtils::make_head_flit(FLIT_t* flit, uint32 addr, uint32 mtype, uint32 vch,
@@ -89,7 +91,7 @@ void RouterPortSlave::getData(FLIT_t *flit, uint32 *vch)
 	data = buf.front();
 	flit->data = data.flit.data;
 	flit->ftype = data.flit.ftype;
-	*vch = data.vch;
+	if (vch != NULL) *vch = data.vch;
 	buf.pop();
 }
 /*******************************  Router  *******************************/
@@ -157,4 +159,10 @@ void Router::step()
 		}
 		//toLocal->send(&flit, recv_vch);
 	}
+	// if (machine->num_cycles == 100) {
+	// 	FLIT_t sflit;
+	// 	RouterUtils::make_head_flit(&sflit, 0, MTYPE_DONE, 0, 1, 0, true);
+	// 	toLocal->send(&sflit, 0);
+	// 	fprintf(stderr, "DONE FLIT\n");
+	// }
 }

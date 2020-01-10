@@ -480,6 +480,9 @@ vmips::setup_ram ()
   memmod = new MemoryModule(opt_memsize);
   physmem->map_at_physical_address(memmod, 0);
 
+  // memmod2 = new MemoryModule(0x100000);
+  // physmem->map_at_physical_address(memmod2, 0x80000000);
+
   boot_msg( "Mapping RAM module (host=%p, %uKB) to physical address 0x%x\n",
 	    memmod->getAddress (), memmod->getExtent () / 1024, memmod->getBase ());
   return true;
@@ -518,11 +521,11 @@ vmips::setup_router()
 	rtrange_kseg0 = new RouterRange(rtif, false);
 	rtrange_kseg1 = new RouterRange(rtif, true);
 
+	//make instance
 	if (physmem->map_at_physical_address(rtIO, 0xba010000) == 0) {
 		if (physmem->map_at_physical_address(rtrange_kseg0, 0xba400000) == 0) {
 			if (physmem->map_at_physical_address(rtrange_kseg1, 0x9a400000) == 0) {
 				boot_msg("Suceeded in setup cube router\n");
-				return true;
 			} else {
 				boot_msg("Failed in setup router range (kseg1)\n");
 				return false;
@@ -535,6 +538,11 @@ vmips::setup_router()
 		boot_msg("Failed in setup router IO reg\n");
 		return false;
 	}
+
+	//connect IRQ line
+	intc->connectLine(IRQ5, rtif);
+	boot_msg( "Connected IRQ5 to the %s\n", rtif->descriptor_str());
+	return true;
 
 }
 

@@ -1,0 +1,8 @@
+#ifndef _ACCELERATOR_H_
+#define _ACCELERATOR_H_
+
+#define DONE_NOTIF_ADDR 0x00000
+#define DMAC_NOTIF_ADDR 0x00001
+
+#endif //_ACCELERATOR_H_
+

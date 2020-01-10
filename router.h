@@ -72,7 +72,7 @@ public:
 
 	//used by router/core
 	bool haveData() { return !buf.empty(); } ;
-	void getData(FLIT_t *flit, uint32 *vch);
+	void getData(FLIT_t *flit, uint32 *vch = NULL);
 
 	void debug() { fprintf(stderr, "buf data %lu\n", buf.size()); };
 };

@@ -4,6 +4,7 @@
 #include "excnames.h"
 #include "vmips.h"
 #include "options.h"
+#include "accelerator.h"
 
 /*******************************  RouterIOReg  *******************************/
 RouterIOReg::RouterIOReg(RouterInterface *_rtif) :
@@ -227,11 +228,18 @@ void RouterRange::store_word(uint32 offset, uint32 data, DeviceExc *client) {
 RouterInterface::RouterInterface() {
 	next_state = state = RT_STATE_IDLE;
 	packet_size = machine->opt->option("dcachebsize")->num / 4; //word size
+	registed_router_id = 0;
 
 	//make router ports
 	rtRx = new RouterPortSlave(); //receiver
 	rtTx = new RouterPortMaster(); //sender
 	localRouter = new Router(rtTx, rtRx, NULL); //Router for cpu core
+}
+
+//to override DeviceInt
+const char *RouterInterface::descriptor_str() const
+{
+	return "Router Interface";
 }
 
 //decode remote node ID
@@ -271,16 +279,43 @@ void RouterInterface::step() {
 	FLIT_t flit;
 	int node_id;
 	uint32 send_data;
-	uint32 dummy_vch;
+
+	//update router ID
+	if (registed_router_id != config->router_id) {
+		localRouter->setID(config->router_id);
+	}
 
 	// exec router
 	localRouter->step();
 
+	//handle received data
 	if (rtRx->haveData()) {
-		rtRx->getData(&flit, &dummy_vch);
-		if (flit.ftype == FTYPE_DATA || flit.ftype == FTYPE_TAIL) {
-			recv_fifo.push(flit.data);
+		rtRx->getData(&flit);
+		switch (flit.ftype) {
+			case FTYPE_DATA:
+			case FTYPE_TAIL:
+				recv_fifo.push(flit.data);
+				break;
+			case FTYPE_HEADTAIL:
+				//only DONE packet will be handled (others are ignored)
+				uint32 addr, mtype, vch, src, dst;
+				RouterUtils::decode_headflit(&flit, &addr, &mtype, &vch, &src, &dst);
+				if (mtype == MTYPE_DONE) {
+					if (addr == DONE_NOTIF_ADDR) {
+						config->done_status[src - 1] = true;
+					} else if (addr == DMAC_NOTIF_ADDR) {
+						config->dmac_status[src - 1] = true;
+					}
+				}
+				break;
 		}
+	}
+
+	//check intrrupt signal
+	if (checkHWint()) {
+		assertInt(IRQ5);
+	} else {
+		deassertInt(IRQ5);
 	}
 
 	//update status
@@ -417,4 +452,14 @@ uint32 RouterInterface::dequeue()
 	uint32 ret_data = recv_fifo.front();
 	recv_fifo.pop();
 	return ret_data;
+}
+
+bool RouterInterface::checkHWint()
+{
+	bool int_signal = false;
+	for (int i = 0; i < REMOTE_NODE_COUNT; i++) {
+		int_signal |= config->done_status[i] & config->done_mask[i];
+		int_signal |= config->dmac_status[i] & config->dmac_mask[i];
+	}
+	return int_signal;
 }

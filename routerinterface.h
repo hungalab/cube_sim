@@ -4,6 +4,7 @@
 #include "deviceexc.h"
 #include "devicemap.h"
 #include "router.h"
+#include "deviceint.h"
 #include <queue>
 
 #define REMOTE_NODE_COUNT			0x3
@@ -30,6 +31,7 @@
 #define INIT_IREADY					{false, false, false, false, false, false, false, false}
 #define INIT_DONEDMAC_STAT			{false, false, false}
 #define INIT_DONEDMAC_MASK			{false, false, false}
+
 
 //BITMASK
 #define ROUTER_ID_BITMASK			0x3
@@ -64,10 +66,11 @@ class RouterUtils;
 class Router;
 class RouterPortMaster;
 class RouterPortSlave;
+class DeviceInt;
 
 typedef std::queue<uint32> FIFO;
 
-class RouterInterface : public DeviceExc {
+class RouterInterface : public DeviceExc, public DeviceInt {
 public:
 	struct RTConfig_t {
 		uint32 router_id;
@@ -81,6 +84,7 @@ public:
 	};
 
 private:
+	int registed_router_id;
 	int packet_size; //equals to data cache block size
 	//Send/Recv FIFO
 	FIFO send_fifo, recv_fifo;
@@ -100,6 +104,7 @@ private:
 	int getNodeID(uint32 addr);
 	void clear_send_fifo();
 	void clear_recv_fifo();
+	bool checkHWint();
 
 public:
 
@@ -125,6 +130,8 @@ public:
     //data to/from core
     void enqueue(uint32 data);
     uint32 dequeue();
+
+   	virtual const char *descriptor_str() const;
 
 };
 

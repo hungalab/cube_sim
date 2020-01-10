@@ -60,6 +60,7 @@ public:
 	IntCtrl		*intc;
 	Options		*opt;
 	MemoryModule	*memmod;
+	MemoryModule	*memmod2;
 	Debug	*dbgr;
 	Disassembler	*disasm;
 	bool		host_bigendian;
