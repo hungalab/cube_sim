@@ -138,6 +138,7 @@ void Router::step()
 		fromLocal->getData(&flit, &recv_vch);
 		uint32 addr, mtype, vch, src, dst;
 		FLIT_t sflit;
+		fprintf(stderr, "toLocal slaveReady %d\n", toLocal->slaveReady(recv_vch));
 		if (flit.ftype == FTYPE_HEADTAIL || flit.ftype == FTYPE_HEAD) {
 			RouterUtils::decode_headflit(&flit, &addr, &mtype, &vch, &src, &dst);
 			switch (mtype) {

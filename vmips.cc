@@ -55,7 +55,9 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 #include <string>
 #include <exception>
 #include "rs232c.h"
-#include <routerinterface.h>
+#include "routerinterface.h"
+#include "accelerator.h"
+#include "remoteram.h"
 
 vmips *machine;
 
@@ -391,6 +393,7 @@ vmips::step(void)
 		*/
 		rtif->step();
 	}
+	ac0->step();
 
 	/* Keep track of time passing. Each instruction either takes
 	 * clock_nanos nanoseconds, or we use pass_realtime() to check the
@@ -546,6 +549,15 @@ vmips::setup_router()
 
 }
 
+bool
+vmips::setup_cube()
+{
+	ac0 = new RemoteRam(1, rtif->getRouter());
+	ac0->setup();
+	return true;
+
+}
+
 static void
 halt_machine_by_signal (int sig)
 {
@@ -624,6 +636,9 @@ vmips::run()
 	  return 1;
 
 	if (!setup_router())
+	  return 1;
+
+	if (!setup_cube())
 	  return 1;
 
 	signal (SIGQUIT, halt_machine_by_signal);

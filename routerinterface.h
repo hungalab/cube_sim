@@ -133,6 +133,8 @@ public:
 
    	virtual const char *descriptor_str() const;
 
+   	Router* getRouter() { return localRouter; }
+
 };
 
 class RouterIOReg: public DeviceMap {

@@ -46,6 +46,7 @@ class Interactor;
 class RouterInterface;
 class RouterRange;
 class RouterIOReg;
+class CubeAccelerator;
 
 long timediff(struct timeval *after, struct timeval *before);
 
@@ -80,6 +81,7 @@ public:
 	RouterInterface *rtif;
 	RouterIOReg *rtIO;
 	RouterRange *rtrange_kseg0, *rtrange_kseg1;
+	CubeAccelerator *ac0, *ac1, *ac2;
 
 	/* Cached versions of options: */
 	bool		opt_bootmsg;
@@ -162,6 +164,8 @@ private:
 	virtual bool setup_exe();
 
 	virtual bool setup_router();
+
+	virtual bool setup_cube();
 
 	bool load_elf (FILE *fp);
 	bool load_ecoff (FILE *fp);
