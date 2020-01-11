@@ -67,7 +67,13 @@ void RouterPortMaster::send(FLIT_t *flit, uint32 vch)
 
 /*******************************  RouterPortSlave  *******************************/
 bool RouterPortSlave::isReady(uint32 vch) {
-	return readyStat[vch];
+	if (readyStat != NULL) {
+		return readyStat[vch];
+	} else {
+		//if readyStat is not registered, it always returns true
+		return true;
+	}
+
 }
 
 void RouterPortSlave::clearBuf()
@@ -94,17 +100,32 @@ void RouterPortSlave::getData(FLIT_t *flit, uint32 *vch)
 	if (vch != NULL) *vch = data.vch;
 	buf.pop();
 }
+
 /*******************************  Router  *******************************/
 Router::Router(RouterPortMaster* localTx, RouterPortSlave* localRx, Router* upperRouter,
 				int myid_) : myid(myid_)
 {
-	//generate each instance
-	fromLocal = new RouterPortSlave(rdyToLocal);
-	fromLower = new RouterPortSlave(rdyToLower);
-	fromUpper = new RouterPortSlave(rdyToUpper);
+	//input ports
+	fromLocal = new RouterPortSlave(ocLocalRdy);
+	fromLower = new RouterPortSlave();
+	fromUpper = new RouterPortSlave();
+
+	//output ports
 	toLocal = new RouterPortMaster();
 	toLower = new RouterPortMaster();
 	toUpper = new RouterPortMaster();
+
+	//output channels
+	ocLocal = new OutputChannel(toLocal, ocLocalRdy);
+	ocUpper = new OutputChannel(toLower, ocUpperRdy);
+	ocLower = new OutputChannel(toUpper, ocLowerRdy);
+
+	cb = new Crossbar(ocLocal, ocUpper, ocLower);
+
+	//input channels
+	icLocal = new InputChannel(fromLocal, cb, &myid);
+	icUpper = new InputChannel(fromUpper, cb, &myid);
+	icLower = new InputChannel(fromLower, cb, &myid);
 
 	//make connections
 	if (upperRouter != NULL) {
@@ -118,52 +139,118 @@ Router::Router(RouterPortMaster* localTx, RouterPortSlave* localRx, Router* uppe
 
 void Router::reset()
 {
-	for (int i = 0; i < VCH_SIZE; i++) {
-		rdyToLocal[i] = true;
-		rdyToUpper[i] = true;
-		rdyToLower[i] = true;
-	}
-	fromLocal->clearBuf();
-	fromLower->clearBuf();
-	fromUpper->clearBuf();
+
+	//input channels
+	icLocal->reset();
+	icUpper->reset();
+	icLower->reset();
+
+	//cb
+	cb->reset();
+
+	//output channels
+	ocLocal->reset();
+	ocUpper->reset();
+	ocLower->reset();
 
 }
 
 void Router::step()
 {
-	//dummy just return
+	// Router Pipeline
+	// |FIFO enqueu|->|Routing Computation|->|VC Allocation|->|Output|
+	// handle the stages in reverse order
+
+	//oc
+	ocLocal->step();
+	ocUpper->step();
+	ocLower->step();
+
+	//cb
+	cb->reset();
+
+	//FIFO enqueue
+	icLocal->step();
+	icUpper->step();
+	icLower->step();
+
+	// FLIT_t flit;
+	// uint32 recv_vch;
+
+			// //dummy just return
+		// uint32 addr, mtype, vch, src, dst;
+		// FLIT_t sflit;
+		// if (flit.ftype == FTYPE_HEADTAIL || flit.ftype == FTYPE_HEAD) {
+		// 	RouterUtils::decode_headflit(&flit, &addr, &mtype, &vch, &src, &dst);
+		// 	switch (mtype) {
+		// 		case MTYPE_SR:
+		// 			RouterUtils::make_head_flit(&sflit, addr, MTYPE_SW, vch, dst, src);
+		// 			toLocal->send(&sflit, vch);
+		// 			RouterUtils::make_data_flit(&sflit, 0x12345678);
+		// 			toLocal->send(&sflit, vch);
+		// 			break;
+		// 		case MTYPE_BR:
+		// 			RouterUtils::make_head_flit(&sflit, addr, MTYPE_BW, vch, dst, src);
+		// 			toLocal->send(&sflit, vch);
+		// 			for (int i = 0; i < 16; i++) {
+		// 				RouterUtils::make_data_flit(&sflit, i + 1, i == 15);
+		// 				toLocal->send(&sflit, vch);
+		// 			}
+		// 			break;
+		// 	}
+		// }
+
+}
+
+/*******************************  InputChannel  *******************************/
+void InputChannel::reset()
+{
+	// clear
+	for (int i = 0; i < VCH_SIZE; i++) {
+		FBUFFER empty;
+		std::swap(ibuf[i], empty);
+	}
+	iport->clearBuf();
+
+}
+
+void InputChannel::step()
+{
 	FLIT_t flit;
 	uint32 recv_vch;
-	if (fromLocal->haveData()) {
-		fromLocal->getData(&flit, &recv_vch);
-		uint32 addr, mtype, vch, src, dst;
-		FLIT_t sflit;
-		fprintf(stderr, "toLocal slaveReady %d\n", toLocal->slaveReady(recv_vch));
-		if (flit.ftype == FTYPE_HEADTAIL || flit.ftype == FTYPE_HEAD) {
-			RouterUtils::decode_headflit(&flit, &addr, &mtype, &vch, &src, &dst);
-			switch (mtype) {
-				case MTYPE_SR:
-					RouterUtils::make_head_flit(&sflit, addr, MTYPE_SW, vch, dst, src);
-					toLocal->send(&sflit, vch);
-					RouterUtils::make_data_flit(&sflit, 0x12345678);
-					toLocal->send(&sflit, vch);
-					break;
-				case MTYPE_BR:
-					RouterUtils::make_head_flit(&sflit, addr, MTYPE_BW, vch, dst, src);
-					toLocal->send(&sflit, vch);
-					for (int i = 0; i < 16; i++) {
-						RouterUtils::make_data_flit(&sflit, i + 1, i == 15);
-						toLocal->send(&sflit, vch);
-					}
-					break;
-			}
-		}
-		//toLocal->send(&flit, recv_vch);
+	//handle input data
+	if (iport->haveData()) {
+		iport->getData(&flit, &recv_vch);
+		pushData(&flit, recv_vch);
+		fprintf(stderr, "push to ic\n");
 	}
-	// if (machine->num_cycles == 100) {
-	// 	FLIT_t sflit;
-	// 	RouterUtils::make_head_flit(&sflit, 0, MTYPE_DONE, 0, 1, 0, true);
-	// 	toLocal->send(&sflit, 0);
-	// 	fprintf(stderr, "DONE FLIT\n");
-	// }
+}
+
+void InputChannel::pushData(FLIT_t *flit, uint32 vch)
+{
+	ibuf[vch].push(*flit);
+}
+
+/*******************************  OutputChannel  *******************************/
+void OutputChannel::reset()
+{
+	for (int i = 0; i < VCH_SIZE; i++) {
+		readyStat[i] = true;
+	}
+}
+
+void OutputChannel::step()
+{
+
+}
+
+/*******************************  Crossbar  *******************************/
+void Crossbar::reset()
+{
+
+}
+
+void Crossbar::step()
+{
+
 }

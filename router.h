@@ -37,6 +37,8 @@ struct FLIT_t {
 	uint32 data;
 };
 
+typedef std::queue<FLIT_t> FBUFFER;
+
 class RouterUtils {
 public:
 	static void make_head_flit(FLIT_t* flit, uint32 addr, uint32 mtype, uint32 vch, uint32 src,
@@ -60,7 +62,7 @@ private:
 public:
 	//Constructor
 	RouterPortSlave(bool *readyStat_) : readyStat(readyStat_) {};
-	RouterPortSlave() {};
+	RouterPortSlave() : readyStat(NULL) {};
 	~RouterPortSlave() {};
 
 	void clearBuf();
@@ -91,9 +93,62 @@ public:
 
 };
 
+
+
+
+class OutputChannel {
+private:
+	bool *readyStat;
+	RouterPortMaster *oport;
+public:
+	OutputChannel(RouterPortMaster *oport_, bool *readyStat_) : readyStat(readyStat_), oport(oport_) {};
+	~OutputChannel() {};
+
+	void reset();
+	void step();
+};
+
+class Crossbar {
+private:
+	OutputChannel *ocLocal, *ocUpper, *ocLower;
+public:
+	Crossbar(OutputChannel *ocLocal_, OutputChannel *ocUpper_, OutputChannel *ocLower_) :
+		ocLocal(ocLocal_), ocUpper(ocUpper_), ocLower(ocLower_) {};
+	~Crossbar() {};
+
+	void reset();
+	void step();
+};
+
+class InputChannel {
+private:
+	FBUFFER ibuf[VCH_SIZE];
+	RouterPortSlave *iport;
+	Crossbar *cb;
+	int *xpos;
+public:
+	//constructor
+	InputChannel(RouterPortSlave* iport_, Crossbar *cb, int *xpos_) : iport(iport_), xpos(xpos_) {};
+	~InputChannel() {};
+
+	void pushData(FLIT_t *flit, uint32 vch);
+	void reset();
+	void step();
+};
+
+
+
 class Router {
 private:
 	int myid;
+
+	//router modules
+	InputChannel *icLocal, *icUpper, *icLower;
+	OutputChannel *ocLocal, *ocUpper, *ocLower;
+	Crossbar *cb;
+
+	//signals between modules
+	bool ocLocalRdy[VCH_SIZE], ocUpperRdy[VCH_SIZE], ocLowerRdy[VCH_SIZE];
 public:
 	//Constructor
 	Router(RouterPortMaster* localTx, RouterPortSlave* localRx,	Router* upperRouter, int myid_ = 0);
@@ -106,7 +161,6 @@ public:
 	//Ports
 	RouterPortSlave *fromLocal, *fromLower, *fromUpper;
 	RouterPortMaster *toLocal, *toLower, *toUpper;
-	bool rdyToLocal[VCH_SIZE], rdyToUpper[VCH_SIZE], rdyToLower[VCH_SIZE];
 
 	void setID(int id) { myid = id; };
 };

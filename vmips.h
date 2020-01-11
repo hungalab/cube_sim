@@ -120,6 +120,7 @@ public:
 	uint32 		stall_count;
 	uint32		mem_bandwidth;
 	uint32		mem_access_latency;
+	uint32		vcbufsize;
 
 private:
 	Interactor *interactor;

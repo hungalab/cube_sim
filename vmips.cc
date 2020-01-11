@@ -103,6 +103,7 @@ vmips::refresh_options(void)
 	opt_testdev = opt->option("testdev")->flag;
 	mem_bandwidth = opt->option("mem_bandwidth")->num;
 	mem_access_latency = opt->option("mem_access_latency")->num;
+	vcbufsize = opt->option("vcbufsize")->num;
 }
 
 /* Set up some machine globals, and process command line arguments,
