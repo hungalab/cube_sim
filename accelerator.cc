@@ -1,6 +1,6 @@
 #include "accelerator.h"
 #include "error.h"
-
+#include <cassert>
 
 /*******************************  LocalMapper  *******************************/
 int LocalMapper::add_range(Range *r) {
