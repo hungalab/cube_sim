@@ -647,10 +647,20 @@ vmips::run()
 	boot_msg( "Hit Ctrl-\\ to halt machine, Ctrl-_ for a debug prompt.\n" );
 
 	/* Reset the CPU. */
-	boot_msg( "\n*************RESET*************\n\n" );
+	boot_msg( "\n*************RESET*************\n" );
+	boot_msg("Resetting CPU\n");
 	cpu->reset();
 	/* Reset Router interface */
-	rtif->reset();
+	if (rtif != NULL) {
+		boot_msg("Resetting Router Interface\n");
+		rtif->reset();
+	}
+	if (ac0 != NULL) {
+		boot_msg("Resetting %s_0\n", ac0->accelerator_name());
+		ac0->reset();
+	}
+
+	fprintf(stderr, "\n");
 
 	if (!setup_exe ())
 	  return 1;

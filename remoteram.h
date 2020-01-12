@@ -14,6 +14,8 @@ public:
 	~RemoteRam() {};
 
 	void setup() { fprintf(stderr, "RemoteRam setting up\n"); };
+
+	const char *accelerator_name() { return "RemoteRam"; }
 };
 
 

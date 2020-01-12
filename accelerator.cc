@@ -46,7 +46,7 @@ CubeAccelerator::CubeAccelerator(uint32 node_ID, Router* upperRouter)
 	//make router ports
 	rtRx = new RouterPortSlave(iready); //receiver
 	rtTx = new RouterPortMaster(); //sender
-	localRouter = new Router(rtTx, rtRx, upperRouter);
+	localRouter = new Router(rtTx, rtRx, upperRouter, node_ID);
 	localBus = new LocalMapper();
 	core_module = NULL;
 }
@@ -67,5 +67,7 @@ void CubeAccelerator::reset() {
 		iready[i] = false;
 	}
 	localRouter->reset();
-	core_module->reset();
+	if (core_module != NULL) {
+		core_module->reset();
+	}
 }

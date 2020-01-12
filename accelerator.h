@@ -72,6 +72,9 @@ public:
 	//make submodules and connect them to bus
 	virtual void setup() = 0;
 
+	//accelerator name
+	virtual const char *accelerator_name() = 0;
+
 	Router* getRouter() { return localRouter; };
 
 };

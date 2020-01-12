@@ -376,7 +376,7 @@ void RouterInterface::step() {
 				if (rtTx->slaveReady(use_vch)) {
 					send_data = send_fifo.front();
 					send_fifo.pop();
-					RouterUtils::make_data_flit(&flit, send_data);
+					RouterUtils::make_data_flit(&flit, send_data, true);
 					rtTx->send(&flit, use_vch);
 					next_state = RT_STATE_IDLE;
 				}
