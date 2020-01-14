@@ -36,7 +36,7 @@ void RouterUtils::make_ack_flit(FLIT_t *flit, uint32 ftype, int *cnt)
 	uint32 data = 0;
 	for (int i = 0; i < FLIT_ACK_ENTRY; i++) {
 		if (cnt[i] >= 1 << FLIT_ACK_CNT_BIT) {
-			if (machine->opt->option("dbemsg")->flag) {
+			if (machine->opt->option("routermsg")->flag) {
 				fprintf(stderr, "ACK count overflow!\n");
 			}
 		}
@@ -162,7 +162,7 @@ Router::Router(RouterPortMaster* localTx, RouterPortSlave* localRx, Router* uppe
 	ocUpper = new OutputChannel(toUpper, ocUpperRdy);
 	ocLower = new OutputChannel(toLower, ocLowerRdy);
 
-	cb = new Crossbar(ocLocal, ocUpper, ocLower);
+	cb = new Crossbar(&myid, ocLocal, ocUpper, ocLower);
 
 	//input channels
 	icLocal = new InputChannel(fromLocal, cb, &myid);
@@ -415,36 +415,57 @@ void Crossbar::step()
 {
 }
 
+Crossbar::Crossbar(int *node_id_, OutputChannel *ocLocal_, OutputChannel *ocUpper_, OutputChannel *ocLower_) :
+		node_id(node_id_), ocLocal(ocLocal_), ocUpper(ocUpper_), ocLower(ocLower_)
+{
+	oc_to_string[ocLocal] = "OutputChannel(to Local)";
+	oc_to_string[ocUpper] = "OutputChannel(to Upper)";
+	oc_to_string[ocLower] = "OutputChannel(to Lower)";
+};
+
 void Crossbar::connectIC(InputChannel *icLocal_, InputChannel *icUpper_, InputChannel *icLower_)
 {
 	icLocal = icLocal_;
 	icUpper = icUpper_;
 	icLower = icLower_;
+	ic_oc_map[icLocal] = ocLocal;
+	ic_oc_map[icUpper] = ocUpper;
+	ic_oc_map[icLower] = ocLower;
+	//for debug message
+	ic_to_string[icLocal] = "InputChannel(from Local)";
+	ic_to_string[icUpper] = "InputChannel(from Upper)";
+	ic_to_string[icLower] = "InputChannel(from Lower)";
 }
 
 void Crossbar::send(InputChannel* ic, FLIT_t *flit, uint32 vch, uint32 port)
 {
+	OutputChannel* trans_oc;
+
 	//data transfer
 	switch (port) {
 		case LOCAL_PORT:
-			ocLocal->pushData(flit, vch);
+			trans_oc = ocLocal;
 			break;
 		case LOWER_PORT:
-			ocLower->pushData(flit, vch);
+			trans_oc = ocLower;
 			break;
 		case UPPER_PORT:
-			ocUpper->pushData(flit, vch);
+			trans_oc = ocUpper;
 			break;
 		default: abort();
 	}
+	trans_oc->pushData(flit, vch);
+
 	//ack count increment
-	if (ic == icLocal) {
-		ocLocal->ackIncrement(vch);
-	} else if (ic == icLower) {
-		ocLower->ackIncrement(vch);
-	} else if (ic == icUpper) {
-		ocUpper->ackIncrement(vch);
-	} else {
+	try {
+		OutputChannel* oc = ic_oc_map.at(ic);
+		if (machine->opt->option("routermsg")->flag) {
+			fprintf(stderr, "%10d:\tRouter%d\t %s send flit %X_%08X to %s\n", machine->num_cycles, *node_id,
+							ic_to_string[ic], flit->ftype, flit->data, oc_to_string[trans_oc]);
+		}
+		oc->ackIncrement(vch);
+	} catch (std::out_of_range&) {
+		fprintf(stderr, "Crossbar received request from unknown InputChannel\n");
 		abort();
 	}
 

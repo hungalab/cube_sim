@@ -4,6 +4,7 @@
 #include "types.h"
 #include "vmips.h"
 #include <queue>
+#include <map>
 
 //Ftype
 #define FTYPE_IDLE		0x0
@@ -145,12 +146,21 @@ class InputChannel;
 
 class Crossbar {
 private:
+	int *node_id;
 	OutputChannel *ocLocal, *ocUpper, *ocLower;
 	InputChannel *icLocal, *icUpper, *icLower;
+
+	//direct mapping
+	std::map<InputChannel*, OutputChannel*> ic_oc_map;
+
+	//for debug msg
+	std::map<OutputChannel*, const char*> oc_to_string;
+	std::map<InputChannel*, const char*> ic_to_string;
+
+
 public:
-	Crossbar(OutputChannel *ocLocal_, OutputChannel *ocUpper_, OutputChannel *ocLower_) :
-		ocLocal(ocLocal_), ocUpper(ocUpper_), ocLower(ocLower_) {};
-	~Crossbar() {};
+	Crossbar(int *node_id_, OutputChannel *ocLocal_, OutputChannel *ocUpper_, OutputChannel *ocLower_);
+	~Crossbar() { ic_oc_map.clear(); ic_to_string.clear(); };
 
 	void reset();
 	void step();

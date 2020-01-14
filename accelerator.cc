@@ -101,7 +101,6 @@ void CubeAccelerator::nif_step()
 	if (ivalid) {
 		//data is received
 		rtRx->getData(&flit, &recv_vch);
-		fprintf(stderr, "%s: flit recv %X_%08X\n", accelerator_name(), flit.ftype, flit.data);
 	}
 
 	//fprintf(stderr, "state %d ivalid %d\n", nif_state, ivalid);
@@ -127,7 +126,7 @@ void CubeAccelerator::nif_step()
 							nif_next_state = CNIF_BR_HEAD;
 							break;
 						default:
-							if (machine->opt->option("dbemsg")->flag) {
+							if (machine->opt->option("routermsg")->flag) {
 								fprintf(stderr, "%s: unknown message type(%d) is received\n",
 										accelerator_name(), reg_mtype);
 							}
