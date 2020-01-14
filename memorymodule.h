@@ -21,6 +21,7 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 #define _MEMORYMODULE_H_
 
 #include "range.h"
+#include "memorymodule.h"
 
 class MemoryModule : public Range {
 public:

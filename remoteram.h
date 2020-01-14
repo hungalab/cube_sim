@@ -3,17 +3,20 @@
 
 #include <stdio.h>
 #include "accelerator.h"
+#include "memorymodule.h"
 
 class CubeAccelerator;
+class MemoryModule;
 
 class RemoteRam : public CubeAccelerator {
 private:
+	MemoryModule *mem;
 
 public:
-	RemoteRam(uint32 node_ID, Router* upperRouter) : CubeAccelerator(node_ID, upperRouter) {};
-	~RemoteRam() {};
+	RemoteRam(uint32 node_ID, Router* upperRouter, int mem_size);
+	~RemoteRam();
 
-	void setup() { fprintf(stderr, "RemoteRam setting up\n"); };
+	void setup();
 
 	const char *accelerator_name() { return "RemoteRam"; }
 };

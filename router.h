@@ -137,6 +137,8 @@ public:
 	void pushData(FLIT_t *flit, uint32 vch);
 	void pushAck(FLIT_t *flit);
 	void ackIncrement(uint32 vch);
+	bool ocReady(uint32 vch) { return readyStat[vch]; }
+
 };
 
 class InputChannel;
@@ -157,6 +159,7 @@ public:
 	void forwardAck(InputChannel* ic, FLIT_t *flit);
 
 	void connectIC(InputChannel *icLocal_, InputChannel *icUpper_, InputChannel *icLower_);
+	bool ready(uint32 vch, uint32 port);
 
 };
 

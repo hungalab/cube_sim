@@ -373,23 +373,21 @@ void RouterInterface::step() {
 				}
 				break;
 			case RT_STATE_SW_DATA:
-				if (rtTx->slaveReady(use_vch)) {
-					send_data = send_fifo.front();
-					send_fifo.pop();
-					RouterUtils::make_data_flit(&flit, send_data, true);
-					rtTx->send(&flit, use_vch);
-					next_state = RT_STATE_IDLE;
-				}
+				//without ready check
+				send_data = send_fifo.front();
+				send_fifo.pop();
+				RouterUtils::make_data_flit(&flit, send_data, true);
+				rtTx->send(&flit, use_vch);
+				next_state = RT_STATE_IDLE;
 				break;
 			case RT_STATE_BW_DATA:
-				if (rtTx->slaveReady(use_vch)) {
-					send_data = send_fifo.front();
-					send_fifo.pop();
-					RouterUtils::make_data_flit(&flit, send_data, send_fifo.size() == 0);
-					rtTx->send(&flit, use_vch);
-					if (send_fifo.size() == 0)
-						next_state = RT_STATE_IDLE;
-				}
+				//without ready check
+				send_data = send_fifo.front();
+				send_fifo.pop();
+				RouterUtils::make_data_flit(&flit, send_data, send_fifo.size() == 0);
+				rtTx->send(&flit, use_vch);
+				if (send_fifo.size() == 0)
+					next_state = RT_STATE_IDLE;
 				break;
 			case RT_STATE_SR_WAIT:
 				if (recv_fifo.size() == 1) {

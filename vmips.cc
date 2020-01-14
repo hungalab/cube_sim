@@ -553,7 +553,7 @@ vmips::setup_router()
 bool
 vmips::setup_cube()
 {
-	ac0 = new RemoteRam(1, rtif->getRouter());
+	ac0 = new RemoteRam(1, rtif->getRouter(), 0x2048); //2KB
 	ac0->setup();
 	return true;
 

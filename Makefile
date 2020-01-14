@@ -137,7 +137,7 @@ vmips.o: vmips.cc clock.h task.h types.h config.h \
   decrtcreg.h deccsr.h deccsrreg.h decstat.h decserial.h decserialreg.h \
   testdev.h stub-dis.h libopcodes_mips/bfd.h libopcodes_mips/ansidecl.h \
   libopcodes_mips/symcat.h libopcodes_mips/dis-asm.h rommodule.h \
-  interactor.h rs232c.h routerinterface.h remoteram.h
+  interactor.h rs232c.h routerinterface.h remoteram.h accelerator.h
 
 deviceint.o: deviceint.cc deviceint.h intctrl.h types.h config.h \
   vmips.h
@@ -221,10 +221,13 @@ cache.o: cache.cc cache.h \
 
 busarbiter.o: busarbiter.cc busarbiter.h
 
-routerinterface.o: routerinterface.cc routerinterface.h devicemap.h deviceexc.h router.h accelerator.h
+routerinterface.o: routerinterface.cc routerinterface.h devicemap.h \
+                    deviceexc.h router.h accelerator.h deviceint.h \
+                    accelerator.h excnames.h options.h accesstypes.h
 
-router.o: router.cc router.h vmips.h
+router.o: router.cc router.h vmips.h options.h
 
-accelerator.o: accelerator.h accelerator.cc acceleratorcore.h
+accelerator.o: accelerator.h accelerator.cc acceleratorcore.h range.h\
+               router.h error.h options.h vmips.h
 
-remoteram.o: remoteram.cc remoteram.h accelerator.h
+remoteram.o: remoteram.cc remoteram.h accelerator.h memorymodule.h

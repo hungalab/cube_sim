@@ -48,24 +48,32 @@ ad2a  //4c: sw t2,0(t1)
 0000  //5c: add zero,zero,zero 
 0020
 0000  //60: add zero,zero,zero 
-0020
-0000  //64: add zero,zero,zero 
+0000
+912a  //64: lbu t2,0(t1) 
 0020
 0000  //68: add zero,zero,zero 
 0020
 0000  //6c: add zero,zero,zero 
-0004
-214a  //70: addi t2,t2,4 
 0020
-0000  //74: add zero,zero,zero 
+0000  //70: add zero,zero,zero 
+0004
+214a  //74: addi t2,t2,4 
 0020
 0000  //78: add zero,zero,zero 
 0020
 0000  //7c: add zero,zero,zero 
+0000
+a12a  //80: sb t2,0(t1) 
 0020
-0000  //80: add zero,zero,zero 
+0000  //84: add zero,zero,zero 
+0020
+0000  //88: add zero,zero,zero 
+1000
+ad2a  //8c: sw t2,4096(t1) 
+2000
+ad2a  //90: sw t2,8192(t1) 
 000d
-0000  //84: break 
+0000  //94: break 
 0760
 0000  //0: 0x760 
 0000

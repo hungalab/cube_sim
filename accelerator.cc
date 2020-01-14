@@ -1,5 +1,8 @@
 #include "accelerator.h"
 #include "error.h"
+#include "vmips.h"
+#include "options.h"
+#include "accesstypes.h"
 #include <cassert>
 
 /*******************************  LocalMapper  *******************************/
@@ -30,14 +33,48 @@ LocalMapper::~LocalMapper()
 		delete *i;
 }
 
-uint32 LocalMapper::fetch_word(uint32 offset, int mode)
+Range * LocalMapper::find_mapping_range(uint32 laddr)
 {
-	return 0x12345678;
+	if (last_used_mapping && last_used_mapping->incorporates(laddr))
+		return last_used_mapping;
+
+	for (Ranges::iterator i = ranges.begin(), e = ranges.end(); i != e; ++i) {
+		if ((*i)->incorporates(laddr)) {
+			last_used_mapping = *i;
+			return *i;
+		}
+	}
+	return NULL;
 }
 
-void LocalMapper::store_word(uint32 offset, uint32 data)
+uint32 LocalMapper::fetch_word(uint32 laddr)
 {
+	Range *l = find_mapping_range(laddr);
+	uint32 offset = laddr - l->getBase();
 
+	if (l != NULL) {
+		return l->fetch_word(offset, DATALOAD, NULL);
+	} else {
+		if (machine->opt->option("dbemsg")->flag) {
+			fprintf(stderr, "Load from unmapped local address 0x%08x\n", laddr);
+		}
+	}
+	return 0xffffffff;
+}
+
+void LocalMapper::store_word(uint32 laddr, uint32 data)
+{
+	Range *l = find_mapping_range(laddr);
+	uint32 offset = laddr - l->getBase();
+
+	if (l != NULL) {
+		l->store_word(offset, data, NULL);
+	} else {
+		if (machine->opt->option("dbemsg")->flag) {
+			fprintf(stderr, "Store to unmapped local address 0x%08x\n", laddr);
+		}
+	}
+	return;
 }
 
 /*******************************  CubeAccelerator  *******************************/
@@ -49,12 +86,110 @@ CubeAccelerator::CubeAccelerator(uint32 node_ID, Router* upperRouter)
 	localRouter = new Router(rtTx, rtRx, upperRouter, node_ID);
 	localBus = new LocalMapper();
 	core_module = NULL;
+	nif_state = nif_next_state = CNIF_IDLE;
+	packetMaxSize = (machine->opt->option("dcachebsize")->num / 4);
+}
+
+void CubeAccelerator::nif_step()
+{
+	FLIT_t flit;
+	FLIT_t sflit;
+	uint32 recv_vch;
+	uint32 read_addr, write_addr;
+
+	bool ivalid = rtRx->haveData();
+	if (ivalid) {
+		//data is received
+		rtRx->getData(&flit, &recv_vch);
+		fprintf(stderr, "%s: flit recv %X_%08X\n", accelerator_name(), flit.ftype, flit.data);
+	}
+
+	//fprintf(stderr, "state %d ivalid %d\n", nif_state, ivalid);
+	switch (nif_state) {
+		case CNIF_IDLE:
+			if (ivalid) {
+				if (flit.ftype == FTYPE_HEAD || flit.ftype == FTYPE_HEADTAIL) {
+					RouterUtils::decode_headflit(&flit, &reg_mema, &reg_mtype,
+													&reg_vch, &reg_src, &reg_dst);
+					switch (reg_mtype) {
+						case MTYPE_SW:
+							nif_next_state = CNIF_SW_DATA;
+							break;
+						case MTYPE_BW:
+							dcount = packetMaxSize;
+							nif_next_state = CNIF_BW_DATA;
+							break;
+						case MTYPE_SR:
+							nif_next_state = CNIF_SR_HEAD;
+							break;
+						case MTYPE_BR:
+							dcount = packetMaxSize;
+							nif_next_state = CNIF_BR_HEAD;
+							break;
+						default:
+							if (machine->opt->option("dbemsg")->flag) {
+								fprintf(stderr, "%s: unknown message type(%d) is received\n",
+										accelerator_name(), reg_mtype);
+							}
+					}
+				}
+			}
+			break;
+		case CNIF_SR_HEAD:
+		case CNIF_BR_HEAD:
+			if(rtTx->slaveReady(reg_vch)) {
+				nif_next_state = nif_state == CNIF_SR_HEAD ? CNIF_SR_DATA : CNIF_BR_DATA;
+				//response of read request; thus write message
+				RouterUtils::make_head_flit(&sflit, reg_mema, nif_state == CNIF_BR_HEAD ? MTYPE_BW : MTYPE_SW,
+											reg_vch, reg_dst, reg_src);
+				rtTx->send(&sflit, reg_vch);
+			}
+			break;
+		case CNIF_SR_DATA:
+			RouterUtils::make_data_flit(&sflit, localBus->fetch_word(reg_mema));
+			rtTx->send(&sflit, reg_vch);
+			nif_next_state = CNIF_IDLE;
+			break;
+		case CNIF_BR_DATA:
+			read_addr = reg_mema + (packetMaxSize - dcount) * 4;
+			RouterUtils::make_data_flit(&sflit, localBus->fetch_word(read_addr));
+			rtTx->send(&sflit, reg_vch);
+			if (--dcount == 0) {
+				nif_next_state = CNIF_IDLE;
+			}
+			break;
+		case CNIF_SW_DATA:
+			if (ivalid) {
+				localBus->store_word(reg_mema, flit.data);
+				nif_next_state = CNIF_IDLE;
+			}
+			break;
+		case CNIF_BW_DATA:
+			if (ivalid) {
+				write_addr = reg_mema + (packetMaxSize - dcount) * 4;
+				localBus->store_word(write_addr, flit.data);
+				if (--dcount == 0) {
+					nif_next_state = CNIF_IDLE;
+				}
+			}
+			break;
+		default: return;
+	}
+
+	for (int i = 0; i < VCH_SIZE; i++) {
+		iready[i] = nif_next_state == CNIF_IDLE;
+	}
+
+	nif_state = nif_next_state;
+
+
 }
 
 void CubeAccelerator::step()
 {
 	//handle data to/from router
 	localRouter->step();
+	nif_step();
 
 	if (core_module != NULL) {
 		core_module->step();
@@ -70,4 +205,5 @@ void CubeAccelerator::reset() {
 	if (core_module != NULL) {
 		core_module->reset();
 	}
+	nif_state = nif_next_state = CNIF_IDLE;
 }

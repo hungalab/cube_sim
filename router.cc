@@ -48,7 +48,7 @@ void RouterUtils::make_ack_flit(FLIT_t *flit, uint32 ftype, int *cnt)
 void RouterUtils::decode_headflit(FLIT_t* flit, uint32 *addr, uint32 *mtype, uint32 *vch,
 									uint32 *src, uint32 *dst)
 {
-	if (flit->ftype == FTYPE_TAIL || flit->ftype == FTYPE_HEADTAIL) {
+	if (flit->ftype == FTYPE_HEAD || flit->ftype == FTYPE_HEADTAIL) {
 		*addr = flit->data >> FLIT_MEMA_MSB;
 		*mtype = (flit->data & FLIT_MT_MASK) >> FLIT_MT_MSB;
 		*vch = (flit->data & FLIT_VCH_MASK) >> FLIT_VCH_MSB;
@@ -217,31 +217,6 @@ void Router::step()
 	icUpper->step();
 	icLower->step();
 
-	// FLIT_t flit;
-	// uint32 recv_vch;
-
-			// //dummy just return
-		// uint32 addr, mtype, vch, src, dst;
-		// FLIT_t sflit;
-		// if (flit.ftype == FTYPE_HEADTAIL || flit.ftype == FTYPE_HEAD) {
-		// 	RouterUtils::decode_headflit(&flit, &addr, &mtype, &vch, &src, &dst);
-		// 	switch (mtype) {
-		// 		case MTYPE_SR:
-		// 			RouterUtils::make_head_flit(&sflit, addr, MTYPE_SW, vch, dst, src);
-		// 			toLocal->send(&sflit, vch);
-		// 			RouterUtils::make_data_flit(&sflit, 0x12345678);
-		// 			toLocal->send(&sflit, vch);
-		// 			break;
-		// 		case MTYPE_BR:
-		// 			RouterUtils::make_head_flit(&sflit, addr, MTYPE_BW, vch, dst, src);
-		// 			toLocal->send(&sflit, vch);
-		// 			for (int i = 0; i < 16; i++) {
-		// 				RouterUtils::make_data_flit(&sflit, i + 1, i == 15);
-		// 				toLocal->send(&sflit, vch);
-		// 			}
-		// 			break;
-		// 	}
-		// }
 }
 
 /*******************************  InputChannel  *******************************/
@@ -284,7 +259,7 @@ void InputChannel::step()
 					case VC_STATE_VSA:
 						if (false) {
 							//not granted
-						} else if (true) {
+						} else if (true & cb->ready(i, send_port[i])) {
 							//granted & ready
 							vc_next_state[i] = VC_STATE_ST;
 						}
@@ -378,8 +353,10 @@ void OutputChannel::step()
 		entry = obuf.front();
 		oport->send((FLIT_t*)(&entry.flit), entry.vch);
 		obuf.pop();
-		send_count[entry.vch]++;
-		counter_change = true;
+		if (ackEnabled) {
+			send_count[entry.vch]++;
+			counter_change = true;
+		}
 	} else {
 		//return ACK packets
 		if (ackEnabled) {
@@ -471,6 +448,23 @@ void Crossbar::send(InputChannel* ic, FLIT_t *flit, uint32 vch, uint32 port)
 		abort();
 	}
 
+}
+
+bool Crossbar::ready(uint32 vch, uint32 port)
+{
+	//data transfer
+	switch (port) {
+		case LOCAL_PORT:
+			return ocLocal->ocReady(vch);
+			break;
+		case LOWER_PORT:
+			return ocLower->ocReady(vch);
+			break;
+		case UPPER_PORT:
+			return ocUpper->ocReady(vch);
+			break;
+		default: abort();
+	}
 }
 
 void Crossbar::forwardAck(InputChannel* ic, FLIT_t *flit)
