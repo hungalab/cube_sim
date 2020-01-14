@@ -460,7 +460,7 @@ void Crossbar::send(InputChannel* ic, FLIT_t *flit, uint32 vch, uint32 port)
 	try {
 		OutputChannel* oc = ic_oc_map.at(ic);
 		if (machine->opt->option("routermsg")->flag) {
-			fprintf(stderr, "%10d:\tRouter%d\t %s send flit %X_%08X to %s\n", machine->num_cycles, *node_id,
+			fprintf(stderr, "%10d:\tRouter%d\t %s sends flit %X_%08X to %s\n", machine->num_cycles, *node_id,
 							ic_to_string[ic], flit->ftype, flit->data, oc_to_string[trans_oc]);
 		}
 		oc->ackIncrement(vch);
@@ -473,7 +473,6 @@ void Crossbar::send(InputChannel* ic, FLIT_t *flit, uint32 vch, uint32 port)
 
 bool Crossbar::ready(uint32 vch, uint32 port)
 {
-	//data transfer
 	switch (port) {
 		case LOCAL_PORT:
 			return ocLocal->ocReady(vch);
@@ -490,13 +489,16 @@ bool Crossbar::ready(uint32 vch, uint32 port)
 
 void Crossbar::forwardAck(InputChannel* ic, FLIT_t *flit)
 {
-	if (ic == icLocal) {
-		ocLocal->pushAck(flit);
-	} else if (ic == icLower) {
-		ocLower->pushAck(flit);
-	} else if (ic == icUpper) {
-		ocUpper->pushAck(flit);
-	} else {
+	try {
+		OutputChannel* oc = ic_oc_map.at(ic);
+		oc->pushAck(flit);
+		if (machine->opt->option("routermsg")->flag) {
+			fprintf(stderr, "%10d:\tRouter%d\t forwards ACK flit %X_%08X to %s\n",
+							 machine->num_cycles, *node_id, flit->ftype, flit->data, oc_to_string[oc]);
+		}
+	} catch (std::out_of_range&) {
+		fprintf(stderr, "Crossbar forwarded ack flit from unknown InputChannel\n");
 		abort();
 	}
+
 }
