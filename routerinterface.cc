@@ -234,6 +234,7 @@ RouterInterface::RouterInterface() {
 	rtRx = new RouterPortSlave(); //receiver
 	rtTx = new RouterPortMaster(); //sender
 	localRouter = new Router(rtTx, rtRx, NULL); //Router for cpu core
+	mem_bandwidth = machine->opt->option("mem_bandwidth")->num;
 }
 
 //to override DeviceInt
@@ -286,28 +287,30 @@ void RouterInterface::step() {
 	}
 
 	// exec router
-	localRouter->step();
+	for (int i = 0; i < mem_bandwidth; i++) {
+		localRouter->step();
 
-	//handle received data
-	if (rtRx->haveData()) {
-		rtRx->getData(&flit);
-		switch (flit.ftype) {
-			case FTYPE_DATA:
-			case FTYPE_TAIL:
-				recv_fifo.push(flit.data);
-				break;
-			case FTYPE_HEADTAIL:
-				//only DONE packet will be handled (others are ignored)
-				uint32 addr, mtype, vch, src, dst;
-				RouterUtils::decode_headflit(&flit, &addr, &mtype, &vch, &src, &dst);
-				if (mtype == MTYPE_DONE) {
-					if (addr == DONE_NOTIF_ADDR) {
-						config->done_status[src - 1] = true;
-					} else if (addr == DMAC_NOTIF_ADDR) {
-						config->dmac_status[src - 1] = true;
+		//handle received data
+		if (rtRx->haveData()) {
+			rtRx->getData(&flit);
+			switch (flit.ftype) {
+				case FTYPE_DATA:
+				case FTYPE_TAIL:
+					recv_fifo.push(flit.data);
+					break;
+				case FTYPE_HEADTAIL:
+					//only DONE packet will be handled (others are ignored)
+					uint32 addr, mtype, vch, src, dst;
+					RouterUtils::decode_headflit(&flit, &addr, &mtype, &vch, &src, &dst);
+					if (mtype == MTYPE_DONE) {
+						if (addr == DONE_NOTIF_ADDR) {
+							config->done_status[src - 1] = true;
+						} else if (addr == DMAC_NOTIF_ADDR) {
+							config->dmac_status[src - 1] = true;
+						}
 					}
-				}
-				break;
+					break;
+			}
 		}
 	}
 
@@ -320,6 +323,7 @@ void RouterInterface::step() {
 
 	//update status
 	state = next_state;
+
 	if (state != RT_STATE_IDLE) {
 		switch (state) {
 			case RT_STATE_SW_SETUP:
@@ -382,12 +386,16 @@ void RouterInterface::step() {
 				break;
 			case RT_STATE_BW_DATA:
 				//without ready check
-				send_data = send_fifo.front();
-				send_fifo.pop();
-				RouterUtils::make_data_flit(&flit, send_data, send_fifo.size() == 0);
-				rtTx->send(&flit, use_vch);
-				if (send_fifo.size() == 0)
-					next_state = RT_STATE_IDLE;
+				for (int i = 0; i < mem_bandwidth; i++) {
+					send_data = send_fifo.front();
+					send_fifo.pop();
+					RouterUtils::make_data_flit(&flit, send_data, send_fifo.size() == 0);
+					rtTx->send(&flit, use_vch);
+					if (send_fifo.size() == 0) {
+						next_state = RT_STATE_IDLE;
+						break;
+					}
+				}
 				break;
 			case RT_STATE_SR_WAIT:
 				if (recv_fifo.size() == 1) {

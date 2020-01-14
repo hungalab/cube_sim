@@ -220,6 +220,14 @@ void Router::step()
 }
 
 /*******************************  InputChannel  *******************************/
+InputChannel::InputChannel(RouterPortSlave* iport_, Crossbar *cb_, int *xpos_)
+	: iport(iport_), xpos(xpos_), cb(cb_)
+{
+	for (int i = 0; i < VCH_SIZE; i++) {
+		vc_last_state_update_time[i] = 0;
+	}
+};
+
 void InputChannel::reset()
 {
 	// clear
@@ -237,6 +245,8 @@ void InputChannel::step()
 	FLIT_t flit;
 	uint32 recv_vch;
 	int i;
+
+	int current_time = machine->num_cycles;
 
 	for (i = 0; i < VCH_SIZE; i++) {
 		if (!ibuf[i].empty()) {
@@ -274,7 +284,11 @@ void InputChannel::step()
 				}
 			}
 		}
-		vc_state[i] = vc_next_state[i];
+		if (current_time > vc_last_state_update_time[i]) {
+			vc_state[i] = vc_next_state[i];
+			vc_last_state_update_time[i] = current_time;
+		}
+
 	}
 
 	//handle input data

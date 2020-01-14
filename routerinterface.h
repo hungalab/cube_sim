@@ -86,6 +86,8 @@ public:
 private:
 	int registed_router_id;
 	int packet_size; //equals to data cache block size
+	int mem_bandwidth;
+
 	//Send/Recv FIFO
 	FIFO send_fifo, recv_fifo;
 	uint32 req_addr;

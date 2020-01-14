@@ -87,12 +87,15 @@ private:
 	int dcount;
 	int packetMaxSize;
 	int nif_state, nif_next_state;
+	bool dmac_en;
+	int mem_bandwidth;
+
 
 	void nif_step();
 
 protected:
 	//constructor
-	CubeAccelerator(uint32 node_ID, Router* upperRouter);
+	CubeAccelerator(uint32 node_ID, Router* upperRouterm, bool dmac_en_ = true);
 
 	//data/address bus
 	LocalMapper* localBus;

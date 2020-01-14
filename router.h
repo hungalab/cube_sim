@@ -182,6 +182,7 @@ private:
 	//for vc
 	int vc_state[VCH_SIZE];
 	int vc_next_state[VCH_SIZE];
+	int vc_last_state_update_time[VCH_SIZE];
 
 	//for fifo
 	FBUFFER ibuf[VCH_SIZE];
@@ -195,7 +196,7 @@ private:
 
 public:
 	//constructor
-	InputChannel(RouterPortSlave* iport_, Crossbar *cb_, int *xpos_) : iport(iport_), xpos(xpos_), cb(cb_) {};
+	InputChannel(RouterPortSlave* iport_, Crossbar *cb_, int *xpos_);
 	~InputChannel() {};
 
 	void pushData(FLIT_t *flit, uint32 vch);

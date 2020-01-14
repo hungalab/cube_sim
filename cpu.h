@@ -221,6 +221,7 @@ class CPU : public DeviceExc {
 	int opt_dcachebnum;
 	int opt_icachebsize;
 	int opt_dcachebsize;
+	int mem_bandwidth;
 
 	//each stage
 	void fetch(bool& fetch_miss, bool data_miss);

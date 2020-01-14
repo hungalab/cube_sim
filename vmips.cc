@@ -386,14 +386,8 @@ vmips::step(void)
 {
 	/* Process instructions. */
 	cpu->step();
-	for (int i = 0; i < mem_bandwidth; i++) {
-		/*
-		cpu->icache->step();
-		cpu->dcache->step();
-		dmac->step();
-		*/
-		rtif->step();
-	}
+	rtif->step();
+
 	ac0->step();
 
 	/* Keep track of time passing. Each instruction either takes

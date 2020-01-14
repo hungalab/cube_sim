@@ -78,7 +78,8 @@ void LocalMapper::store_word(uint32 laddr, uint32 data)
 }
 
 /*******************************  CubeAccelerator  *******************************/
-CubeAccelerator::CubeAccelerator(uint32 node_ID, Router* upperRouter)
+CubeAccelerator::CubeAccelerator(uint32 node_ID, Router* upperRouter, bool dmac_en_)
+	: dmac_en(dmac_en_)
 {
 	//make router ports
 	rtRx = new RouterPortSlave(iready); //receiver
@@ -88,6 +89,7 @@ CubeAccelerator::CubeAccelerator(uint32 node_ID, Router* upperRouter)
 	core_module = NULL;
 	nif_state = nif_next_state = CNIF_IDLE;
 	packetMaxSize = (machine->opt->option("dcachebsize")->num / 4);
+	mem_bandwidth = machine->opt->option("mem_bandwidth")->num;
 }
 
 void CubeAccelerator::nif_step()
@@ -97,16 +99,10 @@ void CubeAccelerator::nif_step()
 	uint32 recv_vch;
 	uint32 read_addr, write_addr;
 
-	bool ivalid = rtRx->haveData();
-	if (ivalid) {
-		//data is received
-		rtRx->getData(&flit, &recv_vch);
-	}
-
-	//fprintf(stderr, "state %d ivalid %d\n", nif_state, ivalid);
 	switch (nif_state) {
 		case CNIF_IDLE:
-			if (ivalid) {
+			if (rtRx->haveData()) {
+				rtRx->getData(&flit, &recv_vch);
 				if (flit.ftype == FTYPE_HEAD || flit.ftype == FTYPE_HEADTAIL) {
 					RouterUtils::decode_headflit(&flit, &reg_mema, &reg_mtype,
 													&reg_vch, &reg_src, &reg_dst);
@@ -150,25 +146,33 @@ void CubeAccelerator::nif_step()
 			nif_next_state = CNIF_IDLE;
 			break;
 		case CNIF_BR_DATA:
-			read_addr = reg_mema + (packetMaxSize - dcount) * 4;
-			RouterUtils::make_data_flit(&sflit, localBus->fetch_word(read_addr));
-			rtTx->send(&sflit, reg_vch);
-			if (--dcount == 0) {
-				nif_next_state = CNIF_IDLE;
+			for (int i = 0; i < mem_bandwidth; i++) {
+				read_addr = reg_mema + (packetMaxSize - dcount) * 4;
+				RouterUtils::make_data_flit(&sflit, localBus->fetch_word(read_addr));
+				rtTx->send(&sflit, reg_vch);
+				if (--dcount == 0) {
+					nif_next_state = CNIF_IDLE;
+					break;
+				}
 			}
 			break;
 		case CNIF_SW_DATA:
-			if (ivalid) {
+			if (rtRx->haveData()) {
+				rtRx->getData(&flit, &recv_vch);
 				localBus->store_word(reg_mema, flit.data);
 				nif_next_state = CNIF_IDLE;
 			}
 			break;
 		case CNIF_BW_DATA:
-			if (ivalid) {
-				write_addr = reg_mema + (packetMaxSize - dcount) * 4;
-				localBus->store_word(write_addr, flit.data);
-				if (--dcount == 0) {
-					nif_next_state = CNIF_IDLE;
+			for (int i = 0; i < mem_bandwidth; i++) {
+				if (rtRx->haveData()) {
+					rtRx->getData(&flit, &recv_vch);
+					write_addr = reg_mema + (packetMaxSize - dcount) * 4;
+					localBus->store_word(write_addr, flit.data);
+					if (--dcount == 0) {
+						nif_next_state = CNIF_IDLE;
+						break;
+					}
 				}
 			}
 			break;
@@ -178,16 +182,18 @@ void CubeAccelerator::nif_step()
 	for (int i = 0; i < VCH_SIZE; i++) {
 		iready[i] = nif_next_state == CNIF_IDLE;
 	}
-
+	//update status
 	nif_state = nif_next_state;
-
 
 }
 
 void CubeAccelerator::step()
 {
 	//handle data to/from router
-	localRouter->step();
+	for (int i = 0; i < 1; i++) {
+		localRouter->step();
+	}
+
 	nif_step();
 
 	if (core_module != NULL) {
