@@ -75,6 +75,7 @@ private:
     bool isisolated;
     unsigned int status;
     unsigned int next_status;
+    int last_state_update_time;
 
     struct CacheOpState {
         unsigned int counter;

@@ -21,12 +21,13 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 #define _MEMORYMODULE_H_
 
 #include "range.h"
+#include "memorymodule.h"
 
 class MemoryModule : public Range {
 public:
     uint32 *myaddr;
     MemoryModule(size_t size) : Range (0, size, 0, MEM_READ_WRITE) {
-        myaddr = new uint32[size / 4];
+        myaddr = new uint32[size / 4]();
         address = static_cast<void *> (myaddr);
     }
     ~MemoryModule() {

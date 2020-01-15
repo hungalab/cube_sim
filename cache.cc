@@ -35,6 +35,7 @@ Cache::Cache(Mapper* mem, unsigned int block_count_, unsigned int block_size_, u
 
 	// init cache status
 	status = next_status = CACHE_IDLE;
+	last_state_update_time = 0;
 }
 
 Cache::~Cache()
@@ -44,7 +45,11 @@ Cache::~Cache()
 
 void Cache::step()
 {
-	status = next_status;
+	if (machine->num_cycles > last_state_update_time) {
+		status = next_status;
+		last_state_update_time = machine->num_cycles;
+	}
+
 	if (status == CACHE_WB) {
 		cache_wb();
 	} else if (status == CACHE_FETCH) {

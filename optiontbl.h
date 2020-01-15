@@ -379,6 +379,15 @@ static Option nametable[] = {
     { "mem_bandwidth", NUM },
     { "mem_access_latency", NUM },
 
+    /*Router configs*/
+    { "vcbufsize", NUM },
+    { "routermsg", FLAG},
+
+    //Accelerators
+    { "accelerator0", STR },
+    { "accelerator1", STR },
+    { "accelerator2", STR },
+
     { NULL, 0 }
 };
 
@@ -399,7 +408,8 @@ static const char *defaults_table[] = {
     "execname=none", "nofpu", "notestdev", "nocacheprof",
     "icacheway=2", "dcacheway=2", "icachebsize=64", "dcachebsize=64",
     "icachebnum=64", "dcachebnum=64", "mem_bandwidth=1",
-    "mem_access_latency=4",
+    "mem_access_latency=4", "vcbufsize=24", "noroutermsg",
+    "accelerator0=none", "accelerator1=none", "accelerator2=none",
     NULL
 };
 

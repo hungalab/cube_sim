@@ -101,6 +101,7 @@ CPU::CPU (Mapper &m, IntCtrl &i, int cpuid)
 	opt_dcachebnum = machine->opt->option("dcachebnum")->num;
 	opt_icachebsize = machine->opt->option("icachebsize")->num;
 	opt_dcachebsize = machine->opt->option("dcachebsize")->num;
+	mem_bandwidth = machine->opt->option("mem_bandwidth")->num;
 
 	exception_pending = false;
 }
@@ -109,8 +110,8 @@ CPU::~CPU ()
 {
 	if (opt_tracing)
 		close_trace_file ();
-	delete icache;
-	delete dcache;
+	if (icache) delete icache;
+	if (dcache) delete dcache;
 	for (int i = 0; i < PIPELINE_STAGES; i++) {
 		if (PL_REGS[i]) delete PL_REGS[i];
 	}
@@ -1320,7 +1321,10 @@ void CPU::step()
 		cop_remain--;
 	}
 
-	dcache->step();
+	for (int i = 0; i < mem_bandwidth; i++) {
+		dcache->step();
+	}
+
 	// dcache brings exceptions
 	if (exception_pending) {
 		PL_REGS[WB_STAGE]->excBuf.emplace_back(exc_signal);
@@ -1328,7 +1332,10 @@ void CPU::step()
 		exc_handle(PL_REGS[WB_STAGE]);
 	}
 
-	icache->step();
+	for (int i = 0; i < mem_bandwidth; i++) {
+		icache->step();
+	}
+
 	// icache brings exceptions
 	if (exception_pending) {
 		PL_REGS[WB_STAGE]->excBuf.emplace_back(exc_signal);

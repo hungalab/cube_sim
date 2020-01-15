@@ -73,7 +73,6 @@ public:
     virtual bool canRead(uint32 offset);
     virtual bool canWrite(uint32 offset);
 
-    virtual bool ready(uint32 offset, int32 mode, DeviceExc *client);
 };
 
 #endif /* _DEVICEMAP_H_ */

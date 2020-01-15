@@ -59,6 +59,7 @@ public:
 	virtual void store_halfword(uint32 offset, uint16 data,
 		DeviceExc *client);
 	virtual void store_byte(uint32 offset, uint8 data, DeviceExc *client);
+	virtual bool ready(uint32 offset, int32 mode, DeviceExc *client) { return true; } ;
 };
 
 

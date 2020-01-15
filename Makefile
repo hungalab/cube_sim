@@ -37,7 +37,9 @@ SOURCES = cpu.cc cpzero.cc devicemap.cc \
   haltreg.h wipe.h stub-dis.h decrtc.h decrtcreg.h deccsr.h deccsrreg.h \
   decstat.h decserial.h decserialreg.h rommodule.h gccattr.h mmapglue.h \
   types.h endiantest.h fileutils.h fpu.h interactor.h testdev.h \
-  rs232c.h cache.h busarbiter.h
+  rs232c.h cache.h busarbiter.h routerinterface.cc routerinterface.h router.cc router.h \
+  accelerator.h accelerator.cc acceleratorcore.h acceleratorcore.cc \
+  remoteram.h remoteram.cc
 
 OBJECTS = cpu.$(OBJEXT) cpzero.$(OBJEXT) devicemap.$(OBJEXT) \
 	mapper.$(OBJEXT) options.$(OBJEXT) range.$(OBJEXT) \
@@ -48,7 +50,9 @@ OBJECTS = cpu.$(OBJEXT) cpzero.$(OBJEXT) devicemap.$(OBJEXT) \
 	decrtc.$(OBJEXT) deccsr.$(OBJEXT) decstat.$(OBJEXT) \
 	decserial.$(OBJEXT) rommodule.$(OBJEXT) fileutils.$(OBJEXT) \
 	exeloader.$(OBJEXT) fpu.$(OBJEXT) interactor.$(OBJEXT) \
-	testdev.$(OBJEXT) rs232c.$(OBJEXT) cache.$(OBJEXT) busarbiter.$(OBJEXT)
+	testdev.$(OBJEXT) rs232c.$(OBJEXT) cache.$(OBJEXT) busarbiter.$(OBJEXT) \
+  routerinterface.${OBJEXT} router.${OBJEXT} \
+  remoteram.${OBJEXT} accelerator.${OBJEXT} \
 
 LDADD = libopcodes_mips/libopcodes_mips.a
 
@@ -133,8 +137,7 @@ vmips.o: vmips.cc clock.h task.h types.h config.h \
   decrtcreg.h deccsr.h deccsrreg.h decstat.h decserial.h decserialreg.h \
   testdev.h stub-dis.h libopcodes_mips/bfd.h libopcodes_mips/ansidecl.h \
   libopcodes_mips/symcat.h libopcodes_mips/dis-asm.h rommodule.h \
-  interactor.h \
-  rs232c.h
+  interactor.h rs232c.h routerinterface.h remoteram.h accelerator.h
 
 deviceint.o: deviceint.cc deviceint.h intctrl.h types.h config.h \
   vmips.h
@@ -217,3 +220,14 @@ cache.o: cache.cc cache.h \
   excnames.h
 
 busarbiter.o: busarbiter.cc busarbiter.h
+
+routerinterface.o: routerinterface.cc routerinterface.h devicemap.h \
+                    deviceexc.h router.h accelerator.h deviceint.h \
+                    accelerator.h excnames.h options.h accesstypes.h
+
+router.o: router.cc router.h vmips.h options.h
+
+accelerator.o: accelerator.h accelerator.cc acceleratorcore.h range.h\
+               router.h error.h options.h vmips.h
+
+remoteram.o: remoteram.cc remoteram.h accelerator.h memorymodule.h

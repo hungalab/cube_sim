@@ -43,6 +43,10 @@ class DECSerialDevice;
 class TestDev;
 class Disassembler;
 class Interactor;
+class RouterInterface;
+class RouterRange;
+class RouterIOReg;
+class CubeAccelerator;
 
 long timediff(struct timeval *after, struct timeval *before);
 
@@ -57,6 +61,7 @@ public:
 	IntCtrl		*intc;
 	Options		*opt;
 	MemoryModule	*memmod;
+	MemoryModule	*memmod2;
 	Debug	*dbgr;
 	Disassembler	*disasm;
 	bool		host_bigendian;
@@ -73,6 +78,10 @@ public:
 	DECStatDevice	*decstat_device;
 	DECSerialDevice	*decserial_device;
 	TestDev		*test_device;
+	RouterInterface *rtif;
+	RouterIOReg *rtIO;
+	RouterRange *rtrange_kseg0, *rtrange_kseg1;
+	CubeAccelerator *ac0, *ac1, *ac2;
 
 	/* Cached versions of options: */
 	bool		opt_bootmsg;
@@ -111,6 +120,7 @@ public:
 	uint32 		stall_count;
 	uint32		mem_bandwidth;
 	uint32		mem_access_latency;
+	uint32		vcbufsize;
 
 private:
 	Interactor *interactor;
@@ -153,6 +163,10 @@ private:
   	virtual bool setup_rs232c();
 
 	virtual bool setup_exe();
+
+	virtual bool setup_router();
+
+	virtual bool setup_cube();
 
 	bool load_elf (FILE *fp);
 	bool load_ecoff (FILE *fp);

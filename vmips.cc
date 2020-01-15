@@ -55,6 +55,9 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 #include <string>
 #include <exception>
 #include "rs232c.h"
+#include "routerinterface.h"
+#include "accelerator.h"
+#include "remoteram.h"
 
 vmips *machine;
 
@@ -100,6 +103,7 @@ vmips::refresh_options(void)
 	opt_testdev = opt->option("testdev")->flag;
 	mem_bandwidth = opt->option("mem_bandwidth")->num;
 	mem_access_latency = opt->option("mem_access_latency")->num;
+	vcbufsize = opt->option("vcbufsize")->num;
 }
 
 /* Set up some machine globals, and process command line arguments,
@@ -123,6 +127,10 @@ vmips::~vmips()
 	//if (clock) delete clock;  // crash in this dtor - double free?
 	if (intc) delete intc;
 	if (opt) delete opt;
+	if (rtif) delete rtif;
+	if (ac0) delete ac0;
+	if (ac1) delete ac1;
+	if (ac2) delete ac2;
 }
 
 void
@@ -382,13 +390,11 @@ vmips::step(void)
 {
 	/* Process instructions. */
 	cpu->step();
-	for (int i = 0; i < mem_bandwidth; i++) {
-		/*
-		cpu->icache->step();
-		cpu->dcache->step();
-		dmac->step();
-		*/
-	}
+	rtif->step();
+
+	if (ac0 != NULL) ac0->step();
+	if (ac1 != NULL) ac1->step();
+	if (ac2 != NULL) ac2->step();
 
 	/* Keep track of time passing. Each instruction either takes
 	 * clock_nanos nanoseconds, or we use pass_realtime() to check the
@@ -476,9 +482,10 @@ vmips::setup_ram ()
 {
   // Make a new RAM module and install it at base physical address 0.
   memmod = new MemoryModule(opt_memsize);
-  MemoryModule* memmod2 = new MemoryModule(0x1000000 / 4);
   physmem->map_at_physical_address(memmod, 0);
-  physmem->map_at_physical_address(memmod2, 0xba000000);
+
+  // memmod2 = new MemoryModule(0x100000);
+  // physmem->map_at_physical_address(memmod2, 0x80000000);
 
   boot_msg( "Mapping RAM module (host=%p, %uKB) to physical address 0x%x\n",
 	    memmod->getAddress (), memmod->getExtent () / 1024, memmod->getBase ());
@@ -500,9 +507,122 @@ vmips::setup_clock ()
 bool
 vmips::setup_rs232c()
 {
-  Rs232c *rs232c = new Rs232c();
-  physmem->map_at_physical_address(rs232c, 0xb4000000);
-  return true;
+	Rs232c *rs232c = new Rs232c();
+	if (physmem->map_at_physical_address(rs232c, 0xb4000000) == 0) {
+		boot_msg("Suceeded in setup rs232c serial IO\n");
+		return true;
+	} else {
+		boot_msg("Failed in setup rs232c serial IO\n");
+		return false;
+	}
+}
+
+bool
+vmips::setup_router()
+{
+	rtif = new RouterInterface();
+	rtIO = new RouterIOReg(rtif);
+	rtrange_kseg0 = new RouterRange(rtif, false);
+	rtrange_kseg1 = new RouterRange(rtif, true);
+
+	//make instance
+	if (physmem->map_at_physical_address(rtIO, 0xba010000) == 0) {
+		if (physmem->map_at_physical_address(rtrange_kseg0, 0xba400000) == 0) {
+			if (physmem->map_at_physical_address(rtrange_kseg1, 0x9a400000) == 0) {
+				boot_msg("Suceeded in setup cube router\n");
+			} else {
+				boot_msg("Failed in setup router range (kseg1)\n");
+				return false;
+			}
+		} else {
+			boot_msg("Failed in setup router range (kseg0)\n");
+			return false;
+		}
+	} else {
+		boot_msg("Failed in setup router IO reg\n");
+		return false;
+	}
+
+	//connect IRQ line
+	intc->connectLine(IRQ5, rtif);
+	boot_msg( "Connected IRQ5 to the %s\n", rtif->descriptor_str());
+	return true;
+
+}
+
+bool
+vmips::setup_cube()
+{
+	std::string ac0_name = std::string(opt->option("accelerator0")->str);
+	std::string ac1_name = std::string(opt->option("accelerator1")->str);
+	std::string ac2_name = std::string(opt->option("accelerator2")->str);
+
+	//setup accelerator0
+	if (ac0_name == std::string("CMA")) {
+		fprintf(stderr, "CMA is under developping\n");
+		return false;
+	} else if (ac0_name == std::string("SNACC")) {
+		fprintf(stderr, "SNACC is under developping\n");
+		return false;
+	} else if (ac0_name == std::string("RemoteRam")) {
+		ac0 = new RemoteRam(1, rtif->getRouter(), 0x2048); //2KB
+	} else if (ac0_name != std::string("none")) {
+		fprintf(stderr, "Unknown accelerator: %s\n", ac0_name.c_str());
+		return false;
+	}
+
+	if (ac0 != NULL) {
+		ac0->setup();
+	}
+
+	//setup accelerator1
+	if (ac1_name == std::string("CMA")) {
+		fprintf(stderr, "CMA is under developping\n");
+		return false;
+	} else if (ac1_name == std::string("SNACC")) {
+		fprintf(stderr, "SNACC is under developping\n");
+		return false;
+	} else if (ac1_name == std::string("RemoteRam")) {
+		if (ac0 != NULL) {
+			ac1 = new RemoteRam(2, ac0->getRouter(), 0x2048); //2KB
+		} else {
+			fprintf(stderr, "Upper module (accelerator0) is not built\n");
+			return false;
+		}
+	} else if (ac1_name != std::string("none")) {
+		fprintf(stderr, "Unknown accelerator: %s\n", ac1_name.c_str());
+		return false;
+	}
+
+	if (ac1 != NULL) {
+		ac1->setup();
+	}
+
+	//setup accelerator2
+	if (ac2_name == std::string("CMA")) {
+		fprintf(stderr, "CMA is under developping\n");
+		return false;
+	} else if (ac2_name == std::string("SNACC")) {
+		fprintf(stderr, "SNACC is under developping\n");
+		return false;
+	} else if (ac2_name == std::string("RemoteRam")) {
+		if (ac1 != NULL) {
+			ac2 = new RemoteRam(3, ac0->getRouter(), 0x2048); //2KB
+		} else {
+			fprintf(stderr, "Upper module (accelerator1) is not built\n");
+			return false;
+		}
+	} else if (ac2_name != std::string("none")) {
+		fprintf(stderr, "Unknown accelerator: %s\n", ac2_name.c_str());
+		return false;
+	}
+
+	if (ac2 != NULL) {
+		ac2->setup();
+	}
+
+	return true;
+
 }
 
 static void
@@ -582,13 +702,39 @@ vmips::run()
 	if (!setup_rs232c())
 	  return 1;
 
+	if (!setup_router())
+	  return 1;
+
+	if (!setup_cube())
+	  return 1;
+
 	signal (SIGQUIT, halt_machine_by_signal);
 
 	boot_msg( "Hit Ctrl-\\ to halt machine, Ctrl-_ for a debug prompt.\n" );
 
 	/* Reset the CPU. */
-	boot_msg( "\n*************RESET*************\n\n" );
+	boot_msg( "\n*************RESET*************\n" );
+	boot_msg("Resetting CPU\n");
 	cpu->reset();
+	/* Reset Router interface */
+	if (rtif != NULL) {
+		boot_msg("Resetting Router Interface\n");
+		rtif->reset();
+	}
+	if (ac0 != NULL) {
+		boot_msg("Resetting %s_0\n", ac0->accelerator_name());
+		ac0->reset();
+	}
+	if (ac1 != NULL) {
+		boot_msg("Resetting %s_1\n", ac1->accelerator_name());
+		ac1->reset();
+	}
+	if (ac2 != NULL) {
+		boot_msg("Resetting %s_2\n", ac2->accelerator_name());
+		ac2->reset();
+	}
+
+	fprintf(stderr, "\n");
 
 	if (!setup_exe ())
 	  return 1;
