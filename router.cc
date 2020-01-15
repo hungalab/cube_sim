@@ -226,9 +226,6 @@ void Router::step()
 	ocUpper->step();
 	ocLower->step();
 
-	//cb
-	cb->step();
-
 	// //FIFO enqueue
 	icLocal->step();
 	icUpper->step();
@@ -255,6 +252,7 @@ void InputChannel::reset()
 		std::swap(ibuf[i], empty);
 		vc_state[i] = VC_STATE_RC;
 		vc_next_state[i] = VC_STATE_RC;
+		request_pending[i] = false;
 	}
 	iport->clearBuf();
 	if (ordy != NULL) {
@@ -262,6 +260,26 @@ void InputChannel::reset()
 			ordy[i] = true;
 		}
 	}
+	granted_vc = 0;
+	holding = false;
+	grant_release_time = machine->num_cycles;
+
+}
+
+bool InputChannel::isGranted(uint32 vch)
+{
+	return granted_vc == vch;
+}
+
+void InputChannel::hold()
+{
+	holding = true;
+}
+
+void InputChannel::release()
+{
+	holding = false;
+	grant_release_time = machine->num_cycles;
 }
 
 void InputChannel::step()
@@ -282,20 +300,27 @@ void InputChannel::step()
 				switch (vc_state[i]) {
 					//Swtich Traversal
 					case VC_STATE_ST:
-						ibuf[i].pop();
-						cb->send(this, &flit, i, send_port[i]);
-						if (flit.ftype == FTYPE_HEADTAIL || flit.ftype == FTYPE_TAIL) {
-							vc_next_state[i] = VC_STATE_RC;
-							//stop request
+						if (vc_next_state[i] != VC_STATE_RC) {
+							ibuf[i].pop();
+							cb->send(this, &flit, i, send_port[i]);
+							if (flit.ftype == FTYPE_HEADTAIL || flit.ftype == FTYPE_TAIL) {
+								vc_next_state[i] = VC_STATE_RC;
+								//release grant
+								release();
+								cb->close(send_port[i]);
+							}
 						}
 						break;
 					//Virtual Channel Switch Allocation
 					case VC_STATE_VSA:
-						if (false) {
-							//not granted
-						} else if (true & cb->ready(i, send_port[i])) {
+						if (!isGranted(i)) {
+							//if not granted, request grant
+							request(i);
+						} else if (isGranted(i) & cb->ready(this, i, send_port[i])) {
 							//granted & ready
 							vc_next_state[i] = VC_STATE_ST;
+							//grant holding
+							hold();
 						}
 						break;
 					//Routing Computation
@@ -325,6 +350,21 @@ void InputChannel::step()
 	if (ordy != NULL) {
 		for (int i = 0; i < VCH_SIZE; i++) {
 			ordy[i] = bufMaxSize - ibuf[i].size() >= packetMaxSize;
+		}
+	}
+
+	//vc arbitration
+	if (!holding) {
+		//no one holds grant
+		if (machine->num_cycles > grant_release_time) {
+			//priotiry: VC0 > VC1 > ...
+			for (int i = 0; i < VCH_SIZE; i++) {
+				if (request_pending[i]) {
+					request_pending[i] = false;
+					granted_vc = i;
+					break;
+				}
+			}
 		}
 	}
 }
@@ -464,10 +504,29 @@ bool OutputChannel::ocReady(uint32 vch)
 /*******************************  Crossbar  *******************************/
 void Crossbar::reset()
 {
+	sender_update_time = machine->num_cycles;
+	oc_last_sender[ocLocal] = NULL;
+	oc_last_sender[ocLower] = NULL;
+	oc_last_sender[ocUpper] = NULL;
+	close_pending[ocLocal] = false;
+	close_pending[ocLower] = false;
+	close_pending[ocUpper] = false;
 }
 
 void Crossbar::step()
 {
+	if (close_pending[ocLocal]) {
+		close_pending[ocLocal] = false;
+		oc_last_sender[ocLocal] = NULL;
+	}
+	if (close_pending[ocLower]) {
+		close_pending[ocLower] = false;
+		oc_last_sender[ocLower] = NULL;
+	}
+	if (close_pending[ocUpper]) {
+		close_pending[ocUpper] = false;
+		oc_last_sender[ocUpper] = NULL;
+	}
 }
 
 Crossbar::Crossbar(int *node_id_, OutputChannel *ocLocal_, OutputChannel *ocUpper_, OutputChannel *ocLower_) :
@@ -526,22 +585,59 @@ void Crossbar::send(InputChannel* ic, FLIT_t *flit, uint32 vch, uint32 port)
 
 }
 
-bool Crossbar::ready(uint32 vch, uint32 port)
+bool Crossbar::ready(InputChannel* ic, uint32 vch, uint32 port)
 {
 	switch (port) {
 		case LOCAL_PORT:
-			return ocLocal->ocReady(vch);
+			if (ocLocal->ocReady(vch)) {
+				if (oc_last_sender[ocLocal] == NULL) {
+					oc_last_sender[ocLocal] = ic;
+				}
+				return oc_last_sender[ocLocal] == ic;
+			} else {
+				return false;
+			}
 			break;
 		case LOWER_PORT:
-			return ocLower->ocReady(vch);
+			if (ocLower->ocReady(vch)) {
+				if (oc_last_sender[ocLower] == NULL) {
+					oc_last_sender[ocLower] = ic;
+				}
+				return oc_last_sender[ocLower] == ic;
+			} else {
+				return false;
+			}
 			break;
 		case UPPER_PORT:
-			return ocUpper->ocReady(vch);
+			if (ocUpper->ocReady(vch)) {
+				if (oc_last_sender[ocUpper] == NULL) {
+					oc_last_sender[ocUpper] = ic;
+				}
+				return oc_last_sender[ocUpper] == ic;
+			} else {
+				return false;
+			}
 			break;
 		default: abort();
 	}
 }
 
+void Crossbar::close(uint32 port)
+{
+	//data transfer
+	switch (port) {
+		case LOCAL_PORT:
+			close_pending[ocLocal] = true;
+			break;
+		case LOWER_PORT:
+			close_pending[ocLower] = true;
+			break;
+		case UPPER_PORT:
+			close_pending[ocUpper] = true;
+			break;
+		default: abort();
+	}
+}
 void Crossbar::forwardAck(InputChannel* ic, FLIT_t *flit)
 {
 	try {

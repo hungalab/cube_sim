@@ -46,6 +46,8 @@
 #define LOWER_PORT		1
 #define UPPER_PORT		2
 
+#define NOONE_GRANTED	-1
+
 struct FLIT_t {
 	uint32 ftype;
 	uint32 data;
@@ -150,6 +152,10 @@ private:
 	OutputChannel *ocLocal, *ocUpper, *ocLower;
 	InputChannel *icLocal, *icUpper, *icLower;
 
+	int sender_update_time;
+	std::map<OutputChannel*, InputChannel*> oc_last_sender;
+	std::map<OutputChannel*, bool> close_pending;
+
 	//direct mapping
 	std::map<InputChannel*, OutputChannel*> ic_oc_map;
 
@@ -169,7 +175,8 @@ public:
 	void forwardAck(InputChannel* ic, FLIT_t *flit);
 
 	void connectIC(InputChannel *icLocal_, InputChannel *icUpper_, InputChannel *icLower_);
-	bool ready(uint32 vch, uint32 port);
+	bool ready(InputChannel* ic, uint32 vch, uint32 port);
+	void close(uint32 port);
 
 };
 
@@ -184,6 +191,10 @@ private:
 	int vc_state[VCH_SIZE];
 	int vc_next_state[VCH_SIZE];
 	int vc_last_state_update_time[VCH_SIZE];
+	int granted_vc;
+	int grant_release_time;
+	bool request_pending[VCH_SIZE];
+	bool holding;
 
 	//for fifo
 	FBUFFER ibuf[VCH_SIZE];
@@ -194,6 +205,12 @@ private:
 		return dst == *xpos ? LOCAL_PORT :
 			   dst > *xpos  ? LOWER_PORT : UPPER_PORT;
 	}
+
+	//for vc mux
+	void request(uint32 vch) { request_pending[vch] = true; }
+	bool isGranted(uint32 vch);
+	void hold();
+	void release();
 
 	int bufMaxSize;
 	int packetMaxSize;

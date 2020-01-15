@@ -199,8 +199,8 @@ void CubeAccelerator::nif_step()
 							break;
 						default:
 							if (machine->opt->option("routermsg")->flag) {
-								fprintf(stderr, "%s: unknown message type(%d) is received\n",
-										accelerator_name(), reg_mtype);
+								fprintf(stderr, "%s: unknown message type(%d) is received (flit %X_%08X)\n",
+										accelerator_name(), reg_mtype, flit.ftype, flit.data);
 							}
 					}
 				}
@@ -331,7 +331,7 @@ void CubeAccelerator::nif_step()
 void CubeAccelerator::step()
 {
 	//handle data to/from router
-	for (int i = 0; i < 1; i++) {
+	for (int i = 0; i < mem_bandwidth; i++) {
 		localRouter->step();
 	}
 
