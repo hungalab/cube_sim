@@ -220,6 +220,67 @@ void Cache::cache_fetch()
 	}
 }
 
+bool Cache::exec_cache_op(uint16 opcode, uint32 addr, DeviceExc* client)
+{
+	uint32 index, way, offset;
+	//if it causes cpu stall, return false
+
+	if (status == CACHE_IDLE && physmem->acquire_bus(client)) {
+		switch (opcode) {
+			case ICACHE_OP_IDX_INV:
+			case DCACHE_OP_IDX_INV:
+				break;
+			case DCACHE_OP_IDX_WB:
+				break;
+			case DCACHE_OP_IDX_WBINV:
+				break;
+			case ICACHE_OP_IDX_LTAG:
+			case DCACHE_OP_IDX_LTAG:
+				break;
+			case ICACHE_OP_IDX_STAG:
+			case DCACHE_OP_IDX_STAG:
+				break;
+			case DCACHE_OP_IDX_FWB:
+				break;
+			case DCACHE_OP_IDX_FWBINV:
+				break;
+			case DCACHE_OP_SETLINE:
+				break;
+			case ICACHE_OP_HIT_INV:
+			case DCACHE_OP_HIT_INV:
+				if (cache_hit(addr, index, way, offset)) {
+					blocks[way][index].valid = false;
+				}
+				return true;
+				break;
+			case DCACHE_OP_HIT_WB:
+			case DCACHE_OP_HIT_WBINV:
+			case DCACHE_OP_HIT_FWB:
+			case DCACHE_OP_HIT_FWBINV:
+				if (cache_hit(addr, index, way, offset)) {
+					if (blocks[way][index].dirty) {
+						return false;
+					} else if (opcode == DCACHE_OP_HIT_FWB || opcode == DCACHE_OP_HIT_INV) {
+						return false;
+					} else {
+						//nothing to do
+						return true;
+					}
+				} else {
+					//nothing to do
+					return true;
+				}
+				break;
+			case DCACHE_OP_CHANGE:
+				break;
+			case DCACHE_OP_RCHANGE:
+				break;
+		}
+	} else {
+		return false;
+	}
+}
+
 uint32 Cache::fetch_word(uint32 addr, int32 mode, DeviceExc *client)
 {
 	uint32 offset;

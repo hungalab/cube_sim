@@ -91,7 +91,7 @@ cpu.o: cpu.cc cpu.h deviceexc.h accesstypes.h types.h config.h state.h \
   options.h \
   excnames.h error.h gccattr.h remotegdb.h fileutils.h stub-dis.h \
   libopcodes_mips/bfd.h libopcodes_mips/ansidecl.h \
-  libopcodes_mips/symcat.h libopcodes_mips/dis-asm.h ISA.h
+  libopcodes_mips/symcat.h libopcodes_mips/dis-asm.h ISA.h cacheinstr.h
 
 cpzero.o: cpzero.cc cpzero.h tlbentry.h config.h cpzeroreg.h types.h \
   mapper.h range.h accesstypes.h \
@@ -217,7 +217,7 @@ rs232c.o: rs232c.cc rs232c.h deviceint.h intctrl.h types.h config.h \
 cache.o: cache.cc cache.h \
   types.h config.h deviceexc.h accesstypes.h state.h vmips.h \
   mapper.h range.h \
-  excnames.h
+  excnames.h cacheinstr.h
 
 busarbiter.o: busarbiter.cc busarbiter.h
 

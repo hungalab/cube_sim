@@ -7,6 +7,7 @@
 #include "deviceexc.h"
 #include "vmips.h"
 #include "mapper.h"
+#include "cacheinstr.h"
 
 #define CACHE_IDLE  0
 #define CACHE_WB    1
@@ -41,6 +42,8 @@ public:
 
     void cache_isolate(bool flag) {isisolated = flag;}
     void report_prof();
+
+    bool exec_cache_op(uint16 opcode, uint32 addr, DeviceExc* client);
 
 private:
     // connected memory

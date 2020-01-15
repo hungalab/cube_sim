@@ -826,6 +826,11 @@ void CPU::pre_decode(bool& data_hazard)
 				preg->instr = NOP_INSTR;
 			}
 			break;
+		case OP_CACHE:
+			if (RI_cache_op_flag[rt(dec_instr)]) {
+				exception(RI);
+				preg->instr = NOP_INSTR;
+			}
 		default:
 			if (RI_flag[dec_opcode]) {
 				exception(RI);
@@ -1042,7 +1047,7 @@ void CPU::execute()
 		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
 		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
 		&CPU::addu_exec, &CPU::addu_exec, &CPU::addu_exec, &CPU::addu_exec, &CPU::addu_exec, &CPU::addu_exec, &CPU::addu_exec, NULL,
-		&CPU::addu_exec, &CPU::addu_exec, &CPU::addu_exec, &CPU::addu_exec, NULL, NULL, &CPU::addu_exec, NULL,
+		&CPU::addu_exec, &CPU::addu_exec, &CPU::addu_exec, &CPU::addu_exec, NULL, NULL, &CPU::addu_exec, &CPU::addu_exec,
 		&CPU::lwc1_exec, &CPU::lwc2_exec, &CPU::lwc3_exec, NULL, NULL, NULL, NULL,
 		&CPU::swc1_exec, &CPU::swc2_exec, &CPU::swc3_exec, NULL, NULL, NULL, NULL
 	};
@@ -1063,6 +1068,7 @@ void CPU::execute()
 		//reset signal
 		exception_pending = false;
 	}
+
 }
 
 void CPU::pre_mem_access(bool& data_miss)
@@ -1070,12 +1076,14 @@ void CPU::pre_mem_access(bool& data_miss)
 	PipelineRegs *preg = PL_REGS[MEM_STAGE];
 	uint32 mem_instr = preg->instr;
 	uint16 mem_opcode = opcode(mem_instr);
+	uint16 cache_opcode;
 
 	uint32 phys;
 	bool cacheable;
 	Cache *cache = cpzero->caches_swapped() ? icache : dcache;
 	uint32 vaddr = preg->result;
 	int mode;
+
 
 	data_miss = false;
 
@@ -1093,7 +1101,7 @@ void CPU::pre_mem_access(bool& data_miss)
 			if (vaddr % 4 != 0) {
 				exception(AdEL);
 			}
-		break;
+			break;
 	}
 
 	//Exception may be occured
@@ -1103,7 +1111,16 @@ void CPU::pre_mem_access(bool& data_miss)
 		mode = DATALOAD;
 	}
 
-	if (mem_write_flag[mem_opcode] || mem_read_flag[mem_opcode]) {
+	if (mem_opcode == OP_CACHE) {
+		phys = cpzero->address_trans(vaddr, ANY, &cacheable, this);
+		if (!cacheable) {
+			exception(AdEL);
+		} else {
+			cache_opcode = rt(mem_instr);
+			cache = cache_op_mux(cache_opcode);
+			data_miss = !cache->exec_cache_op(cache_opcode, phys, this);
+		}
+	} else if (mem_write_flag[mem_opcode] || mem_read_flag[mem_opcode]) {
 		phys = cpzero->address_trans(vaddr, mode, &cacheable, this);
 		//check stall
 		if (cacheable) {
@@ -2495,4 +2512,12 @@ void CPU::bgezal_exec()
 	preg->result = preg->pc + 8;
 }
 
+Cache* CPU::cache_op_mux(uint32 opcode)
+{
+	if (cpzero->caches_swapped()) {
+		return opcode >= DCACHE_OPCODE_START ? icache : dcache;
+	} else {
+		return opcode >= DCACHE_OPCODE_START ? dcache : icache;
+	}
 
+}
