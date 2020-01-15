@@ -77,19 +77,95 @@ void LocalMapper::store_word(uint32 laddr, uint32 data)
 	return;
 }
 
+/*******************************  NetworkInterfaceConfig  *******************************/
+NetworkInterfaceConfig::NetworkInterfaceConfig(uint32 config_addr_base)
+	: Range(config_addr_base, 0x900, 0, MEM_READ_WRITE)
+{
+	clearReg();
+}
+
+void NetworkInterfaceConfig::clearReg()
+{
+	dma_dst = 0;
+	dma_src = 0;
+	dma_len = 0;
+	vc_normal = 0;
+	vc_dma = 0;
+	vc_dmadone = 0;
+	vc_done = 0;
+	dmaKicked = false;
+}
+
+uint32 NetworkInterfaceConfig::fetch_word(uint32 offset, int mode, DeviceExc *client)
+{
+
+	switch (offset) {
+		case DMA_KICK_OFFSET:
+			return 0;
+			break;
+		case DMA_DST_OFFSET:
+			return dma_dst;
+			break;
+		case DMA_SRC_OFFSET:
+			return dma_src;
+			break;
+		case DMA_LEN_OFFSET:
+			return dma_len;
+			break;
+		case VC_LIST_OFFSET:
+			return ((vc_normal << VC_NORMAL_LSB) | (vc_dma << VC_DMA_LSB) |
+					(vc_dmadone << VC_DMADONE_LSB) | vc_done);
+			break;
+		default:
+			return 0xffffffff;
+	}
+}
+
+void NetworkInterfaceConfig::store_word(uint32 offset, uint32 data, DeviceExc *client)
+{
+	switch (offset) {
+		case DMA_KICK_OFFSET:
+			dmaKicked = true;
+			break;
+		case DMA_DST_OFFSET:
+			dma_dst = data & DMA_DST_MASK;
+			break;
+		case DMA_SRC_OFFSET:
+			dma_src = data & DMA_SRC_MASK;
+			break;
+		case DMA_LEN_OFFSET:
+			dma_len = data & DMA_LEN_MASK;
+			break;
+		case VC_LIST_OFFSET:
+			vc_normal = (data & VC_NORMAL_MASK) >> VC_NORMAL_LSB;
+			vc_dma = (data & VC_DMA_MASK) >> VC_DMA_LSB;
+			vc_dmadone = (data & VC_DMADONE_MASK) >> VC_DMADONE_LSB;
+			vc_done = data & VC_DONE_MASK;
+			break;
+	}
+	return;
+}
+
 /*******************************  CubeAccelerator  *******************************/
-CubeAccelerator::CubeAccelerator(uint32 node_ID, Router* upperRouter, bool dmac_en_)
+CubeAccelerator::CubeAccelerator(uint32 node_ID, Router* upperRouter, uint32 config_addr_base, bool dmac_en_)
 	: dmac_en(dmac_en_)
 {
 	//make router ports
 	rtRx = new RouterPortSlave(iready); //receiver
 	rtTx = new RouterPortMaster(); //sender
+	//build router
 	localRouter = new Router(rtTx, rtRx, upperRouter, node_ID);
+	//make localbus
 	localBus = new LocalMapper();
 	core_module = NULL;
+
+	//setup network interface
 	nif_state = nif_next_state = CNIF_IDLE;
 	packetMaxSize = (machine->opt->option("dcachebsize")->num / 4);
 	mem_bandwidth = machine->opt->option("mem_bandwidth")->num;
+	nif_config = new NetworkInterfaceConfig(config_addr_base);
+	localBus->map_at_local_address(nif_config, config_addr_base);
+
 }
 
 void CubeAccelerator::nif_step()
@@ -132,25 +208,25 @@ void CubeAccelerator::nif_step()
 			break;
 		case CNIF_SR_HEAD:
 		case CNIF_BR_HEAD:
-			if(rtTx->slaveReady(reg_vch)) {
+			if(rtTx->slaveReady(nif_config->getVCnormal())) {
 				nif_next_state = nif_state == CNIF_SR_HEAD ? CNIF_SR_DATA : CNIF_BR_DATA;
 				//response of read request; thus write message
 				RouterUtils::make_head_flit(&sflit, reg_mema, nif_state == CNIF_BR_HEAD ? MTYPE_BW : MTYPE_SW,
-											reg_vch, reg_dst, reg_src);
-				rtTx->send(&sflit, reg_vch);
+											nif_config->getVCnormal(), reg_dst, reg_src);
+				rtTx->send(&sflit, nif_config->getVCnormal());
 			}
 			break;
 		case CNIF_SR_DATA:
-			RouterUtils::make_data_flit(&sflit, localBus->fetch_word(reg_mema));
-			rtTx->send(&sflit, reg_vch);
+			RouterUtils::make_data_flit(&sflit, localBus->fetch_word(reg_mema), true);
+			rtTx->send(&sflit, nif_config->getVCnormal());
 			nif_next_state = CNIF_IDLE;
 			break;
 		case CNIF_BR_DATA:
 			for (int i = 0; i < mem_bandwidth; i++) {
-				read_addr = reg_mema + (packetMaxSize - dcount) * 4;
-				RouterUtils::make_data_flit(&sflit, localBus->fetch_word(read_addr));
-				rtTx->send(&sflit, reg_vch);
-				if (--dcount == 0) {
+				read_addr = reg_mema + (packetMaxSize - dcount--) * 4;
+				RouterUtils::make_data_flit(&sflit, localBus->fetch_word(read_addr), dcount == 0);
+				rtTx->send(&sflit, nif_config->getVCnormal());
+				if (dcount == 0) {
 					nif_next_state = CNIF_IDLE;
 					break;
 				}
@@ -160,7 +236,12 @@ void CubeAccelerator::nif_step()
 			if (rtRx->haveData()) {
 				rtRx->getData(&flit, &recv_vch);
 				localBus->store_word(reg_mema, flit.data);
-				nif_next_state = CNIF_IDLE;
+				if (nif_config->isDMAKicked() & (nif_config->getDMAlen() > 0)) {
+					nif_next_state = CNIF_DMA_HEAD;
+					remain_dma_len = nif_config->getDMAlen();
+				} else {
+					nif_next_state = CNIF_IDLE;
+				}
 			}
 			break;
 		case CNIF_BW_DATA:
@@ -170,10 +251,66 @@ void CubeAccelerator::nif_step()
 					write_addr = reg_mema + (packetMaxSize - dcount) * 4;
 					localBus->store_word(write_addr, flit.data);
 					if (--dcount == 0) {
-						nif_next_state = CNIF_IDLE;
+						if (nif_config->isDMAKicked() & (nif_config->getDMAlen() > 0)) {
+							nif_next_state = CNIF_DMA_HEAD;
+							remain_dma_len = nif_config->getDMAlen();
+						} else {
+							nif_next_state = CNIF_IDLE;
+						}
 						break;
 					}
 				}
+			}
+			break;
+		case CNIF_DMA_HEAD:
+			if(rtTx->slaveReady(nif_config->getVCdma())) {
+				write_addr = nif_config->getDMADstAddr() + packetMaxSize * 4 * (nif_config->getDMAlen() - remain_dma_len);
+				RouterUtils::make_head_flit(&sflit, write_addr, MTYPE_BW, nif_config->getVCdma(),
+											reg_dst, nif_config->getDMADstID());
+				rtTx->send(&sflit, nif_config->getVCdma());
+				nif_next_state = CNIF_DMA_DATA;
+				dcount = packetMaxSize;
+			}
+			break;
+		case CNIF_DMA_DATA:
+			for (int i = 0; i < mem_bandwidth; i++) {
+				read_addr = nif_config->getDMAsrc() + packetMaxSize * 4 * (nif_config->getDMAlen() - remain_dma_len)
+							+ (packetMaxSize - dcount--) * 4;
+				RouterUtils::make_data_flit(&sflit, localBus->fetch_word(read_addr), dcount == 0);
+				rtTx->send(&sflit, nif_config->getVCdma());
+				if (dcount == 0) {
+					remain_dma_len--;
+					if (remain_dma_len == 0) {
+						nif_next_state = CNIF_DMA_DONE;
+						nif_config->clearDMAKicked();
+					} else {
+						nif_next_state = CNIF_DMA_HEAD;
+					}
+					break;
+				}
+			}
+			break;
+		case CNIF_DMA_DONE:
+			if(rtTx->slaveReady(nif_config->getVCdmadone())) {
+				RouterUtils::make_head_flit(&sflit, DMAC_NOTIF_ADDR, MTYPE_DONE,
+											nif_config->getVCdmadone(), reg_dst, reg_src, true);
+				rtTx->send(&sflit, nif_config->getVCdmadone());
+				nif_next_state = CNIF_IDLE;
+			}
+			break;
+		case CNIF_DONE:
+			if(rtTx->slaveReady(nif_config->getVCdone())) {
+				RouterUtils::make_head_flit(&sflit, DONE_NOTIF_ADDR, MTYPE_DONE,
+											nif_config->getVCdone(), reg_dst, 0, true);
+				rtTx->send(&sflit, nif_config->getVCdone());
+				if (dma_after_done_en & (nif_config->getDMAlen() > 0)) {
+					nif_next_state = CNIF_DMA_HEAD;
+					remain_dma_len = nif_config->getDMAlen();
+				} else {
+					nif_next_state = CNIF_IDLE;
+				}
+				done_pending = false;
+				dma_after_done_en = false;
 			}
 			break;
 		default: return;
@@ -183,7 +320,11 @@ void CubeAccelerator::nif_step()
 		iready[i] = nif_next_state == CNIF_IDLE;
 	}
 	//update status
+	if ((nif_next_state == CNIF_IDLE) & done_pending) {
+		nif_next_state = CNIF_DONE;
+	}
 	nif_state = nif_next_state;
+
 
 }
 
@@ -211,4 +352,16 @@ void CubeAccelerator::reset() {
 		core_module->reset();
 	}
 	nif_state = nif_next_state = CNIF_IDLE;
+
+	nif_config->clearReg();
+
+	done_pending = false;
+	dma_after_done_en = false;
+
+}
+
+void CubeAccelerator::done_signal(bool dma_enable)
+{
+	done_pending = true;
+	dma_after_done_en = dma_enable;
 }

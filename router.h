@@ -24,15 +24,15 @@
 
 //Router formats
 #define FLIT_DST_MASK		0x3 //0011
-#define FLIT_SRC_MSB		2
+#define FLIT_SRC_LSB		2
 #define FLIT_SRC_MASK		0xC //1100
-#define FLIT_VCH_MSB		4
+#define FLIT_VCH_LSB		4
 #define FLIT_VCH_MASK		0x70 //0111_0000
-#define FLIT_MT_MSB			7
+#define FLIT_MT_LSB			7
 #define FLIT_MT_MASK		0x380 //11_1000_0000
-#define FLIT_MEMA_MSB		10
+#define FLIT_MEMA_LSB		10
 #define FLIT_ACK_ENTRY		4
-#define FLIT_ACK_CNT_BIT	5
+#define FLIT_ACK_CNT_BIT	4
 
 #define VCH_SIZE		8
 #define ACK_VCH			0 //ack is sent via vch0
@@ -112,7 +112,7 @@ public:
 
 class OutputChannel {
 private:
-	bool *readyStat;
+	bool readyStat[VCH_SIZE];
 	RouterPortMaster *oport;
 
 	//for register emulation
@@ -130,7 +130,7 @@ private:
 	void ackSend();
 
 public:
-	OutputChannel(RouterPortMaster *oport_, bool *readyStat_, bool ackEnabled_ = true);
+	OutputChannel(RouterPortMaster *oport_, bool ackEnabled_ = true);
 	~OutputChannel() {};
 
 	void reset();
@@ -138,7 +138,7 @@ public:
 	void pushData(FLIT_t *flit, uint32 vch);
 	void pushAck(FLIT_t *flit);
 	void ackIncrement(uint32 vch);
-	bool ocReady(uint32 vch) { return readyStat[vch]; }
+	bool ocReady(uint32 vch);
 
 };
 
@@ -178,6 +178,7 @@ private:
 	RouterPortSlave *iport;
 	Crossbar *cb;
 	int *xpos;
+	bool *ordy;
 
 	//for vc
 	int vc_state[VCH_SIZE];
@@ -194,9 +195,12 @@ private:
 			   dst > *xpos  ? LOWER_PORT : UPPER_PORT;
 	}
 
+	int bufMaxSize;
+	int packetMaxSize;
+
 public:
 	//constructor
-	InputChannel(RouterPortSlave* iport_, Crossbar *cb_, int *xpos_);
+	InputChannel(RouterPortSlave* iport_, Crossbar *cb_, int *xpos_, bool *ordy_ = NULL);
 	~InputChannel() {};
 
 	void pushData(FLIT_t *flit, uint32 vch);
@@ -216,7 +220,7 @@ private:
 	Crossbar *cb;
 
 	//signals between modules
-	bool ocLocalRdy[VCH_SIZE], ocUpperRdy[VCH_SIZE], ocLowerRdy[VCH_SIZE];
+	bool icLocalRdy[VCH_SIZE];
 
 public:
 	//Constructor

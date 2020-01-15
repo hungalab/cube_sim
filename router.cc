@@ -9,9 +9,9 @@
 void RouterUtils::make_head_flit(FLIT_t* flit, uint32 addr, uint32 mtype, uint32 vch,
 									uint32 src, uint32 dst, bool tail)
 {
-	flit->data = (addr << FLIT_MEMA_MSB) + ((mtype << FLIT_MT_MSB) & FLIT_MT_MASK) +
-					((src << FLIT_SRC_MSB) & FLIT_SRC_MASK) +
-					((vch << FLIT_VCH_MSB) & FLIT_VCH_MASK) +
+	flit->data = (addr << FLIT_MEMA_LSB) + ((mtype << FLIT_MT_LSB) & FLIT_MT_MASK) +
+					((src << FLIT_SRC_LSB) & FLIT_SRC_MASK) +
+					((vch << FLIT_VCH_LSB) & FLIT_VCH_MASK) +
 					(dst & FLIT_DST_MASK);
 	if (tail) {
 		flit->ftype = FTYPE_HEADTAIL;
@@ -40,7 +40,7 @@ void RouterUtils::make_ack_flit(FLIT_t *flit, uint32 ftype, int *cnt)
 				fprintf(stderr, "ACK count overflow!\n");
 			}
 		}
-		data |= (cnt[i] << (FLIT_ACK_CNT_BIT * i)) & ((1 << FLIT_ACK_CNT_BIT) - 1);
+		data |= (cnt[i] & ((1 << FLIT_ACK_CNT_BIT) - 1)) << (FLIT_ACK_CNT_BIT * i);
 	}
 	flit->data = data;
 }
@@ -49,10 +49,10 @@ void RouterUtils::decode_headflit(FLIT_t* flit, uint32 *addr, uint32 *mtype, uin
 									uint32 *src, uint32 *dst)
 {
 	if (flit->ftype == FTYPE_HEAD || flit->ftype == FTYPE_HEADTAIL) {
-		*addr = flit->data >> FLIT_MEMA_MSB;
-		*mtype = (flit->data & FLIT_MT_MASK) >> FLIT_MT_MSB;
-		*vch = (flit->data & FLIT_VCH_MASK) >> FLIT_VCH_MSB;
-		*src = (flit->data & FLIT_SRC_MASK) >> FLIT_SRC_MSB;
+		*addr = flit->data >> FLIT_MEMA_LSB;
+		*mtype = (flit->data & FLIT_MT_MASK) >> FLIT_MT_LSB;
+		*vch = (flit->data & FLIT_VCH_MASK) >> FLIT_VCH_LSB;
+		*src = (flit->data & FLIT_SRC_MASK) >> FLIT_SRC_LSB;
 		*dst = flit->data & FLIT_DST_MASK;
 	} else {
 		*addr = *mtype = *vch = *src = *dst = 0;
@@ -89,7 +89,7 @@ bool RouterPortMaster::slaveReady(uint32 vch)
 		return connectedSlave->isReady(vch);
 	} else {
 		if (machine->opt->option("dbemsg")->flag) {
-			fprintf(stderr, "Router send data to unconnected port\n");
+			fprintf(stderr, "Router trys to send data to unconnected port\n");
 		}
 		return true;
 	}
@@ -148,7 +148,7 @@ Router::Router(RouterPortMaster* localTx, RouterPortSlave* localRx, Router* uppe
 				int myid_) : myid(myid_)
 {
 	//input ports
-	fromLocal = new RouterPortSlave(ocLocalRdy);
+	fromLocal = new RouterPortSlave(icLocalRdy); //ocLocalRdy is set by input channel
 	fromLower = new RouterPortSlave();
 	fromUpper = new RouterPortSlave();
 
@@ -158,14 +158,14 @@ Router::Router(RouterPortMaster* localTx, RouterPortSlave* localRx, Router* uppe
 	toUpper = new RouterPortMaster();
 
 	//output channels
-	ocLocal = new OutputChannel(toLocal, ocLocalRdy, false);
-	ocUpper = new OutputChannel(toUpper, ocUpperRdy);
-	ocLower = new OutputChannel(toLower, ocLowerRdy);
+	ocLocal = new OutputChannel(toLocal, false);
+	ocUpper = new OutputChannel(toUpper);
+	ocLower = new OutputChannel(toLower);
 
 	cb = new Crossbar(&myid, ocLocal, ocUpper, ocLower);
 
 	//input channels
-	icLocal = new InputChannel(fromLocal, cb, &myid);
+	icLocal = new InputChannel(fromLocal, cb, &myid, icLocalRdy);
 	icUpper = new InputChannel(fromUpper, cb, &myid);
 	icLower = new InputChannel(fromLower, cb, &myid);
 
@@ -220,12 +220,14 @@ void Router::step()
 }
 
 /*******************************  InputChannel  *******************************/
-InputChannel::InputChannel(RouterPortSlave* iport_, Crossbar *cb_, int *xpos_)
-	: iport(iport_), xpos(xpos_), cb(cb_)
+InputChannel::InputChannel(RouterPortSlave* iport_, Crossbar *cb_, int *xpos_, bool *ordy_)
+	: iport(iport_), xpos(xpos_), cb(cb_), ordy(ordy_)
 {
 	for (int i = 0; i < VCH_SIZE; i++) {
 		vc_last_state_update_time[i] = 0;
 	}
+	bufMaxSize = machine->vcbufsize;
+	packetMaxSize = (machine->opt->option("dcachebsize")->num / 4) + 1;
 };
 
 void InputChannel::reset()
@@ -238,6 +240,11 @@ void InputChannel::reset()
 		vc_next_state[i] = VC_STATE_RC;
 	}
 	iport->clearBuf();
+	if (ordy != NULL) {
+		for (int i = 0; i < VCH_SIZE; i++) {
+			ordy[i] = true;
+		}
+	}
 }
 
 void InputChannel::step()
@@ -296,6 +303,13 @@ void InputChannel::step()
 		iport->getData(&flit, &recv_vch);
 		pushData(&flit, recv_vch);
 	}
+
+	//change ordy signal
+	if (ordy != NULL) {
+		for (int i = 0; i < VCH_SIZE; i++) {
+			ordy[i] = bufMaxSize - ibuf[i].size() >= packetMaxSize;
+		}
+	}
 }
 
 void InputChannel::pushData(FLIT_t *flit, uint32 vch)
@@ -304,8 +318,8 @@ void InputChannel::pushData(FLIT_t *flit, uint32 vch)
 }
 
 /*******************************  OutputChannel  *******************************/
-OutputChannel::OutputChannel(RouterPortMaster *oport_, bool *readyStat_, bool ackEnabled_)
-	: readyStat(readyStat_), oport(oport_), ackEnabled(ackEnabled_)
+OutputChannel::OutputChannel(RouterPortMaster *oport_, bool ackEnabled_)
+	: oport(oport_), ackEnabled(ackEnabled_)
 {
 	bufMaxSize = machine->vcbufsize;
 	packetMaxSize = (machine->opt->option("dcachebsize")->num / 4) + 1;
@@ -368,9 +382,9 @@ void OutputChannel::step()
 		oport->send((FLIT_t*)(&entry.flit), entry.vch);
 		obuf.pop();
 		if (ackEnabled) {
-			send_count[entry.vch]++;
-			counter_change = true;
-		}
+            send_count[entry.vch]++;
+            counter_change = true;
+        }
 	} else {
 		//return ACK packets
 		if (ackEnabled) {
@@ -391,7 +405,7 @@ void OutputChannel::step()
 	}
 
 	//update ready signal
-	if (counter_change) {
+	if (counter_change & ackEnabled) {
 		for (int i = 0; i < VCH_SIZE; i++) {
 			if (bufMaxSize - send_count[i] >= packetMaxSize) {
 				readyStat[i] = true;
@@ -419,6 +433,16 @@ void OutputChannel::pushAck(FLIT_t *flit)
 void OutputChannel::ackIncrement(uint32 vch)
 {
 	ack_count[vch]++;
+}
+
+bool OutputChannel::ocReady(uint32 vch)
+{
+	if (ackEnabled) {
+		return readyStat[vch];
+	} else {
+		return true;//oport->slaveReady(vch);
+	}
+
 }
 /*******************************  Crossbar  *******************************/
 void Crossbar::reset()
@@ -474,8 +498,8 @@ void Crossbar::send(InputChannel* ic, FLIT_t *flit, uint32 vch, uint32 port)
 	try {
 		OutputChannel* oc = ic_oc_map.at(ic);
 		if (machine->opt->option("routermsg")->flag) {
-			fprintf(stderr, "%10d:\tRouter%d\t %s sends flit %X_%08X to %s\n", machine->num_cycles, *node_id,
-							ic_to_string[ic], flit->ftype, flit->data, oc_to_string[trans_oc]);
+			fprintf(stderr, "%10d:\tRouter%d\t %s(VC%d) sends flit %X_%08X to %s\n", machine->num_cycles, *node_id,
+							ic_to_string[ic], vch, flit->ftype, flit->data, oc_to_string[trans_oc]);
 		}
 		oc->ackIncrement(vch);
 	} catch (std::out_of_range&) {
