@@ -225,7 +225,7 @@ private:
 public:
 	//Constructor
 	Router(RouterPortMaster* localTx, RouterPortSlave* localRx,	Router* upperRouter, int myid_ = 0);
-	~Router() {};
+	~Router();
 
 	// control flow
 	void step();

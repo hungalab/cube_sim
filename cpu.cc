@@ -110,8 +110,8 @@ CPU::~CPU ()
 {
 	if (opt_tracing)
 		close_trace_file ();
-	delete icache;
-	delete dcache;
+	if (icache) delete icache;
+	if (dcache) delete dcache;
 	for (int i = 0; i < PIPELINE_STAGES; i++) {
 		if (PL_REGS[i]) delete PL_REGS[i];
 	}

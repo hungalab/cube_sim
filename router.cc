@@ -181,6 +181,23 @@ Router::Router(RouterPortMaster* localTx, RouterPortSlave* localRx, Router* uppe
 
 }
 
+Router::~Router()
+{
+	delete fromLocal;
+	delete fromLower;
+	delete fromUpper;
+	delete toLocal;
+	delete toLower;
+	delete toUpper;
+	delete ocLocal;
+	delete ocUpper;
+	delete ocLower;
+	delete cb;
+	delete icLocal;
+	delete icUpper;
+	delete icLower;
+}
+
 void Router::reset()
 {
 

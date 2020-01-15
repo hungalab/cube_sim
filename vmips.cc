@@ -127,6 +127,10 @@ vmips::~vmips()
 	//if (clock) delete clock;  // crash in this dtor - double free?
 	if (intc) delete intc;
 	if (opt) delete opt;
+	if (rtif) delete rtif;
+	if (ac0) delete ac0;
+	if (ac1) delete ac1;
+	if (ac2) delete ac2;
 }
 
 void
@@ -388,7 +392,9 @@ vmips::step(void)
 	cpu->step();
 	rtif->step();
 
-	ac0->step();
+	if (ac0 != NULL) ac0->step();
+	if (ac1 != NULL) ac1->step();
+	if (ac2 != NULL) ac2->step();
 
 	/* Keep track of time passing. Each instruction either takes
 	 * clock_nanos nanoseconds, or we use pass_realtime() to check the
@@ -547,8 +553,74 @@ vmips::setup_router()
 bool
 vmips::setup_cube()
 {
-	ac0 = new RemoteRam(1, rtif->getRouter(), 0x2048); //2KB
-	ac0->setup();
+	std::string ac0_name = std::string(opt->option("accelerator0")->str);
+	std::string ac1_name = std::string(opt->option("accelerator1")->str);
+	std::string ac2_name = std::string(opt->option("accelerator2")->str);
+
+	//setup accelerator0
+	if (ac0_name == std::string("CMA")) {
+		fprintf(stderr, "CMA is under developping\n");
+		return false;
+	} else if (ac0_name == std::string("SNACC")) {
+		fprintf(stderr, "SNACC is under developping\n");
+		return false;
+	} else if (ac0_name == std::string("RemoteRam")) {
+		ac0 = new RemoteRam(1, rtif->getRouter(), 0x2048); //2KB
+	} else if (ac0_name != std::string("none")) {
+		fprintf(stderr, "Unknown accelerator: %s\n", ac0_name.c_str());
+		return false;
+	}
+
+	if (ac0 != NULL) {
+		ac0->setup();
+	}
+
+	//setup accelerator1
+	if (ac1_name == std::string("CMA")) {
+		fprintf(stderr, "CMA is under developping\n");
+		return false;
+	} else if (ac1_name == std::string("SNACC")) {
+		fprintf(stderr, "SNACC is under developping\n");
+		return false;
+	} else if (ac1_name == std::string("RemoteRam")) {
+		if (ac0 != NULL) {
+			ac1 = new RemoteRam(2, ac0->getRouter(), 0x2048); //2KB
+		} else {
+			fprintf(stderr, "Upper module (accelerator0) is not built\n");
+			return false;
+		}
+	} else if (ac1_name != std::string("none")) {
+		fprintf(stderr, "Unknown accelerator: %s\n", ac1_name.c_str());
+		return false;
+	}
+
+	if (ac1 != NULL) {
+		ac1->setup();
+	}
+
+	//setup accelerator2
+	if (ac2_name == std::string("CMA")) {
+		fprintf(stderr, "CMA is under developping\n");
+		return false;
+	} else if (ac2_name == std::string("SNACC")) {
+		fprintf(stderr, "SNACC is under developping\n");
+		return false;
+	} else if (ac2_name == std::string("RemoteRam")) {
+		if (ac1 != NULL) {
+			ac2 = new RemoteRam(3, ac0->getRouter(), 0x2048); //2KB
+		} else {
+			fprintf(stderr, "Upper module (accelerator1) is not built\n");
+			return false;
+		}
+	} else if (ac2_name != std::string("none")) {
+		fprintf(stderr, "Unknown accelerator: %s\n", ac2_name.c_str());
+		return false;
+	}
+
+	if (ac2 != NULL) {
+		ac2->setup();
+	}
+
 	return true;
 
 }
@@ -652,6 +724,14 @@ vmips::run()
 	if (ac0 != NULL) {
 		boot_msg("Resetting %s_0\n", ac0->accelerator_name());
 		ac0->reset();
+	}
+	if (ac1 != NULL) {
+		boot_msg("Resetting %s_1\n", ac1->accelerator_name());
+		ac1->reset();
+	}
+	if (ac2 != NULL) {
+		boot_msg("Resetting %s_2\n", ac2->accelerator_name());
+		ac2->reset();
 	}
 
 	fprintf(stderr, "\n");

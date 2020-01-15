@@ -237,6 +237,13 @@ RouterInterface::RouterInterface() {
 	mem_bandwidth = machine->opt->option("mem_bandwidth")->num;
 }
 
+RouterInterface::~RouterInterface()
+{
+	delete rtRx;
+	delete rtTx;
+	delete localRouter;
+};
+
 //to override DeviceInt
 const char *RouterInterface::descriptor_str() const
 {

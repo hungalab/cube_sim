@@ -112,7 +112,7 @@ public:
 
 	//Constructor
 	RouterInterface();
-	~RouterInterface() {};
+	~RouterInterface();
 
 	// Control-flow methods.
 	void step ();
