@@ -50,7 +50,7 @@ void Cache::step()
 		last_state_update_time = machine->num_cycles;
 	}
 
-	if (status == CACHE_WB) {
+	if (status == CACHE_WB || status == CACHE_OP_WB) {
 		cache_wb();
 	} else if (status == CACHE_FETCH) {
 		cache_fetch();
@@ -115,7 +115,7 @@ void Cache::request_block(uint32 addr, int mode, DeviceExc* client)
 
 	//if cache is working or bus is busy, request is ignored
 	if (status == CACHE_IDLE && physmem->acquire_bus(client)) {
-		//find free block and LRU block
+		//find free block or LRU block
 		for (way = 0; way < way_size; way++) {
 			if (blocks[least_recent_used_way][index].last_access >
 					blocks[way][index].last_access) {
@@ -148,7 +148,7 @@ void Cache::request_block(uint32 addr, int mode, DeviceExc* client)
 		}
 #endif
 		// regist replaced cache block & status
-		cache_op_state = new CacheOpState{word_size, addr, way, index, mode, client};
+		cache_op_state = new CacheOpState{word_size, addr, way, index, mode, false, client};
 		cache_miss_counts++;
 	}
 }
@@ -176,8 +176,19 @@ void Cache::cache_wb()
 
 		if (--cache_op_state->counter == 0) {
 			//finish write back
-			next_status = CACHE_FETCH;
-			cache_op_state->counter = word_size;
+			if (status == CACHE_OP_WB) {
+				//no need to fetch block
+				blocks[way][index].dirty = false;
+				if (cache_op_state->last_invalidate) {
+					blocks[way][index].valid = false;
+				}
+				next_status = CACHE_IDLE;
+				delete cache_op_state;
+				physmem->release_bus(cache_op_state->client);
+			} else {
+				next_status = CACHE_FETCH;
+				cache_op_state->counter = word_size;
+			}
 			cache_wb_counts++;
 		}
 	}
@@ -223,62 +234,91 @@ void Cache::cache_fetch()
 bool Cache::exec_cache_op(uint16 opcode, uint32 addr, DeviceExc* client)
 {
 	uint32 index, way, offset;
-	//if it causes cpu stall, return false
+	int mode = DATALOAD;
+	bool last_invalidate = false;
+	bool stall = false;
 
+	//if it causes cpu stall, return false
 	if (status == CACHE_IDLE && physmem->acquire_bus(client)) {
 		switch (opcode) {
+			//invalidate by index
 			case ICACHE_OP_IDX_INV:
+				mode = INSTFETCH;
 			case DCACHE_OP_IDX_INV:
+				fprintf(stderr, "cache index invalidate not implemented\n");
 				break;
+			//write back & invalidate by index
 			case DCACHE_OP_IDX_WB:
+				fprintf(stderr, "cache index writeback not implemented\n");
 				break;
 			case DCACHE_OP_IDX_WBINV:
+				fprintf(stderr, "cache index writeback, invalidate not implemented\n");
 				break;
+			//load tag by index
 			case ICACHE_OP_IDX_LTAG:
+				mode = INSTFETCH;
 			case DCACHE_OP_IDX_LTAG:
+				fprintf(stderr, "cache tag load not implemented\n");
 				break;
+			//store tag by inedx
 			case ICACHE_OP_IDX_STAG:
+				mode = INSTFETCH;
 			case DCACHE_OP_IDX_STAG:
+				fprintf(stderr, "cache tag store not implemented\n");
 				break;
+			//force write back by index
 			case DCACHE_OP_IDX_FWB:
+				fprintf(stderr, "cache index force writeback not implemented\n");
 				break;
+			//force write back & invalidate by index
 			case DCACHE_OP_IDX_FWBINV:
+				fprintf(stderr, "cache index force writeback, invalidate not implemented\n");
 				break;
+			//setline
 			case DCACHE_OP_SETLINE:
+				fprintf(stderr, "cache setline not implemented\n");
 				break;
+			//invalidate by cache hit
 			case ICACHE_OP_HIT_INV:
+				mode = INSTFETCH;
 			case DCACHE_OP_HIT_INV:
 				if (cache_hit(addr, index, way, offset)) {
 					blocks[way][index].valid = false;
 				}
-				return true;
 				break;
-			case DCACHE_OP_HIT_WB:
+			//(force) write back (&invalidate) by cache hit
 			case DCACHE_OP_HIT_WBINV:
-			case DCACHE_OP_HIT_FWB:
 			case DCACHE_OP_HIT_FWBINV:
+				last_invalidate = true;
+			case DCACHE_OP_HIT_WB:
+			case DCACHE_OP_HIT_FWB:
 				if (cache_hit(addr, index, way, offset)) {
 					if (blocks[way][index].dirty) {
-						return false;
+						next_status = CACHE_OP_WB;
 					} else if (opcode == DCACHE_OP_HIT_FWB || opcode == DCACHE_OP_HIT_INV) {
-						return false;
-					} else {
-						//nothing to do
-						return true;
+						next_status = CACHE_OP_WB;
 					}
-				} else {
-					//nothing to do
-					return true;
 				}
 				break;
+			//change
 			case DCACHE_OP_CHANGE:
+				fprintf(stderr, "cache change not implemented\n");
 				break;
+			//reverse change
 			case DCACHE_OP_RCHANGE:
+				fprintf(stderr, "cache reverse change not implemented\n");
 				break;
 		}
+		if (next_status == CACHE_OP_WB) {
+			cache_op_state = new CacheOpState{word_size, addr, way, index, mode, last_invalidate, client};
+			stall = true;
+		}
 	} else {
-		return false;
+		//cache is working
+		stall = true;
 	}
+
+	return !stall;
 }
 
 uint32 Cache::fetch_word(uint32 addr, int32 mode, DeviceExc *client)

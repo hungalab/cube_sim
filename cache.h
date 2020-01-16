@@ -12,6 +12,7 @@
 #define CACHE_IDLE  0
 #define CACHE_WB    1
 #define CACHE_FETCH 2
+#define CACHE_OP_WB 3
 
 
 class Mapper;
@@ -86,6 +87,7 @@ private:
         uint32 way;
         uint32 index;
         int mode;
+        bool last_invalidate;
         DeviceExc *client;
     };
 

@@ -408,7 +408,7 @@ static const char *defaults_table[] = {
     "execname=none", "nofpu", "notestdev", "nocacheprof",
     "icacheway=2", "dcacheway=2", "icachebsize=64", "dcachebsize=64",
     "icachebnum=64", "dcachebnum=64", "mem_bandwidth=1",
-    "mem_access_latency=4", "vcbufsize=24", "noroutermsg",
+    "mem_access_latency=8", "vcbufsize=24", "noroutermsg",
     "accelerator0=none", "accelerator1=none", "accelerator2=none",
     NULL
 };
