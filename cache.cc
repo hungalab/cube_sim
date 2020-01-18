@@ -233,10 +233,12 @@ void Cache::cache_fetch()
 
 bool Cache::exec_cache_op(uint16 opcode, uint32 addr, DeviceExc* client)
 {
-	uint32 index, way, offset;
+	uint32 tag, index, way, offset;
+	uint32 least_recent_used_way = 0;
 	int mode = DATALOAD;
 	bool last_invalidate = false;
 	bool stall = false;
+	bool find;
 
 	//if it causes cpu stall, return false
 	if (status == CACHE_IDLE && physmem->acquire_bus(client)) {
@@ -276,7 +278,30 @@ bool Cache::exec_cache_op(uint16 opcode, uint32 addr, DeviceExc* client)
 				break;
 			//setline
 			case DCACHE_OP_SETLINE:
-				fprintf(stderr, "cache setline not implemented\n");
+				if (!cache_hit(addr, index, way, offset)) {
+					addr_separete(addr, tag, index, offset);
+					//find free block or oldest block
+					for (way = 0, find = false; way < way_size; way++) {
+						if (!blocks[way][index].valid) {
+							find = true;
+							break;
+						}
+						if (blocks[least_recent_used_way][index].last_access >
+								blocks[way][index].last_access) {
+							//update
+							least_recent_used_way = way;
+						}
+					}
+					if (!find) {
+						way = least_recent_used_way;
+						next_status = CACHE_OP_WB;
+					} else {
+						blocks[way][index].valid = true;
+					}
+					//overwrite tag
+					blocks[way][index].tag = tag;
+					blocks[way][index].dirty = false;
+				}
 				break;
 			//invalidate by cache hit
 			case ICACHE_OP_HIT_INV:

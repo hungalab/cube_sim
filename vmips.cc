@@ -58,6 +58,7 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 #include "routerinterface.h"
 #include "accelerator.h"
 #include "remoteram.h"
+#include "cma.h"
 
 vmips *machine;
 
@@ -559,8 +560,7 @@ vmips::setup_cube()
 
 	//setup accelerator0
 	if (ac0_name == std::string("CMA")) {
-		fprintf(stderr, "CMA is under developping\n");
-		return false;
+		ac0 = new CMA(1, rtif->getRouter());
 	} else if (ac0_name == std::string("SNACC")) {
 		fprintf(stderr, "SNACC is under developping\n");
 		return false;
@@ -577,8 +577,12 @@ vmips::setup_cube()
 
 	//setup accelerator1
 	if (ac1_name == std::string("CMA")) {
-		fprintf(stderr, "CMA is under developping\n");
-		return false;
+		if (ac0 != NULL) {
+			ac1 = new CMA(2, ac0->getRouter());
+		} else {
+			fprintf(stderr, "Upper module (accelerator0) is not built\n");
+			return false;
+		}
 	} else if (ac1_name == std::string("SNACC")) {
 		fprintf(stderr, "SNACC is under developping\n");
 		return false;
@@ -600,14 +604,18 @@ vmips::setup_cube()
 
 	//setup accelerator2
 	if (ac2_name == std::string("CMA")) {
-		fprintf(stderr, "CMA is under developping\n");
-		return false;
+		if (ac1 != NULL) {
+			ac2 = new CMA(3, ac1->getRouter());
+		} else {
+			fprintf(stderr, "Upper module (accelerator1) is not built\n");
+			return false;
+		}
 	} else if (ac2_name == std::string("SNACC")) {
 		fprintf(stderr, "SNACC is under developping\n");
 		return false;
 	} else if (ac2_name == std::string("RemoteRam")) {
 		if (ac1 != NULL) {
-			ac2 = new RemoteRam(3, ac0->getRouter(), 0x2048); //2KB
+			ac2 = new RemoteRam(3, ac1->getRouter(), 0x2048); //2KB
 		} else {
 			fprintf(stderr, "Upper module (accelerator1) is not built\n");
 			return false;
