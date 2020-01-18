@@ -91,7 +91,9 @@
 #define HAVE_VPRINTF 1
 
 /* Name of package */
-#define PACKAGE "vmips"
+#ifndef PACKAGE
+#define PACKAGE "cube_sim"
+#endif
 
 /* Define to the address where bug reports for this package should be sent. */
 #define PACKAGE_BUGREPORT ""

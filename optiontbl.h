@@ -206,6 +206,8 @@ static Option nametable[] = {
     /** This variable controls the size of the virtual CPU's "physical"
         memory in bytes. **/
 
+    { "progmemsize", NUM },
+
     { "memdump", FLAG },
     /** If @option{memdump} is set, then the virtual machine will dump its RAM
         into a file, whose name is given by the @option{memdumpfile} option,
@@ -397,7 +399,7 @@ static const char *defaults_table[] = {
     "noexcmsg", "bootmsg", "noinstdump", "nodumpcpu", "nodumpcp0",
     "haltibe", "haltbreak", "haltdevice", "romfile=romfile.rom",
 	"bootfile=boot.bin", "bootaddr=0xbfc00000",
-	"loadaddr=0x81000000", "noinstcounts",
+	"loadaddr=0x81000000", "noinstcounts", "progmemsize=0x2000000",
     "memsize=0x100000", "nomemdump", "memdumpfile=memdump.bin",
     "noreportirq", "ttydev=/dev/tty", "ttydev2=off",
     "nodebug", "debugport=0", "norealtime", "timeratio=1", "clockspeed=250000",

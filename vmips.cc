@@ -86,6 +86,7 @@ vmips::refresh_options(void)
 	opt_loadaddr = opt->option("loadaddr")->num;
 	opt_bootaddr = opt->option("bootaddr")->num;
 	opt_memsize = opt->option("memsize")->num;
+	opt_progmemsize = opt->option("progmemsize")->num;
 	opt_timeratio = opt->option("timeratio")->num;
  
 	opt_memdumpfile = opt->option("memdumpfile")->str;
@@ -419,31 +420,30 @@ timediff(struct timeval *after, struct timeval *before)
 }
 
 bool
-vmips::setup_rom ()
+vmips::setup_prog ()
 {
-  // Open ROM image.
-  FILE *rom = fopen (opt_image, "rb");
-  if (!rom) {
-    error ("Could not open ROM `%s': %s", opt_image, strerror (errno));
+  // Open prog image.
+  FILE *bin_file = fopen (opt_image, "rb");
+  if (!bin_file) {
+    error ("Could not open program binary `%s': %s", opt_image, strerror (errno));
     return false;
   }
   // Translate loadaddr to physical address.
-  // opt_loadaddr -= KSEG1_CONST_TRANSLATION;
-  ROMModule *rm;
+
   try {
-    rm = new ROMModule (rom);
+    mem_prog = new MemoryModule(opt_progmemsize, bin_file);
   } catch (int errcode) {
     error ("mmap failed for %s: %s", opt_image, strerror (errcode));
     return false;
   }
-  // Map the ROM image to the virtual physical memory.
-  physmem->map_at_physical_address (rm, opt_loadaddr);
+  // Map the prog image to the virtual physical memory.
+  physmem->map_at_physical_address (mem_prog, opt_loadaddr);
 
-  boot_msg ("Mapping ROM image (%s, %u words) to physical address 0x%08x\n",
-            opt_image, rm->getExtent () / 4, rm->getBase ());
+  boot_msg ("Mapping program binary (%s, %u words) to physical address 0x%08x\n",
+            opt_image, mem_prog->getExtent () / 4, mem_prog->getBase ());
   // Point debugger at wherever the user thinks the ROM is.
   if (opt_debug)
-    if (dbgr->setup (opt_loadaddr, rm->getExtent () / 4) < 0)
+    if (dbgr->setup (opt_loadaddr, mem_prog->getExtent () / 4) < 0)
       return false; // Error in setting up debugger.
   return true;
 }
@@ -666,7 +666,7 @@ vmips::run()
 	if (!setup_bootrom ()) 
 	  return 1;
 
-	if (!setup_rom ()) 
+	if (!setup_prog ()) 
 	  return 1;
 
 	if (!setup_ram ())

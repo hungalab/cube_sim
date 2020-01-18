@@ -74,7 +74,7 @@ PipelineRegs::~PipelineRegs()
 CPU::CPU (Mapper &m, IntCtrl &i, int cpuid)
   : tracing (false), last_epc (0), last_prio (0), mem (&m),
     cpzero (new CPZero (this, &i, cpuid)), fpu (0), delay_state (NORMAL),
-    mul_div_remain(0), suspend(false)
+    mul_div_remain(0), suspend(false), icache(NULL), dcache(NULL)
 {
 	opt_fpu = machine->opt->option("fpu")->flag;
 	if (opt_fpu)
@@ -104,6 +104,7 @@ CPU::CPU (Mapper &m, IntCtrl &i, int cpuid)
 	mem_bandwidth = machine->opt->option("mem_bandwidth")->num;
 
 	exception_pending = false;
+	volatilize_pipeline();
 }
 
 CPU::~CPU ()
@@ -1084,7 +1085,6 @@ void CPU::pre_mem_access(bool& data_miss)
 	uint32 vaddr = preg->result;
 	int mode;
 
-
 	data_miss = false;
 
 	//Address Error check
@@ -1101,6 +1101,11 @@ void CPU::pre_mem_access(bool& data_miss)
 			if (vaddr % 4 != 0) {
 				exception(AdEL);
 			}
+		case OP_LWL:
+		case OP_LWR:
+		case OP_SWL:
+		case OP_SWR:
+			vaddr &= ~0x03UL; //make word alignment
 			break;
 	}
 
@@ -1160,6 +1165,7 @@ void CPU::mem_access()
 	Cache *cache = cpzero->caches_swapped() ? icache : dcache;
 	uint8 which_byte;
 	uint32 wordvirt;
+	uint32 byte;
 
 	uint32 vaddr = preg->result;
 
@@ -1186,7 +1192,18 @@ void CPU::mem_access()
 				case OP_SWL:
 					wordvirt = vaddr & ~0x03UL;
 					which_byte = vaddr & 0x03UL;
-					fprintf(stderr, "Not implemented SWL\n");
+					if (opt_bigendian) {
+						for(int i = which_byte; i < 4; i++) {
+							byte = (data >> (8 * (3 - i))) & 0xFF;
+							cache->store_byte(wordvirt + i, byte, this);
+						}
+					} else {
+						//little endian
+						for(int i = 0; i <= which_byte; i++) {
+							byte = (data >> (8 * i - 8 * which_byte + 24)) & 0xFF;
+							cache->store_byte(wordvirt + i, byte, this);
+						}
+					}
 					break;
 				case OP_SW:
 					cache->store_word(phys, data, this);
@@ -1194,7 +1211,19 @@ void CPU::mem_access()
 				case OP_SWR:
 					wordvirt = vaddr & ~0x03UL;
 					which_byte = vaddr & 0x03UL;
-					fprintf(stderr, "Not implemented SWR\n");
+					if (opt_bigendian) {
+						for(int i = 0; i <= which_byte; i++) {
+							byte = (data >> (8 * (which_byte - i))) & 0xFF;
+							cache->store_byte(wordvirt + i, byte, this);
+						}
+					} else {
+						//little endian
+						for(int i = which_byte; i < 4; i++) {
+							byte = (data >> (8 * (i - which_byte))) & 0xFF;
+							cache->store_byte(wordvirt + i, byte, this);
+						}
+					}
+
 					break;
 			}
 		} else {
@@ -1230,8 +1259,9 @@ void CPU::mem_access()
 					preg->r_mem_data = cache->fetch_halfword(phys, this);
 					break;
 				case OP_LWL:
-				case OP_LW:
 				case OP_LWR:
+					phys &= ~0x03UL;
+				case OP_LW:
 					preg->r_mem_data = cache->fetch_word(phys, DATALOAD, this);
 				break;
 			}
@@ -1247,8 +1277,9 @@ void CPU::mem_access()
 					preg->r_mem_data = (int16)mem->fetch_halfword(phys, this);
 					break;
 				case OP_LWL:
-				case OP_LW:
 				case OP_LWR:
+					phys &= ~0x03UL;
+				case OP_LW:
 					preg->r_mem_data = mem->fetch_word(phys, DATALOAD, this);
 				break;
 			}

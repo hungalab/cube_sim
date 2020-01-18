@@ -1,10 +1,10 @@
 # Config
 SYSCONFDIR = "."
-DEFS = -DHAVE_CONFIG_H
 DEFAULT_INCLUDES = -I.
 INCLUDES =
 EXEEXT =
 PACKAGE = cube_sim
+DEFS = -DHAVE_CONFIG_H
 MAKE = make
 
 # commands & flags
