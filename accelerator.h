@@ -117,9 +117,6 @@ private:
 	RouterPortMaster *rtTx;
 	Router *localRouter;
 
-	//submodules
-	AcceleratorCore *core_module;
-
 	//Cube nif
 	NetworkInterfaceConfig* nif_config;
 	uint32 reg_mema, reg_mtype, reg_vch, reg_src, reg_dst;
@@ -141,6 +138,9 @@ protected:
 
 	//data/address bus
 	LocalMapper* localBus;
+
+	//submodules
+	AcceleratorCore *core_module;
 
 public:
 	//destructor
