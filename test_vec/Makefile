@@ -1,6 +1,11 @@
 SIMULATOR = ../cube_sim
 SIMFLAGS = -F ../vmipsrc
+TIMEOUT_SEC = 10
+ifeq ($(which timeout), "")
 SIM = $(SIMULATOR) $(SIMFLAGS)
+else
+SIM = timeout -sKILL $(TIMEOUT_SEC) $(SIMULATOR) $(SIMFLAGS)
+endif
 
 TEST_BENCH = test-adpcm test-aes test-bf test-cp_test test-gsm\
 			 test-jpeg test-mpeg2 test-printf test-sha test-sum_asm test-router
