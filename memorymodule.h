@@ -24,6 +24,7 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 #include "memorymodule.h"
 #include "fileutils.h"
 #include "mmapglue.h"
+#include <cstring>
 
 class MemoryModule : public Range {
 public:
