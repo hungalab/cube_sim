@@ -111,6 +111,8 @@ uint32 RouterIOReg::fetch_word(uint32 offset, int mode, DeviceExc *client)
 //write from client
 void RouterIOReg::store_word(uint32 offset, uint32 data, DeviceExc *client)
 {
+	bool clear_flag[REMOTE_NODE_COUNT];
+
 	// Write to IO Regs
 	switch(offset) {
 		case ROUTER_ID_OFFSET:
@@ -138,13 +140,19 @@ void RouterIOReg::store_word(uint32 offset, uint32 data, DeviceExc *client)
 			config->int_vch[2] = data & ROUTER_INTVCH_NODE2_BITMASK;
 			break;
 		case ROUTER_DONE_STAT_OFFSET:
-			bin2bool(data & ROUTER_DONE_STAT_BITMASK, config->done_status, REMOTE_NODE_COUNT);
+			bin2bool(data & ROUTER_DONE_STAT_BITMASK, clear_flag, REMOTE_NODE_COUNT);
+			for (int i = 0; i < REMOTE_NODE_COUNT; i++) {
+				if (clear_flag[i]) config->done_status[i] = false;
+			}
 			break;
 		case ROUTER_DONE_MASK_OFFSET:
 			bin2bool(data & ROUTER_DONE_MASK_BITMASK, config->done_mask, REMOTE_NODE_COUNT);
 			break;
 		case ROUTER_DMAC_STAT_OFFSET:
-			bin2bool(data & ROUTER_DMAC_STAT_BITMASK,config->dmac_status, REMOTE_NODE_COUNT);
+			bin2bool(data & ROUTER_DMAC_STAT_BITMASK, clear_flag, REMOTE_NODE_COUNT);
+			for (int i = 0; i < REMOTE_NODE_COUNT; i++) {
+				if (clear_flag[i]) config->dmac_status[i] = false;
+			}
 			break;
 		case ROUTER_DMAC_MASK_OFFSET:
 			bin2bool(data & ROUTER_DMAC_MASK_BITMASK, config->dmac_mask, REMOTE_NODE_COUNT);

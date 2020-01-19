@@ -28,9 +28,8 @@ void ControlReg::store_word(uint32 offset, uint32 data, DeviceExc *client)
 	donedma = (data & CMA_CTRL_DONEDMA_BIT) != 0;
 	run = (data & CMA_CTRL_RUN_BIT) != 0;
 	bank_sel = (data & CMA_CTRL_BANKSEL_MASK) >> CMA_CTRL_BANKSEL_LSB;
-
-	if (run) fprintf(stderr, "CMA run!\n");
 }
+
 uint32 ControlReg::fetch_word(uint32 offset, int mode, DeviceExc *client)
 {
 	return ((donedma ? 1 : 0) << CMA_CTRL_DONEDMA_LSB ) |

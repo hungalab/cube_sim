@@ -294,13 +294,15 @@ bool Cache::exec_cache_op(uint16 opcode, uint32 addr, DeviceExc* client)
 					}
 					if (!find) {
 						way = least_recent_used_way;
-						next_status = CACHE_OP_WB;
+						if (blocks[way][index].dirty) {
+							next_status = CACHE_OP_WB;
+						}
 					} else {
 						blocks[way][index].valid = true;
+						//overwrite tag
+						blocks[way][index].tag = tag;
+						blocks[way][index].dirty = false;
 					}
-					//overwrite tag
-					blocks[way][index].tag = tag;
-					blocks[way][index].dirty = false;
 				}
 				break;
 			//invalidate by cache hit
