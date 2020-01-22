@@ -1,8 +1,10 @@
 #ifndef _ACCELERATORCORE_H_
 #define _ACCELERATORCORE_H_
 
-typedef std::function<void(bool)> SIGNAL_PTR;
+#include <functional>
 #include "accelerator.h"
+
+typedef std::function<void(bool)> SIGNAL_PTR;
 
 class LocalMapper;
 class CubeAccelerator;
