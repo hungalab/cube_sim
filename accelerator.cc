@@ -166,6 +166,8 @@ CubeAccelerator::CubeAccelerator(uint32 node_ID, Router* upperRouter, uint32 con
 	nif_config = new NetworkInterfaceConfig(config_addr_base);
 	localBus->map_at_local_address(nif_config, config_addr_base);
 
+	done_signal_ptr = std::bind(&CubeAccelerator::done_signal, this, std::placeholders::_1);
+
 }
 
 void CubeAccelerator::nif_step()

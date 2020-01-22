@@ -1,8 +1,46 @@
 #include "cmacore.h"
 
+using namespace CMAComponents;
+
+void CMAMemoryModule::store_word(uint32 offset, uint32 data, DeviceExc *client)
+{
+	uint32 *werd;
+	/* calculate address */
+	werd = ((uint32 *) address) + (offset / 4);
+	/* store word */
+	*werd = data & mask;
+}
+
+ConfigController::ConfigController(LocalMapper *bus)
+{
+	rmc_alu = new Range (0, CMA_ALU_RMC_SIZE, 0, MEM_READ_WRITE);
+	bus->map_at_local_address(rmc_alu, CMA_ALU_RMC_ADDR);
+	rmc_se = new Range (0, CMA_SE_RMC_SIZE, 0, MEM_READ_WRITE);
+	bus->map_at_local_address(rmc_se, CMA_SE_RMC_ADDR);
+	pe_config = new Range (0, CMA_PREG_CONF_SIZE, 0, MEM_READ_WRITE);
+	bus->map_at_local_address(pe_config, CMA_PREG_CONF_ADDR);
+	preg_config = new Range (0, CMA_PE_CONF_SIZE, 0, MEM_READ_WRITE);
+	bus->map_at_local_address(preg_config, CMA_PE_CONF_ADDR);
+}
+
+void ControlReg::store_word(uint32 offset, uint32 data, DeviceExc *client)
+{
+	donedma = (data & CMA_CTRL_DONEDMA_BIT) != 0;
+	run = (data & CMA_CTRL_RUN_BIT) != 0;
+	bank_sel = (data & CMA_CTRL_BANKSEL_MASK) >> CMA_CTRL_BANKSEL_LSB;
+}
+
+uint32 ControlReg::fetch_word(uint32 offset, int mode, DeviceExc *client)
+{
+	return ((donedma ? 1 : 0) << CMA_CTRL_DONEDMA_LSB ) |
+			(bank_sel << CMA_CTRL_BANKSEL_LSB) |
+			((run ? 1 : 0) << CMA_CTRL_RUN_LSB);
+}
+
+
 void CMACore::step()
 {
-	if (top_module->ctrl_reg->getRun()) {
+	if (ctrl->getRun()) {
 		count++;
 	} else {
 		count = 0;
@@ -15,7 +53,7 @@ void CMACore::step()
 				bus->store_word(0x1000 + result_stat[context].result_addr + 4 * i, result_stat[context].result[i]);
 			}
 		}
-		top_module->done_signal(false);
+		done_signal(false);
 		context++;
 	}
 }

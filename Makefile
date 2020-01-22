@@ -39,7 +39,7 @@ SOURCES = cpu.cc cpzero.cc devicemap.cc \
   types.h endiantest.h fileutils.h fpu.h interactor.h testdev.h \
   rs232c.h cache.h busarbiter.h routerinterface.cc routerinterface.h router.cc router.h \
   accelerator.h accelerator.cc acceleratorcore.h acceleratorcore.cc \
-  remoteram.h remoteram.cc cma.h cma.cc cmacore.cc cmacore.h
+  remoteram.h remoteram.cc cma.h cma.cc cmacore.cc cmacore.h cmaAddressMap.h
 
 OBJECTS = cpu.$(OBJEXT) cpzero.$(OBJEXT) devicemap.$(OBJEXT) \
 	mapper.$(OBJEXT) options.$(OBJEXT) range.$(OBJEXT) \
@@ -233,6 +233,8 @@ accelerator.o: accelerator.h accelerator.cc acceleratorcore.h range.h\
 
 remoteram.o: remoteram.cc remoteram.h accelerator.h memorymodule.h
 
-cma.o: accelerator.h memorymodule.h accesstypes.h types.h cmacore.h cma.cc cma.h
+cma.o: cma.cc cma.h accelerator.h memorymodule.h accesstypes.h\
+         types.h cmacore.h cmaAddressMap.h
 
-cmacore.o: cmacore.h cmacore.cc
+cmacore.o: cmacore.h cmacore.cc cmaAddressMap.h memorymodule.h \
+            accelerator.h acceleratorcore.h

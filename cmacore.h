@@ -1,11 +1,15 @@
 #ifndef _CMACORE_H_
 #define _CMACORE_H_
 
-#include "acceleratorcore.h"
-#include "cma.h"
+#include "cmaAddressMap.h"
 #include "accelerator.h"
+#include "acceleratorcore.h"
+#include "memorymodule.h"
 
-//#define NO_DIV
+/* PE Array */
+#define CMA_PE_ARRAY_WIDTH	12
+#define CMA_PE_ARRAY_HEIGHT	8
+
 
 struct result_stat_t {
 	int result_addr;
@@ -16,21 +20,55 @@ struct result_stat_t {
 };
 
 class AcceleratorCore;
-class CMA;
 class LocalMapper;
+
+namespace CMAComponents {
+	class CMAMemoryModule : public MemoryModule {
+		int mask;
+	public:
+		//constructor
+		CMAMemoryModule(size_t size, int mask_) : MemoryModule(size), mask(mask_) {};
+
+		void store_word(uint32 offset, uint32 data, DeviceExc *client);
+	};
+
+	class ConfigController {
+	private:
+		Range *rmc_alu, *rmc_se, *pe_config, *preg_config;
+	public:
+		ConfigController(LocalMapper *bus);
+		~ConfigController() {};
+	};
+
+	class ControlReg : public Range {
+	private:
+		bool donedma, run;
+		int bank_sel;
+	public:
+		ControlReg() : Range(0, CMA_CTRL_SIZE, 0, MEM_READ_WRITE), donedma(false),
+							run(false), bank_sel(false) {}
+		bool getDoneDMA() { return donedma; };
+		bool getRun() { return run; };
+		int getBankSel() { return bank_sel; };
+
+		void store_word(uint32 offset, uint32 data, DeviceExc *client);
+		uint32 fetch_word(uint32 offset, int mode, DeviceExc *client);
+	};
+
+}
 
 class CMACore : public AcceleratorCore {
 private:
-	CMA *top_module;
 	LocalMapper *bus;
-
+	CMAComponents::ControlReg *ctrl;
 	//ese emulation
 	int count;
 	int context;
 	result_stat_t result_stat[30];
 
 public:
-	CMACore(CMA *top_module_, LocalMapper *bus_) : top_module(top_module_), bus(bus_) {};
+	CMACore(LocalMapper *bus_, SIGNAL_PTR done_signal_, CMAComponents::ControlReg *ctrl_)
+		: AcceleratorCore(bus_, done_signal_), ctrl(ctrl_) {};
 	virtual void step();
 	virtual void reset();
 };

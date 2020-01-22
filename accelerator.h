@@ -142,6 +142,8 @@ protected:
 	//submodules
 	AcceleratorCore *core_module;
 
+	SIGNAL_PTR done_signal_ptr;
+
 public:
 	//destructor
 	virtual ~CubeAccelerator() {};
