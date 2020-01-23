@@ -59,7 +59,6 @@ namespace CMAComponents {
 
 class CMACore : public AcceleratorCore {
 private:
-	LocalMapper *bus;
 	CMAComponents::ControlReg *ctrl;
 	//ese emulation
 	int count;
