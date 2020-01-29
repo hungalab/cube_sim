@@ -64,10 +64,10 @@ private:
 	int count;
 	int context;
 	result_stat_t result_stat[30];
-
+	int node;
 public:
-	CMACore(LocalMapper *bus_, SIGNAL_PTR done_signal_, CMAComponents::ControlReg *ctrl_)
-		: AcceleratorCore(bus_, done_signal_), ctrl(ctrl_) {};
+	CMACore(LocalMapper *bus_, SIGNAL_PTR done_signal_, CMAComponents::ControlReg *ctrl_, int node_)
+		: AcceleratorCore(bus_, done_signal_), ctrl(ctrl_), node(node_) {};
 	virtual void step();
 	virtual void reset();
 };

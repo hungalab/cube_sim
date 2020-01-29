@@ -19,6 +19,8 @@ private:
 	CMAComponents::CMAMemoryModule *ld_tbl, *st_tbl;
 	CMAComponents::ConfigController *confCtrl;
 
+	int node;
+
 public:
 	CMA(uint32 node_ID, Router* upperRouter);
 	~CMA();

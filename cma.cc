@@ -12,6 +12,7 @@ CMA::CMA(uint32 node_ID, Router* upperRouter)
 	ld_tbl = new CMAMemoryModule(CMA_LD_TABLE_SIZE, CMA_TABLE_WORD_MASK);
 	st_tbl = new CMAMemoryModule(CMA_ST_TABLE_SIZE, CMA_TABLE_WORD_MASK);
 	ctrl_reg = new ControlReg();
+	node = node_ID;
 }
 
 CMA::~CMA()
@@ -34,5 +35,5 @@ void CMA::setup()
 	localBus->map_at_local_address(st_tbl, CMA_ST_TABLE_ADDR);
 	localBus->map_at_local_address(ctrl_reg, CMA_CTRL_ADDR);
 	//confCtrl = new ConfigController(localBus);
-	core_module = new CMACore(localBus, done_signal_ptr, ctrl_reg);
+	core_module = new CMACore(localBus, done_signal_ptr, ctrl_reg, node);
 }

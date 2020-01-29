@@ -147,8 +147,8 @@ void NetworkInterfaceConfig::store_word(uint32 offset, uint32 data, DeviceExc *c
 }
 
 /*******************************  CubeAccelerator  *******************************/
-CubeAccelerator::CubeAccelerator(uint32 node_ID, Router* upperRouter, uint32 config_addr_base, bool dmac_en_)
-	: dmac_en(dmac_en_)
+CubeAccelerator::CubeAccelerator(uint32 node_ID_, Router* upperRouter, uint32 config_addr_base, bool dmac_en_)
+	: node_ID(node_ID_), dmac_en(dmac_en_)
 {
 	//make router ports
 	rtRx = new RouterPortSlave(iready); //receiver
@@ -303,7 +303,7 @@ void CubeAccelerator::nif_step()
 		case CNIF_DONE:
 			if(rtTx->slaveReady(nif_config->getVCdone())) {
 				RouterUtils::make_head_flit(&sflit, DONE_NOTIF_ADDR, MTYPE_DONE,
-											nif_config->getVCdone(), reg_dst, 0, true);
+											nif_config->getVCdone(), node_ID, 0, true);
 				rtTx->send(&sflit, nif_config->getVCdone());
 				if (dma_after_done_en & (nif_config->getDMAlen() > 0)) {
 					nif_next_state = CNIF_DMA_HEAD;

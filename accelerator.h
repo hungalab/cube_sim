@@ -118,6 +118,7 @@ private:
 	Router *localRouter;
 
 	//Cube nif
+	int node_ID;
 	NetworkInterfaceConfig* nif_config;
 	uint32 reg_mema, reg_mtype, reg_vch, reg_src, reg_dst;
 	int dcount;
@@ -133,7 +134,7 @@ private:
 
 protected:
 	//constructor
-	CubeAccelerator(uint32 node_ID, Router* upperRouterm,
+	CubeAccelerator(uint32 node_ID_, Router* upperRouter,
 		uint32 config_addr_base = NIF_CONFIG_BASE, bool dmac_en_ = true);
 
 	//data/address bus
