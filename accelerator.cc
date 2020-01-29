@@ -50,9 +50,9 @@ Range * LocalMapper::find_mapping_range(uint32 laddr)
 uint32 LocalMapper::fetch_word(uint32 laddr)
 {
 	Range *l = find_mapping_range(laddr);
-	uint32 offset = laddr - l->getBase();
 
 	if (l != NULL) {
+		uint32 offset = laddr - l->getBase();
 		return l->fetch_word(offset, DATALOAD, NULL);
 	} else {
 		if (machine->opt->option("dbemsg")->flag) {
@@ -65,9 +65,9 @@ uint32 LocalMapper::fetch_word(uint32 laddr)
 void LocalMapper::store_word(uint32 laddr, uint32 data)
 {
 	Range *l = find_mapping_range(laddr);
-	uint32 offset = laddr - l->getBase();
 
 	if (l != NULL) {
+		uint32 offset = laddr - l->getBase();
 		l->store_word(offset, data, NULL);
 	} else {
 		if (machine->opt->option("dbemsg")->flag) {

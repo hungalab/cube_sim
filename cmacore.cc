@@ -1,6 +1,6 @@
 #include "cmacore.h"
 
-#define CMA_COUNT 2
+#define CMA_COUNT 1
 
 using namespace CMAComponents;
 
