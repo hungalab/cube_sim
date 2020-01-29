@@ -353,7 +353,7 @@ void RouterInterface::step() {
 				break;
 			case RT_STATE_SR_HEAD:
 				node_id = getNodeID(req_addr);
-				use_vch = config->data_vch[node_id];
+				use_vch = config->data_vch[node_id - 1];
 				if (rtTx->slaveReady(use_vch)) {
 					RouterUtils::make_head_flit(&flit, req_addr, MTYPE_SR, use_vch ,
 											config->router_id, getNodeID(req_addr), true);
@@ -363,7 +363,7 @@ void RouterInterface::step() {
 				break;
 			case RT_STATE_SW_HEAD:
 				node_id = getNodeID(req_addr);
-				use_vch = config->data_vch[node_id];
+				use_vch = config->data_vch[node_id - 1];
 				if (rtTx->slaveReady(use_vch)) {
 					RouterUtils::make_head_flit(&flit, req_addr, MTYPE_SW, use_vch,
 											config->router_id, getNodeID(req_addr));
@@ -373,7 +373,7 @@ void RouterInterface::step() {
 				break;
 			case RT_STATE_BR_HEAD:
 				node_id = getNodeID(req_addr);
-				use_vch = config->data_vch[node_id];
+				use_vch = config->data_vch[node_id - 1];
 				if (rtTx->slaveReady(use_vch)) {
 					RouterUtils::make_head_flit(&flit, req_addr, MTYPE_BR, use_vch,
 											config->router_id, getNodeID(req_addr), true);
@@ -383,7 +383,7 @@ void RouterInterface::step() {
 				break;
 			case RT_STATE_BW_HEAD:
 				node_id = getNodeID(req_addr);
-				use_vch = config->data_vch[node_id];
+				use_vch = config->data_vch[node_id - 1];
 				if (rtTx->slaveReady(use_vch)) {
 					RouterUtils::make_head_flit(&flit, req_addr, MTYPE_BW, use_vch,
 											config->router_id, getNodeID(req_addr));
