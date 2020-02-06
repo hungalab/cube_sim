@@ -55,6 +55,26 @@ namespace CMAComponents {
 		uint32 fetch_word(uint32 offset, int mode, DeviceExc *client);
 	};
 
+	class MicroController {
+
+	}
+
+	class PEArray {
+
+	}
+
+	class PE {
+
+	}
+
+	class LDUnit {
+
+	}
+
+	class STUnit {
+
+	}
+
 }
 
 class CMACore : public AcceleratorCore {
