@@ -57,23 +57,23 @@ namespace CMAComponents {
 
 	class MicroController {
 
-	}
+	};
 
 	class PEArray {
 
-	}
+	};
 
 	class PE {
 
-	}
+	};
 
 	class LDUnit {
 
-	}
+	};
 
 	class STUnit {
 
-	}
+	};
 
 }
 
