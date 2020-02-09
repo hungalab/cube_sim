@@ -22,12 +22,20 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 
 #include "range.h"
 #include "memorymodule.h"
+#include "fileutils.h"
+#include "mmapglue.h"
+#include <cstring>
 
 class MemoryModule : public Range {
 public:
     uint32 *myaddr;
-    MemoryModule(size_t size) : Range (0, size, 0, MEM_READ_WRITE) {
+    MemoryModule(size_t size, FILE *init_data = NULL) : Range (0, size, 0, MEM_READ_WRITE) {
         myaddr = new uint32[size / 4]();
+        if (init_data != NULL) {
+        	std::memcpy((void*)myaddr,
+        				mmap(0, extent, PROT_READ, MAP_PRIVATE, fileno (init_data), ftell (init_data)),
+        				get_file_size (init_data));
+        }
         address = static_cast<void *> (myaddr);
     }
     ~MemoryModule() {

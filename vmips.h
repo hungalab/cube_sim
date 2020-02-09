@@ -61,7 +61,7 @@ public:
 	IntCtrl		*intc;
 	Options		*opt;
 	MemoryModule	*memmod;
-	MemoryModule	*memmod2;
+	MemoryModule	*mem_prog;
 	Debug	*dbgr;
 	Disassembler	*disasm;
 	bool		host_bigendian;
@@ -109,6 +109,7 @@ public:
 	uint32		opt_loadaddr;
 	uint32		opt_bootaddr;
 	uint32		opt_memsize;
+	uint32		opt_progmemsize;
 	uint32		opt_timeratio;
 	char		*opt_image;
 	char		*opt_boot;
@@ -156,7 +157,7 @@ private:
 	   there are no initialization problems, otherwise return false. */
 	virtual bool setup_decserial();
 
-	virtual bool setup_rom();
+	virtual bool setup_prog();
 
 	virtual bool setup_bootrom();
 

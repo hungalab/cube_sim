@@ -74,7 +74,7 @@ PipelineRegs::~PipelineRegs()
 CPU::CPU (Mapper &m, IntCtrl &i, int cpuid)
   : tracing (false), last_epc (0), last_prio (0), mem (&m),
     cpzero (new CPZero (this, &i, cpuid)), fpu (0), delay_state (NORMAL),
-    mul_div_remain(0), suspend(false)
+    mul_div_remain(0), suspend(false), icache(NULL), dcache(NULL)
 {
 	opt_fpu = machine->opt->option("fpu")->flag;
 	if (opt_fpu)
@@ -104,6 +104,7 @@ CPU::CPU (Mapper &m, IntCtrl &i, int cpuid)
 	mem_bandwidth = machine->opt->option("mem_bandwidth")->num;
 
 	exception_pending = false;
+	volatilize_pipeline();
 }
 
 CPU::~CPU ()
@@ -826,6 +827,11 @@ void CPU::pre_decode(bool& data_hazard)
 				preg->instr = NOP_INSTR;
 			}
 			break;
+		case OP_CACHE:
+			if (RI_cache_op_flag[rt(dec_instr)]) {
+				exception(RI);
+				preg->instr = NOP_INSTR;
+			}
 		default:
 			if (RI_flag[dec_opcode]) {
 				exception(RI);
@@ -1042,7 +1048,7 @@ void CPU::execute()
 		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
 		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
 		&CPU::addu_exec, &CPU::addu_exec, &CPU::addu_exec, &CPU::addu_exec, &CPU::addu_exec, &CPU::addu_exec, &CPU::addu_exec, NULL,
-		&CPU::addu_exec, &CPU::addu_exec, &CPU::addu_exec, &CPU::addu_exec, NULL, NULL, &CPU::addu_exec, NULL,
+		&CPU::addu_exec, &CPU::addu_exec, &CPU::addu_exec, &CPU::addu_exec, NULL, NULL, &CPU::addu_exec, &CPU::addu_exec,
 		&CPU::lwc1_exec, &CPU::lwc2_exec, &CPU::lwc3_exec, NULL, NULL, NULL, NULL,
 		&CPU::swc1_exec, &CPU::swc2_exec, &CPU::swc3_exec, NULL, NULL, NULL, NULL
 	};
@@ -1063,6 +1069,7 @@ void CPU::execute()
 		//reset signal
 		exception_pending = false;
 	}
+
 }
 
 void CPU::pre_mem_access(bool& data_miss)
@@ -1070,6 +1077,7 @@ void CPU::pre_mem_access(bool& data_miss)
 	PipelineRegs *preg = PL_REGS[MEM_STAGE];
 	uint32 mem_instr = preg->instr;
 	uint16 mem_opcode = opcode(mem_instr);
+	uint16 cache_opcode;
 
 	uint32 phys;
 	bool cacheable;
@@ -1093,7 +1101,12 @@ void CPU::pre_mem_access(bool& data_miss)
 			if (vaddr % 4 != 0) {
 				exception(AdEL);
 			}
-		break;
+		case OP_LWL:
+		case OP_LWR:
+		case OP_SWL:
+		case OP_SWR:
+			vaddr &= ~0x03UL; //make word alignment
+			break;
 	}
 
 	//Exception may be occured
@@ -1103,7 +1116,16 @@ void CPU::pre_mem_access(bool& data_miss)
 		mode = DATALOAD;
 	}
 
-	if (mem_write_flag[mem_opcode] || mem_read_flag[mem_opcode]) {
+	if (mem_opcode == OP_CACHE) {
+		phys = cpzero->address_trans(vaddr, ANY, &cacheable, this);
+		if (!cacheable) {
+			exception(AdEL);
+		} else {
+			cache_opcode = rt(mem_instr);
+			cache = cache_op_mux(cache_opcode);
+			data_miss = !cache->exec_cache_op(cache_opcode, phys, this);
+		}
+	} else if (mem_write_flag[mem_opcode] || mem_read_flag[mem_opcode]) {
 		phys = cpzero->address_trans(vaddr, mode, &cacheable, this);
 		//check stall
 		if (cacheable) {
@@ -1143,6 +1165,7 @@ void CPU::mem_access()
 	Cache *cache = cpzero->caches_swapped() ? icache : dcache;
 	uint8 which_byte;
 	uint32 wordvirt;
+	uint32 byte;
 
 	uint32 vaddr = preg->result;
 
@@ -1169,7 +1192,18 @@ void CPU::mem_access()
 				case OP_SWL:
 					wordvirt = vaddr & ~0x03UL;
 					which_byte = vaddr & 0x03UL;
-					fprintf(stderr, "Not implemented SWL\n");
+					if (opt_bigendian) {
+						for(int i = which_byte; i < 4; i++) {
+							byte = (data >> (8 * (3 - i))) & 0xFF;
+							cache->store_byte(wordvirt + i, byte, this);
+						}
+					} else {
+						//little endian
+						for(int i = 0; i <= which_byte; i++) {
+							byte = (data >> (8 * i - 8 * which_byte + 24)) & 0xFF;
+							cache->store_byte(wordvirt + i, byte, this);
+						}
+					}
 					break;
 				case OP_SW:
 					cache->store_word(phys, data, this);
@@ -1177,7 +1211,19 @@ void CPU::mem_access()
 				case OP_SWR:
 					wordvirt = vaddr & ~0x03UL;
 					which_byte = vaddr & 0x03UL;
-					fprintf(stderr, "Not implemented SWR\n");
+					if (opt_bigendian) {
+						for(int i = 0; i <= which_byte; i++) {
+							byte = (data >> (8 * (which_byte - i))) & 0xFF;
+							cache->store_byte(wordvirt + i, byte, this);
+						}
+					} else {
+						//little endian
+						for(int i = which_byte; i < 4; i++) {
+							byte = (data >> (8 * (i - which_byte))) & 0xFF;
+							cache->store_byte(wordvirt + i, byte, this);
+						}
+					}
+
 					break;
 			}
 		} else {
@@ -1213,8 +1259,9 @@ void CPU::mem_access()
 					preg->r_mem_data = cache->fetch_halfword(phys, this);
 					break;
 				case OP_LWL:
-				case OP_LW:
 				case OP_LWR:
+					phys &= ~0x03UL;
+				case OP_LW:
 					preg->r_mem_data = cache->fetch_word(phys, DATALOAD, this);
 				break;
 			}
@@ -1230,8 +1277,9 @@ void CPU::mem_access()
 					preg->r_mem_data = (int16)mem->fetch_halfword(phys, this);
 					break;
 				case OP_LWL:
-				case OP_LW:
 				case OP_LWR:
+					phys &= ~0x03UL;
+				case OP_LW:
 					preg->r_mem_data = mem->fetch_word(phys, DATALOAD, this);
 				break;
 			}
@@ -1599,7 +1647,8 @@ CPU::debug_registers_to_packet(void)
 	debug_packet_push_word(packet, hi); r++;
 	debug_packet_push_word(packet, bad); r++;
 	debug_packet_push_word(packet, cause); r++;
-	debug_packet_push_word(packet, pc); r++;
+	debug_packet_push_word(packet, PL_REGS[WB_STAGE]->pc); r++;
+
 	for (; r < 90; r++) { /* unimplemented regs at end */
 		debug_packet_push_word(packet, 0);
 	}
@@ -1650,7 +1699,7 @@ CPU::debug_set_pc(uint32 newpc)
 uint32
 CPU::debug_get_pc(void)
 {
-	return pc;
+	return PL_REGS[WB_STAGE]->pc;
 }
 
 void
@@ -1686,23 +1735,41 @@ CPU::debug_fetch_region(uint32 addr, uint32 len, char *packet,
 	uint32 real_addr;
 	bool cacheable = false;
 
+	mem->enable_debug_mode();
 	for (; len; addr++, len--) {
 		real_addr = cpzero->address_trans(addr, DATALOAD, &cacheable, client);
 		/* Stop now and return an error code if translation
 		 * caused an exception.
 		 */
 		if (client->exception_pending) {
+			mem->disable_debug_mode();
 			return -1;
 		}
-		byte = mem->fetch_byte(real_addr, client);
+
+		if (cacheable) {
+			if (icache->ready(real_addr)) {
+				byte = icache->fetch_byte(real_addr, client);
+			} else if (dcache->ready(real_addr)) {
+				byte = dcache->fetch_byte(real_addr, client);
+			} else {
+				// access memory without cache
+				byte = mem->fetch_byte(real_addr, client);
+			}
+		} else {
+			byte = mem->fetch_byte(real_addr, client);
+		}
+
 		/* Stop now and return an error code if the fetch
 		 * caused an exception.
 		 */
 		if (client->exception_pending) {
+			mem->disable_debug_mode();
 			return -1;
 		}
 		debug_packet_push_byte(packet, byte);
 	}
+	mem->disable_debug_mode();
+
 	return 0;
 }
 
@@ -1720,17 +1787,34 @@ CPU::debug_store_region(uint32 addr, uint32 len, char *packet,
 	uint32 real_addr;
 	bool cacheable = false;
 
+	mem->enable_debug_mode();
 	for (; len; addr++, len--) {
 		byte = machine->dbgr->packet_pop_byte(&packet);
 		real_addr = cpzero->address_trans(addr, DATALOAD, &cacheable, client);
 		if (client->exception_pending) {
+			mem->disable_debug_mode();
 			return -1;
 		}
-		mem->store_byte(real_addr, byte, client);
+
+		if (cacheable) {
+			if (icache->ready(real_addr)) {
+				icache->store_byte(real_addr,byte, client);
+			} else if (dcache->ready(real_addr)) {
+				dcache->store_byte(real_addr, byte, client);
+			} else {
+				// access memory without cache
+				mem->store_byte(real_addr, byte, client);
+			}
+		} else {
+			mem->store_byte(real_addr, byte, client);
+		}
+
 		if (client->exception_pending) {
+			mem->disable_debug_mode();
 			return -1;
 		}
 	}
+	mem->disable_debug_mode();
 	return 0;
 }
 
@@ -2495,4 +2579,12 @@ void CPU::bgezal_exec()
 	preg->result = preg->pc + 8;
 }
 
+Cache* CPU::cache_op_mux(uint32 opcode)
+{
+	if (cpzero->caches_swapped()) {
+		return opcode >= DCACHE_OPCODE_START ? icache : dcache;
+	} else {
+		return opcode >= DCACHE_OPCODE_START ? dcache : icache;
+	}
 
+}

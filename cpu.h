@@ -25,9 +25,8 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 #include <deque>
 #include <map>
 #include <vector>
-
 #include "cache.h"
-
+#include "cacheinstr.h"
 
 
 class CPZero;
@@ -440,6 +439,8 @@ public:
 	//cache instance
 	Cache *icache;
 	Cache *dcache;
+
+	Cache* cache_op_mux(uint32 opcode);
 };
 
 #endif /* _CPU_H_ */

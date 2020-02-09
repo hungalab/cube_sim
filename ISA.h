@@ -39,7 +39,8 @@ typedef void (CPU::*alu_funcpr)(void);
 #define OP_SWL		42
 #define OP_SW		43
 #define OP_SWR		46
-/* OPCODE 44,45,47 are reserved */
+#define OP_CACHE	47
+/* OPCODE 44,45 are reserved */
 #define OP_LWC0		48
 #define OP_LWC1		49
 #define OP_LWC2		50
@@ -131,7 +132,7 @@ static operand_decodepr firstSrcDecTable[64] = {
 	NULL, NULL, NULL, NULL, CPU::no_reg, CPU::no_reg, CPU::no_reg, CPU::no_reg,
 	CPU::no_reg, CPU::no_reg, CPU::no_reg, CPU::no_reg, CPU::no_reg, CPU::no_reg, CPU::no_reg, CPU::no_reg,
 	CPU::rs, CPU::rs, CPU::rs, CPU::rs, CPU::rs, CPU::rs, CPU::rs,CPU::no_reg,
-	CPU::rs, CPU::rs, CPU::rs, CPU::rs,CPU::no_reg,CPU::no_reg, CPU::rs, CPU::no_reg,
+	CPU::rs, CPU::rs, CPU::rs, CPU::rs,CPU::no_reg,CPU::no_reg, CPU::rs, CPU::rs,
 	CPU::no_reg, CPU::no_reg, CPU::no_reg, CPU::no_reg, CPU::no_reg, CPU::no_reg, CPU::no_reg, CPU::no_reg,
 	CPU::no_reg, CPU::no_reg, CPU::no_reg, CPU::no_reg, CPU::no_reg, CPU::no_reg, CPU::no_reg, CPU::no_reg
 };
@@ -234,7 +235,7 @@ static bool mem_write_flag[64] = {
 };
 
 //indexed by opcode
-//flag of mem write
+//flag of mem read
 static bool mem_read_flag[64] = {
 	false, false, false, false, false, false, false, false,
 	false, false, false, false, false, false, false, false,
@@ -254,7 +255,7 @@ static bool RI_flag[64] = {
 	false, false, false, false, true , true , true , true ,
 	true , true , true , true , true , true , true , true ,
 	false, false, false, false, false, false, false, true ,
-	false, false, false, false, true , true , false, true ,
+	false, false, false, false, true , true , false, false ,
 	false, false, false, false, true , true , true , true ,
 	false, false, false, false, true , true , true , true
 };
@@ -269,6 +270,14 @@ static bool RI_special_flag[64] = {
 	true , true , false, false, true , true , true , true ,
 	true , true , true , true , true , true , true , true ,
 	true , true , true , true , true , true , true , true
+};
+
+//indexed by cache op operand (rt)
+static bool RI_cache_op_flag[32] = {
+	true, false, true, true, false, false, true, true,
+	true, false, true, true, true, true, true, true,
+	true, false, false, false, false, false, false, false,
+	false, false, false, false, false, false, false, false
 };
 
 //indexed by funct

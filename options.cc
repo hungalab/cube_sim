@@ -319,8 +319,8 @@ void
 Options::usage(char *argv0)
 {
 	printf(
-"Usage: %s [OPTION]... [ROM-FILE]\n"
-"Start the %s virtual machine, using the ROM-FILE as the boot ROM.\n"
+"Usage: %s [OPTION]... [PROGRAM-BINARY]\n"
+"Start the %s virtual machine, using the the boot ROM.\n"
 "\n"
 "  -o OPTION                  behave as if OPTION were specified in .vmipsrc\n"
 "                               (see manual for details)\n"
@@ -330,7 +330,7 @@ Options::usage(char *argv0)
 "  --help                     display this help message and exit\n"
 "  --print-config             display compile-time variables and exit\n"
 "\n"
-"By default, `romfile.rom' is used if no ROM-FILE is specified.\n"
+"By default, `romfile.rom' is used if no PROGRAM-BINARY is specified.\n"
 "\n"
 "Report bugs to <vmips@dgate.org>.\n",
 	PACKAGE, PACKAGE);

@@ -36,11 +36,11 @@ void RouterUtils::make_ack_flit(FLIT_t *flit, uint32 ftype, int *cnt)
 	uint32 data = 0;
 	for (int i = 0; i < FLIT_ACK_ENTRY; i++) {
 		if (cnt[i] >= 1 << FLIT_ACK_CNT_BIT) {
-			if (machine->opt->option("routermsg")->flag) {
-				fprintf(stderr, "ACK count overflow!\n");
-			}
+			// count is larger than ack field
+			data |= ACK_COUNT_MAX << (FLIT_ACK_CNT_BIT * i);
+		} else {
+			data |= (cnt[i] & ACK_COUNT_MAX) << (FLIT_ACK_CNT_BIT * i);
 		}
-		data |= (cnt[i] & ((1 << FLIT_ACK_CNT_BIT) - 1)) << (FLIT_ACK_CNT_BIT * i);
 	}
 	flit->data = data;
 }
@@ -231,6 +231,8 @@ void Router::step()
 	icUpper->step();
 	icLower->step();
 
+	cb->step();
+
 }
 
 /*******************************  InputChannel  *******************************/
@@ -287,8 +289,10 @@ void InputChannel::step()
 	FLIT_t flit;
 	uint32 recv_vch;
 	int i;
-
+	bool vc_hold = false;
 	int current_time = machine->num_cycles;
+
+
 
 	for (i = 0; i < VCH_SIZE; i++) {
 		if (!ibuf[i].empty()) {
@@ -300,6 +304,7 @@ void InputChannel::step()
 				switch (vc_state[i]) {
 					//Swtich Traversal
 					case VC_STATE_ST:
+						vc_hold = true;
 						if (vc_next_state[i] != VC_STATE_RC) {
 							ibuf[i].pop();
 							cb->send(this, &flit, i, send_port[i]);
@@ -313,14 +318,16 @@ void InputChannel::step()
 						break;
 					//Virtual Channel Switch Allocation
 					case VC_STATE_VSA:
-						if (!isGranted(i)) {
-							//if not granted, request grant
+						if (!isGranted(i) & !vc_hold) {
+							//if not granted & other vc does not use, request grant
 							request(i);
+							vc_hold = true;
 						} else if (isGranted(i) & cb->ready(this, i, send_port[i])) {
 							//granted & ready
 							vc_next_state[i] = VC_STATE_ST;
 							//grant holding
 							hold();
+							vc_hold = true;
 						}
 						break;
 					//Routing Computation
@@ -410,7 +417,13 @@ void OutputChannel::ackSend()
 		if (ackSendEn) {
 			RouterUtils::make_ack_flit(&flit, FTYPE_ACK1, ack_count);
 			oport->send(&flit, ACK_VCH);
-			for (int i = 0; i < VCH_SIZE / 2; i++) ack_count[i] = 0;
+			for (int i = 0; i < VCH_SIZE / 2; i++) {
+				if (ack_count[i] > ACK_COUNT_MAX) {
+					ack_count[i] -= ACK_COUNT_MAX;
+				} else {
+					ack_count[i] = 0;
+				}
+			}
 		}
 	} else {
 		for (int i = VCH_SIZE / 2; i < VCH_SIZE; i++) {
@@ -422,7 +435,12 @@ void OutputChannel::ackSend()
 		if (ackSendEn) {
 			RouterUtils::make_ack_flit(&flit, FTYPE_ACK2, &ack_count[VCH_SIZE / 2]);
 			oport->send(&flit, ACK_VCH);
-			for (int i = VCH_SIZE / 2; i < VCH_SIZE; i++) ack_count[i] = 0;
+			for (int i = VCH_SIZE / 2; i < VCH_SIZE; i++) {
+				if (ack_count[i] > ACK_COUNT_MAX) {
+				} else {
+					ack_count[i] = 0;
+				}
+			}
 		}
 	}
 

@@ -33,6 +33,7 @@
 #define FLIT_MEMA_LSB		10
 #define FLIT_ACK_ENTRY		4
 #define FLIT_ACK_CNT_BIT	4
+#define ACK_COUNT_MAX		((1 << FLIT_ACK_CNT_BIT) - 1)
 
 #define VCH_SIZE		8
 #define ACK_VCH			0 //ack is sent via vch0
@@ -223,6 +224,7 @@ public:
 	void pushData(FLIT_t *flit, uint32 vch);
 	void reset();
 	void step();
+
 };
 
 

@@ -1,10 +1,10 @@
 # Config
 SYSCONFDIR = "."
-DEFS = -DHAVE_CONFIG_H
 DEFAULT_INCLUDES = -I.
 INCLUDES =
 EXEEXT =
 PACKAGE = cube_sim
+DEFS = -DHAVE_CONFIG_H
 MAKE = make
 
 # commands & flags
@@ -39,7 +39,7 @@ SOURCES = cpu.cc cpzero.cc devicemap.cc \
   types.h endiantest.h fileutils.h fpu.h interactor.h testdev.h \
   rs232c.h cache.h busarbiter.h routerinterface.cc routerinterface.h router.cc router.h \
   accelerator.h accelerator.cc acceleratorcore.h acceleratorcore.cc \
-  remoteram.h remoteram.cc
+  remoteram.h remoteram.cc cma.h cma.cc cmacore.cc cmacore.h cmaAddressMap.h
 
 OBJECTS = cpu.$(OBJEXT) cpzero.$(OBJEXT) devicemap.$(OBJEXT) \
 	mapper.$(OBJEXT) options.$(OBJEXT) range.$(OBJEXT) \
@@ -53,6 +53,7 @@ OBJECTS = cpu.$(OBJEXT) cpzero.$(OBJEXT) devicemap.$(OBJEXT) \
 	testdev.$(OBJEXT) rs232c.$(OBJEXT) cache.$(OBJEXT) busarbiter.$(OBJEXT) \
   routerinterface.${OBJEXT} router.${OBJEXT} \
   remoteram.${OBJEXT} accelerator.${OBJEXT} \
+  cma.${OBJEXT} cmacore.${OBJEXT}
 
 LDADD = libopcodes_mips/libopcodes_mips.a
 
@@ -91,7 +92,7 @@ cpu.o: cpu.cc cpu.h deviceexc.h accesstypes.h types.h config.h state.h \
   options.h \
   excnames.h error.h gccattr.h remotegdb.h fileutils.h stub-dis.h \
   libopcodes_mips/bfd.h libopcodes_mips/ansidecl.h \
-  libopcodes_mips/symcat.h libopcodes_mips/dis-asm.h ISA.h
+  libopcodes_mips/symcat.h libopcodes_mips/dis-asm.h ISA.h cacheinstr.h
 
 cpzero.o: cpzero.cc cpzero.h tlbentry.h config.h cpzeroreg.h types.h \
   mapper.h range.h accesstypes.h \
@@ -217,7 +218,7 @@ rs232c.o: rs232c.cc rs232c.h deviceint.h intctrl.h types.h config.h \
 cache.o: cache.cc cache.h \
   types.h config.h deviceexc.h accesstypes.h state.h vmips.h \
   mapper.h range.h \
-  excnames.h
+  excnames.h cacheinstr.h
 
 busarbiter.o: busarbiter.cc busarbiter.h
 
@@ -231,3 +232,9 @@ accelerator.o: accelerator.h accelerator.cc acceleratorcore.h range.h\
                router.h error.h options.h vmips.h
 
 remoteram.o: remoteram.cc remoteram.h accelerator.h memorymodule.h
+
+cma.o: cma.cc cma.h accelerator.h memorymodule.h accesstypes.h\
+         types.h cmacore.h cmaAddressMap.h
+
+cmacore.o: cmacore.h cmacore.cc cmaAddressMap.h memorymodule.h \
+            accelerator.h acceleratorcore.h

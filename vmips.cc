@@ -58,6 +58,7 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 #include "routerinterface.h"
 #include "accelerator.h"
 #include "remoteram.h"
+#include "cma.h"
 
 vmips *machine;
 
@@ -86,6 +87,7 @@ vmips::refresh_options(void)
 	opt_loadaddr = opt->option("loadaddr")->num;
 	opt_bootaddr = opt->option("bootaddr")->num;
 	opt_memsize = opt->option("memsize")->num;
+	opt_progmemsize = opt->option("progmemsize")->num;
 	opt_timeratio = opt->option("timeratio")->num;
  
 	opt_memdumpfile = opt->option("memdumpfile")->str;
@@ -419,32 +421,28 @@ timediff(struct timeval *after, struct timeval *before)
 }
 
 bool
-vmips::setup_rom ()
+vmips::setup_prog ()
 {
-  // Open ROM image.
-  FILE *rom = fopen (opt_image, "rb");
-  if (!rom) {
-    error ("Could not open ROM `%s': %s", opt_image, strerror (errno));
+  // Open prog image.
+  FILE *bin_file = fopen (opt_image, "rb");
+  if (!bin_file) {
+    error ("Could not open program binary `%s': %s", opt_image, strerror (errno));
     return false;
   }
   // Translate loadaddr to physical address.
-  // opt_loadaddr -= KSEG1_CONST_TRANSLATION;
-  ROMModule *rm;
+
   try {
-    rm = new ROMModule (rom);
+    mem_prog = new MemoryModule(opt_progmemsize, bin_file);
   } catch (int errcode) {
     error ("mmap failed for %s: %s", opt_image, strerror (errcode));
     return false;
   }
-  // Map the ROM image to the virtual physical memory.
-  physmem->map_at_physical_address (rm, opt_loadaddr);
+  // Map the prog image to the virtual physical memory.
+  physmem->map_at_physical_address (mem_prog, opt_loadaddr);
 
-  boot_msg ("Mapping ROM image (%s, %u words) to physical address 0x%08x\n",
-            opt_image, rm->getExtent () / 4, rm->getBase ());
-  // Point debugger at wherever the user thinks the ROM is.
-  if (opt_debug)
-    if (dbgr->setup (opt_loadaddr, rm->getExtent () / 4) < 0)
-      return false; // Error in setting up debugger.
+  boot_msg ("Mapping program binary (%s, %u words) to physical address 0x%08x\n",
+            opt_image, mem_prog->getExtent () / 4, mem_prog->getBase ());
+
   return true;
 }
 
@@ -509,7 +507,7 @@ vmips::setup_rs232c()
 {
 	Rs232c *rs232c = new Rs232c();
 	if (physmem->map_at_physical_address(rs232c, 0xb4000000) == 0) {
-		boot_msg("Suceeded in setup rs232c serial IO\n");
+		boot_msg("Succeeded in setup rs232c serial IO\n");
 		return true;
 	} else {
 		boot_msg("Failed in setup rs232c serial IO\n");
@@ -529,7 +527,7 @@ vmips::setup_router()
 	if (physmem->map_at_physical_address(rtIO, 0xba010000) == 0) {
 		if (physmem->map_at_physical_address(rtrange_kseg0, 0xba400000) == 0) {
 			if (physmem->map_at_physical_address(rtrange_kseg1, 0x9a400000) == 0) {
-				boot_msg("Suceeded in setup cube router\n");
+				boot_msg("Succeeded in setup cube router\n");
 			} else {
 				boot_msg("Failed in setup router range (kseg1)\n");
 				return false;
@@ -559,8 +557,7 @@ vmips::setup_cube()
 
 	//setup accelerator0
 	if (ac0_name == std::string("CMA")) {
-		fprintf(stderr, "CMA is under developping\n");
-		return false;
+		ac0 = new CMA(1, rtif->getRouter());
 	} else if (ac0_name == std::string("SNACC")) {
 		fprintf(stderr, "SNACC is under developping\n");
 		return false;
@@ -577,8 +574,12 @@ vmips::setup_cube()
 
 	//setup accelerator1
 	if (ac1_name == std::string("CMA")) {
-		fprintf(stderr, "CMA is under developping\n");
-		return false;
+		if (ac0 != NULL) {
+			ac1 = new CMA(2, ac0->getRouter());
+		} else {
+			fprintf(stderr, "Upper module (accelerator0) is not built\n");
+			return false;
+		}
 	} else if (ac1_name == std::string("SNACC")) {
 		fprintf(stderr, "SNACC is under developping\n");
 		return false;
@@ -600,14 +601,18 @@ vmips::setup_cube()
 
 	//setup accelerator2
 	if (ac2_name == std::string("CMA")) {
-		fprintf(stderr, "CMA is under developping\n");
-		return false;
+		if (ac1 != NULL) {
+			ac2 = new CMA(3, ac1->getRouter());
+		} else {
+			fprintf(stderr, "Upper module (accelerator1) is not built\n");
+			return false;
+		}
 	} else if (ac2_name == std::string("SNACC")) {
 		fprintf(stderr, "SNACC is under developping\n");
 		return false;
 	} else if (ac2_name == std::string("RemoteRam")) {
 		if (ac1 != NULL) {
-			ac2 = new RemoteRam(3, ac0->getRouter(), 0x2048); //2KB
+			ac2 = new RemoteRam(3, ac1->getRouter(), 0x2048); //2KB
 		} else {
 			fprintf(stderr, "Upper module (accelerator1) is not built\n");
 			return false;
@@ -666,7 +671,7 @@ vmips::run()
 	if (!setup_bootrom ()) 
 	  return 1;
 
-	if (!setup_rom ()) 
+	if (!setup_prog ()) 
 	  return 1;
 
 	if (!setup_ram ())

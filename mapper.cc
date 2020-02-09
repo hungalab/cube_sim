@@ -69,6 +69,9 @@ bool Mapper::ready(uint32 addr, int32 mode, DeviceExc *client)
 		client
 	};
 
+	if (debug_mode) {
+		return true;
+	}
 
 	bool constainsKey = (access_requests_time.find(key) != access_requests_time.end());
 

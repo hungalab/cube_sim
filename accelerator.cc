@@ -50,9 +50,9 @@ Range * LocalMapper::find_mapping_range(uint32 laddr)
 uint32 LocalMapper::fetch_word(uint32 laddr)
 {
 	Range *l = find_mapping_range(laddr);
-	uint32 offset = laddr - l->getBase();
 
 	if (l != NULL) {
+		uint32 offset = laddr - l->getBase();
 		return l->fetch_word(offset, DATALOAD, NULL);
 	} else {
 		if (machine->opt->option("dbemsg")->flag) {
@@ -65,9 +65,9 @@ uint32 LocalMapper::fetch_word(uint32 laddr)
 void LocalMapper::store_word(uint32 laddr, uint32 data)
 {
 	Range *l = find_mapping_range(laddr);
-	uint32 offset = laddr - l->getBase();
 
 	if (l != NULL) {
+		uint32 offset = laddr - l->getBase();
 		l->store_word(offset, data, NULL);
 	} else {
 		if (machine->opt->option("dbemsg")->flag) {
@@ -147,8 +147,8 @@ void NetworkInterfaceConfig::store_word(uint32 offset, uint32 data, DeviceExc *c
 }
 
 /*******************************  CubeAccelerator  *******************************/
-CubeAccelerator::CubeAccelerator(uint32 node_ID, Router* upperRouter, uint32 config_addr_base, bool dmac_en_)
-	: dmac_en(dmac_en_)
+CubeAccelerator::CubeAccelerator(uint32 node_ID_, Router* upperRouter, uint32 config_addr_base, bool dmac_en_)
+	: node_ID(node_ID_), dmac_en(dmac_en_)
 {
 	//make router ports
 	rtRx = new RouterPortSlave(iready); //receiver
@@ -165,6 +165,8 @@ CubeAccelerator::CubeAccelerator(uint32 node_ID, Router* upperRouter, uint32 con
 	mem_bandwidth = machine->opt->option("mem_bandwidth")->num;
 	nif_config = new NetworkInterfaceConfig(config_addr_base);
 	localBus->map_at_local_address(nif_config, config_addr_base);
+
+	done_signal_ptr = std::bind(&CubeAccelerator::done_signal, this, std::placeholders::_1);
 
 }
 
@@ -301,7 +303,7 @@ void CubeAccelerator::nif_step()
 		case CNIF_DONE:
 			if(rtTx->slaveReady(nif_config->getVCdone())) {
 				RouterUtils::make_head_flit(&sflit, DONE_NOTIF_ADDR, MTYPE_DONE,
-											nif_config->getVCdone(), reg_dst, 0, true);
+											nif_config->getVCdone(), node_ID, 0, true);
 				rtTx->send(&sflit, nif_config->getVCdone());
 				if (dma_after_done_en & (nif_config->getDMAlen() > 0)) {
 					nif_next_state = CNIF_DMA_HEAD;
