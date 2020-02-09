@@ -255,7 +255,7 @@ Debug::print_local_name(int s)
 		return;
 	}
 	fprintf(stderr,
-		"Use this command to attach debugger: target remote %s:%u\n",
+		"Use this command to attach debugger: \x1b[4m\x1b[1mtarget remote %s:%u\x1b[0m\n",
 		inet_ntoa(addr.sin_addr),
 		ntohs(addr.sin_port));
 }
@@ -367,6 +367,8 @@ Debug::target_query(char *pkt)
 		return rawpacket("l");
 	} else if (strcmp(pkt, "ThreadExtraInfo,1")==0) {
 		return hexpacket("Simulated Thread");
+	} else if (strcmp(pkt, "Symbol::")==0) {
+		return rawpacket("OK");
 	} else {
 		return rawpacket("");
 	}

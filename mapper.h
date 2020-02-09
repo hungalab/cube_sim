@@ -85,6 +85,8 @@ private:
 	   of R. */
 	int add_range (Range *r);
 
+	bool debug_mode;
+
 public:
 	Mapper();
 	~Mapper();
@@ -149,6 +151,9 @@ public:
 
 	/* Copy information about the most recent bus error to INFO. */
 	void get_last_berr_info (BusErrorInfo &info) { info = last_berr_info; }
+
+	void enable_debug_mode() { debug_mode = true; }
+	void disable_debug_mode() { debug_mode = false; }
 
 };
 

@@ -1647,7 +1647,8 @@ CPU::debug_registers_to_packet(void)
 	debug_packet_push_word(packet, hi); r++;
 	debug_packet_push_word(packet, bad); r++;
 	debug_packet_push_word(packet, cause); r++;
-	debug_packet_push_word(packet, pc); r++;
+	debug_packet_push_word(packet, PL_REGS[WB_STAGE]->pc); r++;
+
 	for (; r < 90; r++) { /* unimplemented regs at end */
 		debug_packet_push_word(packet, 0);
 	}
@@ -1698,7 +1699,7 @@ CPU::debug_set_pc(uint32 newpc)
 uint32
 CPU::debug_get_pc(void)
 {
-	return pc;
+	return PL_REGS[WB_STAGE]->pc;
 }
 
 void
@@ -1734,23 +1735,41 @@ CPU::debug_fetch_region(uint32 addr, uint32 len, char *packet,
 	uint32 real_addr;
 	bool cacheable = false;
 
+	mem->enable_debug_mode();
 	for (; len; addr++, len--) {
 		real_addr = cpzero->address_trans(addr, DATALOAD, &cacheable, client);
 		/* Stop now and return an error code if translation
 		 * caused an exception.
 		 */
 		if (client->exception_pending) {
+			mem->disable_debug_mode();
 			return -1;
 		}
-		byte = mem->fetch_byte(real_addr, client);
+
+		if (cacheable) {
+			if (icache->ready(real_addr)) {
+				byte = icache->fetch_byte(real_addr, client);
+			} else if (dcache->ready(real_addr)) {
+				byte = dcache->fetch_byte(real_addr, client);
+			} else {
+				// access memory without cache
+				byte = mem->fetch_byte(real_addr, client);
+			}
+		} else {
+			byte = mem->fetch_byte(real_addr, client);
+		}
+
 		/* Stop now and return an error code if the fetch
 		 * caused an exception.
 		 */
 		if (client->exception_pending) {
+			mem->disable_debug_mode();
 			return -1;
 		}
 		debug_packet_push_byte(packet, byte);
 	}
+	mem->disable_debug_mode();
+
 	return 0;
 }
 
@@ -1768,17 +1787,34 @@ CPU::debug_store_region(uint32 addr, uint32 len, char *packet,
 	uint32 real_addr;
 	bool cacheable = false;
 
+	mem->enable_debug_mode();
 	for (; len; addr++, len--) {
 		byte = machine->dbgr->packet_pop_byte(&packet);
 		real_addr = cpzero->address_trans(addr, DATALOAD, &cacheable, client);
 		if (client->exception_pending) {
+			mem->disable_debug_mode();
 			return -1;
 		}
-		mem->store_byte(real_addr, byte, client);
+
+		if (cacheable) {
+			if (icache->ready(real_addr)) {
+				icache->store_byte(real_addr,byte, client);
+			} else if (dcache->ready(real_addr)) {
+				dcache->store_byte(real_addr, byte, client);
+			} else {
+				// access memory without cache
+				mem->store_byte(real_addr, byte, client);
+			}
+		} else {
+			mem->store_byte(real_addr, byte, client);
+		}
+
 		if (client->exception_pending) {
+			mem->disable_debug_mode();
 			return -1;
 		}
 	}
+	mem->disable_debug_mode();
 	return 0;
 }
 

@@ -442,10 +442,7 @@ vmips::setup_prog ()
 
   boot_msg ("Mapping program binary (%s, %u words) to physical address 0x%08x\n",
             opt_image, mem_prog->getExtent () / 4, mem_prog->getBase ());
-  // Point debugger at wherever the user thinks the ROM is.
-  if (opt_debug)
-    if (dbgr->setup (opt_loadaddr, mem_prog->getExtent () / 4) < 0)
-      return false; // Error in setting up debugger.
+
   return true;
 }
 
@@ -510,7 +507,7 @@ vmips::setup_rs232c()
 {
 	Rs232c *rs232c = new Rs232c();
 	if (physmem->map_at_physical_address(rs232c, 0xb4000000) == 0) {
-		boot_msg("Suceeded in setup rs232c serial IO\n");
+		boot_msg("Succeeded in setup rs232c serial IO\n");
 		return true;
 	} else {
 		boot_msg("Failed in setup rs232c serial IO\n");
@@ -530,7 +527,7 @@ vmips::setup_router()
 	if (physmem->map_at_physical_address(rtIO, 0xba010000) == 0) {
 		if (physmem->map_at_physical_address(rtrange_kseg0, 0xba400000) == 0) {
 			if (physmem->map_at_physical_address(rtrange_kseg1, 0x9a400000) == 0) {
-				boot_msg("Suceeded in setup cube router\n");
+				boot_msg("Succeeded in setup cube router\n");
 			} else {
 				boot_msg("Failed in setup router range (kseg1)\n");
 				return false;
