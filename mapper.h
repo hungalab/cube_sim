@@ -85,7 +85,7 @@ private:
 	   of R. */
 	int add_range (Range *r);
 
-	bool debug_mode;
+	bool debug_mode = false;
 
 public:
 	Mapper();

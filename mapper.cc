@@ -60,7 +60,7 @@ void Mapper::release_bus(DeviceExc *client)
 	bus_arbiter->release_bus(client);
 }
 
-/* For now, it always returns true */
+
 bool Mapper::ready(uint32 addr, int32 mode, DeviceExc *client)
 {
 	struct RequestsKey key = {
