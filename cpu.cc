@@ -142,6 +142,8 @@ void CPU::volatilize_pipeline()
 	for (int i = 0; i < PIPELINE_STAGES; i++) {
 		PL_REGS[i] = new PipelineRegs(pc + 4, NOP_INSTR);
 	}
+	late_preg = new PipelineRegs(pc + 4, NOP_INSTR);
+	late_late_preg = new PipelineRegs(pc + 4, NOP_INSTR);
 }
 
 void
@@ -1327,8 +1329,6 @@ void CPU::step()
 {
 	// control signals
 	bool data_hazard, interlock, fetch_miss, data_miss;
-	//keep pregs in 2 cycles because of forwarding
-	static PipelineRegs *late_preg, *late_late_preg;
 
 	// Decrement Random register every clock cycle.
 	cpzero->adjust_random();

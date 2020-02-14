@@ -177,6 +177,9 @@ class CPU : public DeviceExc {
 	bool hi_write, lo_write;
 
 	PipelineRegs* PL_REGS[PIPELINE_STAGES];
+	//keep pregs in 2 cycles because of forwarding
+	PipelineRegs *late_preg, *late_late_preg;
+
 
 	// Exception bookkeeping data.
 	uint32 last_epc;

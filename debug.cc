@@ -565,13 +565,20 @@ Debug::target_write_memory(char *pkt)
 uint8
 Debug::single_step(void)
 {
+	uint32 before_stall_count;
 	if (breakpoint_exists(cpu->debug_get_pc())) {
 		return Bp; /* Simulate hitting the breakpoint. */
 	}
 	if (got_interrupt == true) {
 		return Bp; /* interrupt. */
 	}
-	machine->step();
+
+	// stepping until stall does not occur
+	do {
+		before_stall_count = machine->stall_count;
+		machine->step();
+	} while (before_stall_count < machine->stall_count);
+
 	return cpu->pending_exception();
 }
 
