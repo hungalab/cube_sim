@@ -1392,13 +1392,15 @@ void CPU::step()
 	}
 
 	//if no stall/exception, process each stage
-	if (!data_hazard && !interlock && !data_miss && !fetch_miss) {
+	if (!interlock && !data_miss && !fetch_miss) {
 		//without any stall, update hardware status like regfile and memory
 		reg_commit();
 		mem_access();
 		execute();
-		decode(); //decode must be processed after execute/mem_access due to forwarding
-		if (suspend == true) {
+		if (!data_hazard) {
+			decode(); //decode must be processed after execute/mem_access due to forwarding
+		}
+		if (suspend == true || data_hazard == true) {
 			//IF stage stay until suspension
 			delete late_late_preg;
 			late_late_preg = late_preg;
