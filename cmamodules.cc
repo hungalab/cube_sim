@@ -1,4 +1,4 @@
-#include "cmacore.h"
+#include "cmamodules.h"
 
 #define CMA_COUNT 1
 

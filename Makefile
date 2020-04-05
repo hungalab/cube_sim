@@ -234,7 +234,7 @@ accelerator.o: accelerator.h accelerator.cc acceleratorcore.h range.h\
 remoteram.o: remoteram.cc remoteram.h accelerator.h memorymodule.h
 
 cma.o: cma.cc cma.h accelerator.h memorymodule.h accesstypes.h\
-         types.h cmacore.h cmaAddressMap.h
+         types.h cmamodules.h cmaAddressMap.h
 
 cmacore.o: cmacore.h cmacore.cc cmaAddressMap.h memorymodule.h \
             accelerator.h acceleratorcore.h

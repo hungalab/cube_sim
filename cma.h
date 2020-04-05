@@ -5,7 +5,7 @@
 #include "memorymodule.h"
 #include "accesstypes.h"
 #include "types.h"
-#include "cmacore.h"
+#include "cmamodules.h"
 #include "cmaAddressMap.h"
 
 class DeviceExc;
@@ -26,6 +26,8 @@ public:
 	~CMA();
 
 	void setup();
+	void core_step() {};
+	void core_reset() {};
 	const char *accelerator_name() { return "CMA"; }
 
 	CMAComponents::ControlReg *ctrl_reg;

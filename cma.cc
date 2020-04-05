@@ -35,5 +35,5 @@ void CMA::setup()
 	localBus->map_at_local_address(st_tbl, CMA_ST_TABLE_ADDR);
 	localBus->map_at_local_address(ctrl_reg, CMA_CTRL_ADDR);
 	//confCtrl = new ConfigController(localBus);
-	core_module = new CMACore(localBus, done_signal_ptr, ctrl_reg, node);
+	CMACore * core_module = new CMACore(localBus, ctrl_reg, node);
 }

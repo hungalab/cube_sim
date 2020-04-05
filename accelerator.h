@@ -4,7 +4,6 @@
 #include "router.h"
 #include "types.h"
 #include "range.h"
-#include "acceleratorcore.h"
 
 #define DONE_NOTIF_ADDR 0x00000
 #define DMAC_NOTIF_ADDR 0x00001
@@ -45,7 +44,6 @@
 #define CNIF_DONE		11
 
 class Range;
-class AcceleratorCore;
 
 class LocalMapper {
 private:
@@ -140,10 +138,12 @@ protected:
 	//data/address bus
 	LocalMapper* localBus;
 
-	//submodules
-	AcceleratorCore *core_module;
-
-	SIGNAL_PTR done_signal_ptr;
+	virtual void core_step() = 0;
+	virtual void core_reset() = 0;
+	//make submodules and connect them to bus
+	virtual void setup() = 0;
+	//accelerator name
+	virtual const char *accelerator_name() = 0;
 
 public:
 	//destructor
@@ -154,12 +154,6 @@ public:
 	void reset();
 
 	void done_signal(bool dma_enable);
-
-	//make submodules and connect them to bus
-	virtual void setup() = 0;
-
-	//accelerator name
-	virtual const char *accelerator_name() = 0;
 
 	Router* getRouter() { return localRouter; };
 
