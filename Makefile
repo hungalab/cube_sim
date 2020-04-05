@@ -39,7 +39,7 @@ SOURCES = cpu.cc cpzero.cc devicemap.cc \
   types.h endiantest.h fileutils.h fpu.h interactor.h testdev.h \
   rs232c.h cache.h busarbiter.h routerinterface.cc routerinterface.h router.cc router.h \
   accelerator.h accelerator.cc acceleratorcore.h acceleratorcore.cc \
-  remoteram.h remoteram.cc cma.h cma.cc cmacore.cc cmacore.h cmaAddressMap.h
+  remoteram.h remoteram.cc cma.h cma.cc cmamodules.cc cmamodules.h cmaAddressMap.h
 
 OBJECTS = cpu.$(OBJEXT) cpzero.$(OBJEXT) devicemap.$(OBJEXT) \
 	mapper.$(OBJEXT) options.$(OBJEXT) range.$(OBJEXT) \
@@ -53,7 +53,7 @@ OBJECTS = cpu.$(OBJEXT) cpzero.$(OBJEXT) devicemap.$(OBJEXT) \
 	testdev.$(OBJEXT) rs232c.$(OBJEXT) cache.$(OBJEXT) busarbiter.$(OBJEXT) \
   routerinterface.${OBJEXT} router.${OBJEXT} \
   remoteram.${OBJEXT} accelerator.${OBJEXT} \
-  cma.${OBJEXT} cmacore.${OBJEXT}
+  cma.${OBJEXT} cmamodules.${OBJEXT}
 
 LDADD = libopcodes_mips/libopcodes_mips.a
 
@@ -236,5 +236,5 @@ remoteram.o: remoteram.cc remoteram.h accelerator.h memorymodule.h
 cma.o: cma.cc cma.h accelerator.h memorymodule.h accesstypes.h\
          types.h cmamodules.h cmaAddressMap.h
 
-cmacore.o: cmacore.h cmacore.cc cmaAddressMap.h memorymodule.h \
+cmamodules.o: cmamodules.h cmamodules.cc cmaAddressMap.h memorymodule.h \
             accelerator.h acceleratorcore.h

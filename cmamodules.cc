@@ -4,17 +4,17 @@
 
 using namespace CMAComponents;
 
-CMACore::CMACore(LocalMapper *bus_, SIGNAL_PTR done_signal_,
-				ControlReg *ctrl_, int node_)
-		: AcceleratorCore(bus_, done_signal_), ctrl(ctrl_), node(node_)
-{
-	pearray = new PEArray(CMA_PE_ARRAY_HEIGHT, CMA_PE_ARRAY_WIDTH);
-};
+// CMACore::CMACore(LocalMapper *bus_, SIGNAL_PTR done_signal_,
+// 				ControlReg *ctrl_, int node_)
+// 		: AcceleratorCore(bus_, done_signal_), ctrl(ctrl_), node(node_)
+// {
+// 	pearray = new PEArray(CMA_PE_ARRAY_HEIGHT, CMA_PE_ARRAY_WIDTH);
+// };
 
-CMACore::~CMACore()
-{
-	delete pearray;
-}
+// CMACore::~CMACore()
+// {
+// 	delete pearray;
+// }
 
 void CMAMemoryModule::store_word(uint32 offset, uint32 data, DeviceExc *client)
 {
@@ -52,137 +52,7 @@ uint32 ControlReg::fetch_word(uint32 offset, int mode, DeviceExc *client)
 }
 
 
-void CMACore::step()
-{
-	if (ctrl->getRun()) {
-		count++;
-		if (count == result_stat[context].wait) {
-			for (int i = 0; i < result_stat[context].len; i++) {
-				if (result_stat[context].bank0) {
-					bus->store_word(result_stat[context].result_addr + 4 * i, result_stat[context].result[i]);
-				} else {
-					bus->store_word(0x1000 + result_stat[context].result_addr + 4 * i, result_stat[context].result[i]);
-				}
-			}
-			done_signal(ctrl->getDoneDMA());
-			context++;
-		}
-	} else {
-		count = 0;
-	}
-}
 
-void CMACore::reset()
-{
-	count = 0;
-	context = 0;
-
-#if CMA_COUNT == 1
-	result_stat[0] = {0x02C0, true, &comp_y[0], 74, 176};
-	result_stat[1] = {0x02C0, false, &comp_y[176], 74, 176};
-	result_stat[2] = {0x02C0, true, &comp_cr[0], 74, 176};
-	result_stat[3] = {0x02C0, false, &comp_cr[176], 74, 176};
-	result_stat[4] = {0x02C0, true, &comp_cb[0], 74, 176};
-	result_stat[5] = {0x02C0, false, &comp_cb[176], 74, 176};
-	result_stat[6] = {0x40, true, &comp_dct[0], 31, 64};
-	result_stat[7] = {0x40, false, &comp_dct[64], 31, 64};
-	result_stat[8] = {0x40, true, &comp_dct[128], 31, 64};
-	result_stat[9] = {0x40, false, &comp_dct[192], 31, 64};
-	result_stat[10] = {0x40, true, &comp_dct[256], 31, 64};
-	result_stat[11] = {0x40, false, &comp_dct[320], 31, 64};
-	result_stat[12] = {0x40, true, &comp_dct[384], 31, 64};
-	result_stat[13] = {0x40, false, &comp_dct[448], 31, 64};
-	result_stat[14] = {0x40, true, &comp_dct[512], 31, 64};
-	result_stat[15] = {0x40, false, &comp_dct[576], 31, 64};
-	result_stat[16] = {0x40, true, &comp_dct[640], 31, 64};
-	result_stat[17] = {0x40, false, &comp_dct[704], 31, 64};
-	result_stat[18] = {0x300, true, &comp_dct_quant[0], 31, 64};
-	result_stat[19] = {0x300, true, &comp_dct_quant[64], 31, 64};
-	result_stat[20] = {0x300, true, &comp_dct_quant[128], 31, 64};
-	result_stat[21] = {0x300, true, &comp_dct_quant[192], 31, 64};
-	result_stat[22] = {0x300, true, &comp_dct_quant[256], 31, 64};
-	result_stat[23] = {0x300, true, &comp_dct_quant[320], 31, 64};
-	result_stat[24] = {0x300, true, &comp_dct_quant[384], 31, 64};
-	result_stat[25] = {0x300, true, &comp_dct_quant[448], 31, 64};
-	result_stat[26] = {0x300, true, &comp_dct_quant[512], 31, 64};
-	result_stat[27] = {0x300, true, &comp_dct_quant[576], 31, 64};
-	result_stat[28] = {0x300, true, &comp_dct_quant[640], 31, 64};
-	result_stat[29] = {0x300, true, &comp_dct_quant[704], 31, 64};
-
-#elif CMA_COUNT == 2
-	if (node == 1) {
-		result_stat[0] = {0x02C0, true, &comp_y[0], 74, 176};
-		result_stat[1] = {0x02C0, false, &comp_y[176], 74, 176};
-		result_stat[2] = {0x02C0, true, &comp_cr[0], 74, 176};
-		result_stat[3] = {0x02C0, false, &comp_cr[176], 74, 176};
-		result_stat[4] = {0x02C0, true, &comp_cb[0], 74, 176};
-		result_stat[5] = {0x02C0, false, &comp_cb[176], 74, 176};
-		result_stat[6] = {0x40, true, &comp_dct[0], 31, 64};
-		result_stat[7] = {0x40, true, &comp_dct[64], 31, 64};
-		result_stat[8] = {0x40, true, &comp_dct[128], 31, 64};
-		result_stat[9] = {0x40, true, &comp_dct[192], 31, 64};
-		result_stat[10] = {0x40, false, &comp_dct[256], 31, 64};
-		result_stat[11] = {0x40, false, &comp_dct[320], 31, 64};
-		result_stat[12] = {0x40, true, &comp_dct[384], 31, 64};
-		result_stat[13] = {0x40, true, &comp_dct[448], 31, 64};
-		result_stat[14] = {0x40, true, &comp_dct[512], 31, 64};
-		result_stat[15] = {0x40, true, &comp_dct[576], 31, 64};
-		result_stat[16] = {0x40, false, &comp_dct[640], 31, 64};
-		result_stat[17] = {0x40, false, &comp_dct[704], 31, 64};
-	} else if (node == 2) {
-		result_stat[0] = {0x300, true, &comp_dct_quant[0], 31, 64};
-		result_stat[1] = {0x300, true, &comp_dct_quant[64], 31, 64};
-		result_stat[2] = {0x300, true, &comp_dct_quant[128], 31, 64};
-		result_stat[3] = {0x300, true, &comp_dct_quant[192], 31, 64};
-		result_stat[4] = {0x300, false, &comp_dct_quant[256], 31, 64};
-		result_stat[5] = {0x300, false, &comp_dct_quant[320], 31, 64};
-		result_stat[6] = {0x300, true, &comp_dct_quant[384], 31, 64};
-		result_stat[7] = {0x300, true, &comp_dct_quant[448], 31, 64};
-		result_stat[8] = {0x300, true, &comp_dct_quant[512], 31, 64};
-		result_stat[9] = {0x300, true, &comp_dct_quant[576], 31, 64};
-		result_stat[10] = {0x300, false, &comp_dct_quant[640], 31, 64};
-		result_stat[11] = {0x300, false, &comp_dct_quant[704], 31, 64};
-	}
-
-#elif CMA_COUNT == 3
-	//for 3 chips
-	if (node == 1) {
-		result_stat[0] = {0x02C0, true, &comp_y[0], 74, 176};
-		result_stat[1] = {0x02C0, false, &comp_y[176], 74, 176};
-		result_stat[2] = {0x40, true, &comp_dct[0], 31, 64};
-		result_stat[3] = {0x40, false, &comp_dct[64], 31, 64};
-		result_stat[4] = {0x40, true, &comp_dct[128], 31, 64};
-		result_stat[5] = {0x40, false, &comp_dct[192], 31, 64};
-		result_stat[6] = {0x40, true, &comp_dct[256], 31, 64};
-		result_stat[7] = {0x40, false, &comp_dct[320], 31, 64};
-		result_stat[8] = {0x40, true, &comp_dct[384], 31, 64};
-		result_stat[9] = {0x40, false, &comp_dct[448], 31, 64};
-		result_stat[10] = {0x40, true, &comp_dct[512], 31, 64};
-		result_stat[11] = {0x40, false, &comp_dct[576], 31, 64};
-		result_stat[12] = {0x40, true, &comp_dct[640], 31, 64};
-		result_stat[13] = {0x40, false, &comp_dct[704], 31, 64};
-		result_stat[14] = {0x300, true, &comp_dct_quant[0], 31, 64};
-		result_stat[15] = {0x300, true, &comp_dct_quant[64], 31, 64};
-		result_stat[16] = {0x300, true, &comp_dct_quant[128], 31, 64};
-		result_stat[17] = {0x300, true, &comp_dct_quant[192], 31, 64};
-		result_stat[18] = {0x300, true, &comp_dct_quant[256], 31, 64};
-		result_stat[19] = {0x300, true, &comp_dct_quant[320], 31, 64};
-		result_stat[20] = {0x300, true, &comp_dct_quant[384], 31, 64};
-		result_stat[21] = {0x300, true, &comp_dct_quant[448], 31, 64};
-		result_stat[22] = {0x300, true, &comp_dct_quant[512], 31, 64};
-		result_stat[23] = {0x300, true, &comp_dct_quant[576], 31, 64};
-		result_stat[24] = {0x300, true, &comp_dct_quant[640], 31, 64};
-		result_stat[25] = {0x300, true, &comp_dct_quant[704], 31, 64};
-	} else if (node == 2) {
-		result_stat[0] = {0x02C0, true, &comp_cr[0], 74, 176};
-		result_stat[1] = {0x02C0, false, &comp_cr[176], 74, 176};
-	} else if (node == 3) {
-		result_stat[0] = {0x02C0, true, &comp_cb[0], 74, 176};
-		result_stat[1] = {0x02C0, false, &comp_cb[176], 74, 176};
-	}
-#endif
-
-}
 
 PEArray::PEArray(int height_, int width_) : height(height_), width(width_)
 {
@@ -193,8 +63,7 @@ PEArray::PEArray(int height_, int width_) : height(height_), width(width_)
 			array[i].emplace_back(new PE());
 		}
 	}
-	//array.assign(width, std::vector<PE>(column));
-	//fprintf(stderr, "%X\n", array[0][0]->exec_add(2, 3));
+	array[0][0]->exec();
 }
 
 PEArray::~PEArray()
@@ -208,12 +77,23 @@ PE::PE()
 	input_ports[ALUCONNECTION] = &alu_out;
 	input_ports[NOCONNECTION] = &empty_data;
 
+	//test
+	test0 = 10;
+	test1 = 5;
+	input_ports[PE_INPUT_SOUTH] = &test0;
+	input_ports[PE_INPUT_CONST_A] = &test1;
+	sel_a = 0;
+	sel_b = 6;
+	opcode = 0xB;
 }
 
-// uint32 PE::exec(uint32 inA, uint32 inB)
-// {
-// 	return PE_op_table[opcode](inA, inB);
-// }
+void PE::exec()
+{
+	uint32 inA = *(input_ports[sel_table[sel_a]]);
+	uint32 inB = *(input_ports[sel_table[sel_b]]);
+	alu_out = PE_op_table[opcode](inA, inB);
+	fprintf(stderr, "exec %d\n", alu_out);
+}
 
 uint32 exec_nop(uint32 inA, uint32 inB)
 {
@@ -230,7 +110,7 @@ uint32 exec_sub(uint32 inA, uint32 inB)
 	uint32 tmpA, tmpB;
 	tmpA = inA & CMA_DATA_MASK;
 	tmpB = ~(inB & CMA_DATA_MASK) & CMA_DATA_MASK;
-	return (tmpA + tmpB + 1U);
+	return (tmpA + tmpB + 1U) & CMA_WORD_MASK;
 }
 
 uint32 exec_mult(uint32 inA, uint32 inB)

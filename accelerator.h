@@ -140,10 +140,7 @@ protected:
 
 	virtual void core_step() = 0;
 	virtual void core_reset() = 0;
-	//make submodules and connect them to bus
-	virtual void setup() = 0;
-	//accelerator name
-	virtual const char *accelerator_name() = 0;
+
 
 public:
 	//destructor
@@ -154,6 +151,11 @@ public:
 	void reset();
 
 	void done_signal(bool dma_enable);
+
+	//make submodules and connect them to bus
+	virtual void setup() = 0;
+	//accelerator name
+	virtual const char *accelerator_name() = 0;
 
 	Router* getRouter() { return localRouter; };
 

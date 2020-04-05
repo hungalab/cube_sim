@@ -51,7 +51,6 @@ struct result_stat_t {
 	int len;
 };
 
-class AcceleratorCore;
 class LocalMapper;
 
 namespace CMAComponents {
@@ -62,6 +61,8 @@ namespace CMAComponents {
 		CMAMemoryModule(size_t size, int mask_) : MemoryModule(size), mask(mask_) {};
 
 		void store_word(uint32 offset, uint32 data, DeviceExc *client);
+
+		uint32 *getMemElement() { return (uint32*)address; }
 	};
 
 	class ConfigController {
@@ -94,6 +95,7 @@ namespace CMAComponents {
 	class PE {
 		private:
 			uint32 empty_data = 0;
+			uint32 test0, test1;
 			//inputs
 			/*last 2 for alu and no connection */
 			uint32 *input_ports[PE_INPUT_SIZE + 2];
@@ -111,6 +113,7 @@ namespace CMAComponents {
 
 		public:
 			PE();
+			void exec();
 	};
 
 	class PEArray {
@@ -133,22 +136,22 @@ namespace CMAComponents {
 
 }
 
-class CMACore : public AcceleratorCore {
-private:
-	CMAComponents::ControlReg *ctrl;
-	//ese emulation
-	int count;
-	int context;
-	result_stat_t result_stat[30];
-	int node;
-	CMAComponents::PEArray *pearray;
-public:
-	CMACore(LocalMapper *bus_, SIGNAL_PTR done_signal_,
-			 CMAComponents::ControlReg *ctrl_, int node_);
-	~CMACore();
-	virtual void step();
-	virtual void reset();
-};
+// class CMACore : public AcceleratorCore {
+// private:
+// 	CMAComponents::ControlReg *ctrl;
+// 	//ese emulation
+// 	int count;
+// 	int context;
+// 	result_stat_t result_stat[30];
+// 	int node;
+// 	CMAComponents::PEArray *pearray;
+// public:
+// 	CMACore(LocalMapper *bus_, SIGNAL_PTR done_signal_,
+// 			 CMAComponents::ControlReg *ctrl_, int node_);
+// 	~CMACore();
+// 	virtual void step();
+// 	virtual void reset();
+// };
 
 /* ALU Configuration */
 uint32 exec_nop(uint32 inA, uint32 inB);
@@ -168,7 +171,7 @@ uint32 exec_eql(uint32 inA, uint32 inB);
 uint32 exec_gt(uint32 inA, uint32 inB);
 uint32 exec_lt(uint32 inA, uint32 inB);
 
-uint32 (*PE_op_table[CMA_OP_SIZE])(uint32, uint32) = {
+static uint32 (*PE_op_table[CMA_OP_SIZE])(uint32, uint32) = {
 	exec_nop, exec_add, exec_sub, exec_mult,
 	exec_sl, exec_sr, exec_sra, exec_sel,
 	exec_cat, exec_not, exec_and, exec_or,
