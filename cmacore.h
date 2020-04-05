@@ -6,10 +6,42 @@
 #include "acceleratorcore.h"
 #include "memorymodule.h"
 
+#include <vector>
+
+/* general */
+#define CMA_DATA_MASK		0x1FFFFFF
+#define CMA_WORD_MASK		0xFFFFFF
+#define CMA_CARRY_MASK		0x1000000
+#define CMA_CARYY_LSB		24
+
 /* PE Array */
 #define CMA_PE_ARRAY_WIDTH	12
 #define CMA_PE_ARRAY_HEIGHT	8
 
+/* PE */
+#define CMA_OP_SIZE			16
+#define ALU_SEL_SIZE		8
+#define MAX_SE_CONNECTION	8
+/* index of input ports */
+#define PE_INPUT_SIZE		9
+#define PE_INPUT_NORTH		0
+#define PE_INPUT_SOUTH		1
+#define PE_INPUT_EAST		2
+#define PE_INPUT_WEST		3
+#define PE_INPUT_DL_S		4
+#define PE_INPUT_DL_SE		5
+#define PE_INPUT_DL_SW		6
+#define PE_INPUT_CONST_A	7
+#define PE_INPUT_CONST_B	8
+/* index of output ports */
+#define PE_OUTPUT_SIZE		4
+#define PE_OUTPUT_NORTH		0
+#define PE_OUTPUT_SOUTH		1
+#define PE_OUTPUT_EAST		2
+#define PE_OUTPUT_WEST		3
+
+#define ALUCONNECTION		(PE_INPUT_SIZE)
+#define NOCONNECTION		(PE_INPUT_SIZE + 1)
 
 struct result_stat_t {
 	int result_addr;
@@ -59,13 +91,37 @@ namespace CMAComponents {
 
 	};
 
-	class PEArray {
-
-	};
-
 	class PE {
+		private:
+			uint32 empty_data = 0;
+			//inputs
+			/*last 2 for alu and no connection */
+			uint32 *input_ports[PE_INPUT_SIZE + 2];
 
+			//outputs
+			uint32 *output_ports[PE_OUTPUT_SIZE];
+
+			//result
+			uint32 alu_out;
+
+			//configuration
+			uint8 opcode;
+			uint8 sel_a;
+			uint8 sel_b;
+
+		public:
+			PE();
 	};
+
+	class PEArray {
+		private:
+			int height, width;
+			std::vector<std::vector<CMAComponents::PE*> > array;
+		public:
+			PEArray(int column, int width);
+			~PEArray();
+	};
+
 
 	class LDUnit {
 
@@ -85,12 +141,67 @@ private:
 	int context;
 	result_stat_t result_stat[30];
 	int node;
+	CMAComponents::PEArray *pearray;
 public:
-	CMACore(LocalMapper *bus_, SIGNAL_PTR done_signal_, CMAComponents::ControlReg *ctrl_, int node_)
-		: AcceleratorCore(bus_, done_signal_), ctrl(ctrl_), node(node_) {};
+	CMACore(LocalMapper *bus_, SIGNAL_PTR done_signal_,
+			 CMAComponents::ControlReg *ctrl_, int node_);
+	~CMACore();
 	virtual void step();
 	virtual void reset();
 };
+
+/* ALU Configuration */
+uint32 exec_nop(uint32 inA, uint32 inB);
+uint32 exec_add(uint32 inA, uint32 inB);
+uint32 exec_sub(uint32 inA, uint32 inB);
+uint32 exec_mult(uint32 inA, uint32 inB);
+uint32 exec_sl(uint32 inA, uint32 inB);
+uint32 exec_sr(uint32 inA, uint32 inB);
+uint32 exec_sra(uint32 inA, uint32 inB);
+uint32 exec_sel(uint32 inA, uint32 inB);
+uint32 exec_cat(uint32 inA, uint32 inB);
+uint32 exec_not(uint32 inA, uint32 inB);
+uint32 exec_and(uint32 inA, uint32 inB);
+uint32 exec_or(uint32 inA, uint32 inB);
+uint32 exec_xor(uint32 inA, uint32 inB);
+uint32 exec_eql(uint32 inA, uint32 inB);
+uint32 exec_gt(uint32 inA, uint32 inB);
+uint32 exec_lt(uint32 inA, uint32 inB);
+
+uint32 (*PE_op_table[CMA_OP_SIZE])(uint32, uint32) = {
+	exec_nop, exec_add, exec_sub, exec_mult,
+	exec_sl, exec_sr, exec_sra, exec_sel,
+	exec_cat, exec_not, exec_and, exec_or,
+	exec_xor, exec_eql, exec_gt, exec_lt
+};
+
+/* SEL Configuration */
+static int sel_table[ALU_SEL_SIZE] = {
+	PE_INPUT_SOUTH, PE_INPUT_EAST, PE_INPUT_WEST, PE_INPUT_DL_S,
+	PE_INPUT_DL_SE, PE_INPUT_DL_SW, PE_INPUT_CONST_A, PE_INPUT_CONST_B
+};
+
+/* SE Configuration */
+static int se_table[PE_OUTPUT_SIZE][MAX_SE_CONNECTION] = {
+	/* out north */
+	{	ALUCONNECTION, PE_INPUT_SOUTH, PE_INPUT_EAST, PE_INPUT_WEST,
+		PE_INPUT_DL_S, PE_INPUT_DL_SE, PE_INPUT_DL_SW,
+		PE_INPUT_CONST_A
+	},
+	/* out south */
+	{	ALUCONNECTION, PE_INPUT_NORTH, PE_INPUT_EAST, PE_INPUT_WEST,
+		NOCONNECTION, NOCONNECTION, NOCONNECTION, NOCONNECTION
+	},
+	/* out east */
+	{	ALUCONNECTION, PE_INPUT_SOUTH, PE_INPUT_WEST, PE_INPUT_DL_S, 
+		PE_INPUT_DL_SE, PE_INPUT_DL_SW, NOCONNECTION, NOCONNECTION
+	},
+	/* out west */
+	{	ALUCONNECTION, PE_INPUT_SOUTH, PE_INPUT_EAST, PE_INPUT_DL_S,
+		PE_INPUT_DL_SE, NOCONNECTION, NOCONNECTION, NOCONNECTION
+	}
+};
+
 
 static unsigned int comp_y[345] = {
 	0x2E,0x2F,0x2F,0x2F,0x2F,0x30,0x36,0x3D,0x48,0x61,0x74,0x62,0x59,0x52,0x58,0x65,

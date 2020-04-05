@@ -4,6 +4,18 @@
 
 using namespace CMAComponents;
 
+CMACore::CMACore(LocalMapper *bus_, SIGNAL_PTR done_signal_,
+				ControlReg *ctrl_, int node_)
+		: AcceleratorCore(bus_, done_signal_), ctrl(ctrl_), node(node_)
+{
+	pearray = new PEArray(CMA_PE_ARRAY_HEIGHT, CMA_PE_ARRAY_WIDTH);
+};
+
+CMACore::~CMACore()
+{
+	delete pearray;
+}
+
 void CMAMemoryModule::store_word(uint32 offset, uint32 data, DeviceExc *client)
 {
 	uint32 *werd;
@@ -171,3 +183,165 @@ void CMACore::reset()
 #endif
 
 }
+
+PEArray::PEArray(int height_, int width_) : height(height_), width(width_)
+{
+	array.resize(height);
+	for (int i = 0; i < height; i++) {
+		array[i].reserve(width);
+		for (int j = 0; j < width; j++) {
+			array[i].emplace_back(new PE());
+		}
+	}
+	//array.assign(width, std::vector<PE>(column));
+	//fprintf(stderr, "%X\n", array[0][0]->exec_add(2, 3));
+}
+
+PEArray::~PEArray()
+{
+	std::vector<std::vector<CMAComponents::PE*> >().swap(array);
+}
+
+PE::PE()
+{
+	// dummy connection
+	input_ports[ALUCONNECTION] = &alu_out;
+	input_ports[NOCONNECTION] = &empty_data;
+
+}
+
+// uint32 PE::exec(uint32 inA, uint32 inB)
+// {
+// 	return PE_op_table[opcode](inA, inB);
+// }
+
+uint32 exec_nop(uint32 inA, uint32 inB)
+{
+	return 0;
+}
+
+uint32 exec_add(uint32 inA, uint32 inB)
+{
+	return CMA_DATA_MASK & (inA + inB);
+}
+
+uint32 exec_sub(uint32 inA, uint32 inB)
+{
+	uint32 tmpA, tmpB;
+	tmpA = inA & CMA_DATA_MASK;
+	tmpB = ~(inB & CMA_DATA_MASK) & CMA_DATA_MASK;
+	return (tmpA + tmpB + 1U);
+}
+
+uint32 exec_mult(uint32 inA, uint32 inB)
+{
+	uint32 tmpA = inA & CMA_WORD_MASK;
+	uint32 carryA = inA & CMA_CARRY_MASK;
+	uint32 tmpB = inB & CMA_WORD_MASK;
+	uint32 carryB = inB & CMA_CARRY_MASK;
+	return (carryA ^ carryB) | ((tmpA * tmpB) & CMA_WORD_MASK);
+}
+
+uint32 exec_sl(uint32 inA, uint32 inB)
+{
+	return CMA_DATA_MASK & (inA << inB);
+}
+
+uint32 exec_sr(uint32 inA, uint32 inB)
+{
+	return CMA_DATA_MASK & (inA >> inB);
+}
+
+uint32 exec_sra(uint32 inA, uint32 inB)
+{
+	uint32 carryA = inA & CMA_CARRY_MASK;
+	uint32 tmp;
+	if (carryA != 0) {
+		if (inB > CMA_CARYY_LSB) {
+			return 0;
+		} else {
+			tmp = inA >> inB;
+			//make upper bits
+			tmp |= ((1 << inB) -1) << (CMA_CARYY_LSB - inB);
+			return tmp | (1 << CMA_CARYY_LSB);
+		}
+	} else {
+		return exec_sr(inA, inB);
+	}
+}
+
+uint32 exec_sel(uint32 inA, uint32 inB)
+{
+	uint32 carryA = inA & CMA_CARRY_MASK;
+	if (carryA == 0) {
+		return inA;
+	} else {
+		return inB;
+	}
+}
+
+uint32 exec_cat(uint32 inA, uint32 inB)
+{
+	return inA;
+}
+
+uint32 exec_not(uint32 inA, uint32 inB)
+{
+	return ~inA;
+}
+
+uint32 exec_and(uint32 inA, uint32 inB)
+{
+	return inA & inB;
+}
+
+uint32 exec_or(uint32 inA, uint32 inB)
+{
+	return inA | inB;
+}
+
+uint32 exec_xor(uint32 inA, uint32 inB)
+{
+	return inA ^ inB;
+}
+
+uint32 exec_eql(uint32 inA, uint32 inB)
+{
+	uint32 tmpA = inA & CMA_WORD_MASK;
+	uint32 tmpB = inB & CMA_WORD_MASK;
+	if (tmpA == tmpB) {
+		return (1 << CMA_CARYY_LSB) | tmpA;
+	} else {
+		return 0;
+	}
+}
+
+uint32 exec_gt(uint32 inA, uint32 inB)
+{
+	//exec inA > inB
+	uint32 tmpA = inA & CMA_WORD_MASK;
+	bool carryA = (inA & CMA_CARRY_MASK) != 0;
+	uint32 tmpB = inB & CMA_WORD_MASK;
+	bool carryB = (inB & CMA_CARRY_MASK) != 0;
+
+	if (((not carryA & not carryB) & (tmpA > tmpB)) | 
+		(not carryA & carryB) |
+		((carryA & carryB) & (tmpA < tmpB))) {
+		return 1 << CMA_CARYY_LSB;
+	} else {
+		return 0;
+	}
+
+}
+
+uint32 exec_lt(uint32 inA, uint32 inB)
+{
+	//exec inA <= inB
+	uint32 tmp = exec_gt(inA, inB);
+	if (tmp != 0) {
+		return 0;
+	} else {
+		return 1 << CMA_CARYY_LSB;
+	}
+}
+
