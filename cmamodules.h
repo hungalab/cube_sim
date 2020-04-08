@@ -98,9 +98,9 @@ namespace CMAComponents {
 			uint32 test0, test1;
 			//inputs
 			/*last 2 for alu and no connection */
-			uint32 *input_ports[PE_INPUT_SIZE + 2];
+			uint32 *input_ports[PE_INPUT_SIZE + 2] = {&empty_data};
 
-			//outputs
+			//outputs (configurable)
 			uint32 *output_ports[PE_OUTPUT_SIZE];
 
 			//result
@@ -112,17 +112,24 @@ namespace CMAComponents {
 			uint8 sel_b;
 
 		public:
+			//constructor
 			PE();
+			PE(uint32 *const_a, uint32 *const_b);
+
+			void connect(int input_dir, PE *src_PE);
+			void connect(int input_dir, uint32* regmod);
 			void exec();
 	};
 
 	class PEArray {
 		private:
 			int height, width;
+			uint32 *gather_reg, *launch_reg;
 			std::vector<std::vector<CMAComponents::PE*> > array;
 		public:
-			PEArray(int column, int width);
+			PEArray(int height_, int width_, uint32 *creg);
 			~PEArray();
+			void test(int x, int y) { array[y][x]->exec(); }
 	};
 
 
@@ -204,6 +211,18 @@ static int se_table[PE_OUTPUT_SIZE][MAX_SE_CONNECTION] = {
 		PE_INPUT_DL_SE, NOCONNECTION, NOCONNECTION, NOCONNECTION
 	}
 };
+
+static int input_output_pair[PE_INPUT_SIZE] = {
+	PE_OUTPUT_SOUTH,	// connect to INPUT_NORTH
+	PE_OUTPUT_NORTH,	// connect to INPUT_SOUTH
+	PE_OUTPUT_WEST,		// connect to INPUT_EAST
+	PE_OUTPUT_EAST, 	// connect to INPUT_WEST
+	ALUCONNECTION,		// connect to INPUT_DL_S
+	ALUCONNECTION,		// connect to INPUT_DL_SE
+	ALUCONNECTION,		// connect to INPUT_DL_SW
+	NOCONNECTION,		// connect to INPUT_CONST_A
+	NOCONNECTION		// connect to INPUT_CONST_B
+}
 
 
 static unsigned int comp_y[345] = {

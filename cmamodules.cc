@@ -54,16 +54,29 @@ uint32 ControlReg::fetch_word(uint32 offset, int mode, DeviceExc *client)
 
 
 
-PEArray::PEArray(int height_, int width_) : height(height_), width(width_)
+PEArray::PEArray(int height_, int width_, uint32 *creg) :
+	height(height_), width(width_)
 {
+	gather_reg = new uint32[width];
+	launch_reg = new uint32[width];
 	array.resize(height);
-	for (int i = 0; i < height; i++) {
-		array[i].reserve(width);
-		for (int j = 0; j < width; j++) {
-			array[i].emplace_back(new PE());
+	for (int y = 0; y < height; y++) {
+		array[y].reserve(width);
+		for (int x = 0; x < width; x++) {
+			array[y].emplace_back(new PE(&creg[y], &creg[y+height]));
+			if (y == 0) {
+				// connect to launch/gather regs
+
+			} else {
+				// connect to lower PEs ()
+
+				if (y < (height - 1)) {
+					//connect to upper PE
+				}
+			}
 		}
 	}
-	array[0][0]->exec();
+
 }
 
 PEArray::~PEArray()
@@ -75,16 +88,33 @@ PE::PE()
 {
 	// dummy connection
 	input_ports[ALUCONNECTION] = &alu_out;
-	input_ports[NOCONNECTION] = &empty_data;
 
 	//test
 	test0 = 10;
-	test1 = 5;
+	//test1 = 5;
 	input_ports[PE_INPUT_SOUTH] = &test0;
-	input_ports[PE_INPUT_CONST_A] = &test1;
+	//input_ports[PE_INPUT_CONST_A] = &test1;
 	sel_a = 0;
 	sel_b = 6;
-	opcode = 0xB;
+	opcode = 0x1;
+}
+
+//init with two const regs
+PE::PE(uint32 *const_a, uint32 *const_b) : PE()
+{
+	input_ports[PE_INPUT_CONST_A] = const_a;
+	input_ports[PE_INPUT_CONST_B] = const_b;
+}
+
+
+void PE::connect(int input_dir, PE *src_PE)
+{
+
+}
+
+void PE::connect(int input_dir, uint32* regmod)
+{
+
 }
 
 void PE::exec()
