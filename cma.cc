@@ -13,8 +13,9 @@ CMA::CMA(uint32 node_ID, Router* upperRouter)
 	st_tbl = new CMAMemoryModule(CMA_ST_TABLE_SIZE, CMA_TABLE_WORD_MASK);
 	ctrl_reg = new ControlReg();
 
-	pearray = new PEArray(CMA_PE_ARRAY_HEIGHT, CMA_PE_ARRAY_WIDTH,
-							const_reg->getMemElement() );
+	pearray = new CCSOTB2::CCSOTB2_PEArray(CMA_PE_ARRAY_HEIGHT,
+											CMA_PE_ARRAY_WIDTH,
+											const_reg->getMemElement());
 	node = node_ID;
 }
 
@@ -41,6 +42,6 @@ void CMA::setup()
 
 	localBus->store_word(CMA_CONST_ADDR, 3);
 	localBus->store_word(CMA_CONST_ADDR+4, 4);
-	pearray->test(0, 0);
-	pearray->test(0, 1);
+	// pearray->test(0, 0);
+	// pearray->test(0, 1);
 }

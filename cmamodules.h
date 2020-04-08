@@ -7,6 +7,7 @@
 #include "memorymodule.h"
 
 #include <vector>
+#include <queue>
 
 /* general */
 #define CMA_DATA_MASK		0x1FFFFFF
@@ -40,8 +41,6 @@
 #define PE_OUTPUT_EAST		2
 #define PE_OUTPUT_WEST		3
 
-#define ALUCONNECTION		(PE_INPUT_SIZE)
-#define NOCONNECTION		(PE_INPUT_SIZE + 1)
 
 struct result_stat_t {
 	int result_addr;
@@ -50,6 +49,7 @@ struct result_stat_t {
 	int wait;
 	int len;
 };
+
 
 class LocalMapper;
 
@@ -92,44 +92,94 @@ namespace CMAComponents {
 
 	};
 
-	class PE {
-		private:
-			uint32 empty_data = 0;
-			uint32 test0, test1;
-			//inputs
-			/*last 2 for alu and no connection */
-			uint32 *input_ports[PE_INPUT_SIZE + 2] = {&empty_data};
-
-			//outputs (configurable)
-			uint32 *output_ports[PE_OUTPUT_SIZE];
-
-			//result
-			uint32 alu_out;
-
-			//configuration
-			uint8 opcode;
-			uint8 sel_a;
-			uint8 sel_b;
+	class PENodeBase {
+		protected:
+			std::vector<CMAComponents::PENodeBase*> predecessors;
+			std::queue<uint32> obuf;
 
 		public:
-			//constructor
-			PE();
-			PE(uint32 *const_a, uint32 *const_b);
+			PENodeBase();
+			~PENodeBase();
+			void connect(CMAComponents::PENodeBase* pred);
+			virtual void exec() = 0;
+			virtual bool isTerminal() { return false; };
+			virtual uint32 getData() {
+				return obuf.empty() ? 0 : obuf.front();
+			};
+			virtual void test() { fprintf(stderr, "in %lu\n", predecessors.size()); };
+	};
 
-			void connect(int input_dir, PE *src_PE);
-			void connect(int input_dir, uint32* regmod);
+	class MUX : public PENodeBase {
+		private:
+			uint32 config_data = 0;
+		public:
+			void exec();
+			void config(uint32 data);
+	};
+
+	class ALU : public PENodeBase {
+		private:
+			uint32 opcode = 0;
+		public:
+			void exec();
+			void config(uint32 data);
+	};
+
+	class PREG : public PENodeBase {
+		private:
+			bool activated = false;
+			uint32 latch = 0;
+		public:
+			void exec();
+			void activate() { activated = true; };
+			void deactivate() { activated = false; };
+			virtual bool isTerminal() { return activated; };
+	};
+
+	class ConstReg : public PENodeBase {
+		private:
+			uint32* const_reg_ptr;
+		public:
+			ConstReg(uint32 *const_element) :
+				const_reg_ptr(const_element) {};
 			void exec();
 	};
 
-	class PEArray {
-		private:
-			int height, width;
-			uint32 *gather_reg, *launch_reg;
-			std::vector<std::vector<CMAComponents::PE*> > array;
+	class MemLoadUnit : public PENodeBase {
 		public:
-			PEArray(int height_, int width_, uint32 *creg);
+			void exec();
+			void launch(uint32 data) { obuf.push(data); };
+	};
+
+	class MemStoreUnit : public PENodeBase {
+		public:
+			void exec();
+			uint32 gather();
+	};
+
+	class PEArray {
+		protected:
+			int height, width;
+			CMAComponents::ALU ***alus;
+			CMAComponents::MUX ****alu_sels;
+			CMAComponents::MUX *****channels;
+			CMAComponents::ConstReg **cregs;
+			CMAComponents::PREG **pregs;
+			CMAComponents::MemLoadUnit **launch_regs;
+			CMAComponents::MemStoreUnit **gather_regs;
+
+			void make_ALUs();
+			void make_SEs(int se_count, int channel_size);
+			void make_const_regs(uint32 *creg);
+			void make_pregs();
+			void make_memports();
+			virtual void make_connection() = 0;
+
+		public:
+			PEArray(int height_, int width_, uint32 *creg, bool preg_en,
+					 int se_count = 2, int se_channels = 4);
 			~PEArray();
-			void test(int x, int y) { array[y][x]->exec(); }
+
 	};
 
 
@@ -140,6 +190,49 @@ namespace CMAComponents {
 	class STUnit {
 
 	};
+
+	namespace CCSOTB2 {
+		static int SE_NORTH	= 0;
+		static int SE_SOUTH	= 1;
+		static int SE_EAST	= 2;
+		static int SE_WEST	= 3;
+		static int DL_S		= 4;
+		static int DL_SE	= 5;
+		static int DL_SW	= 6;
+
+		static int OPPOSITE_CHANNEL[4] = {
+			1, 0, 3, 2
+		};
+
+		static int CONNECT_COORD[7][2] = {
+			{0, 1}, {0, -1}, {-1, 0}, {1, 1},
+			{0, -1}, {-1, -1}, {1, -1}
+		};
+
+
+		class CCSOTB2_PEArray : public CMAComponents::PEArray {
+			private:
+				void make_connection();
+			public:
+				CCSOTB2_PEArray(int height_, int width_, uint32 *creg,
+								 int se_count = 2, int se_channels = 4)
+								 : PEArray(height_, width_, creg,
+								 		true, se_count, se_channels) {
+						make_connection();
+
+	fprintf(stderr, "SEL ");
+	alu_sels[0][0][0]->test();
+	fprintf(stderr, "OUT NORTH ");
+	channels[0][0][0][0]->test();
+	fprintf(stderr, "OUT SOUTH ");
+	channels[0][0][0][1]->test();
+	fprintf(stderr, "OUT EAST ");
+	channels[0][0][0][2]->test();
+	fprintf(stderr, "OUT WEST ");
+	channels[0][0][0][3]->test();
+										 };
+		};
+	}
 
 }
 
@@ -185,44 +278,6 @@ static uint32 (*PE_op_table[CMA_OP_SIZE])(uint32, uint32) = {
 	exec_xor, exec_eql, exec_gt, exec_lt
 };
 
-/* SEL Configuration */
-static int sel_table[ALU_SEL_SIZE] = {
-	PE_INPUT_SOUTH, PE_INPUT_EAST, PE_INPUT_WEST, PE_INPUT_DL_S,
-	PE_INPUT_DL_SE, PE_INPUT_DL_SW, PE_INPUT_CONST_A, PE_INPUT_CONST_B
-};
-
-/* SE Configuration */
-static int se_table[PE_OUTPUT_SIZE][MAX_SE_CONNECTION] = {
-	/* out north */
-	{	ALUCONNECTION, PE_INPUT_SOUTH, PE_INPUT_EAST, PE_INPUT_WEST,
-		PE_INPUT_DL_S, PE_INPUT_DL_SE, PE_INPUT_DL_SW,
-		PE_INPUT_CONST_A
-	},
-	/* out south */
-	{	ALUCONNECTION, PE_INPUT_NORTH, PE_INPUT_EAST, PE_INPUT_WEST,
-		NOCONNECTION, NOCONNECTION, NOCONNECTION, NOCONNECTION
-	},
-	/* out east */
-	{	ALUCONNECTION, PE_INPUT_SOUTH, PE_INPUT_WEST, PE_INPUT_DL_S, 
-		PE_INPUT_DL_SE, PE_INPUT_DL_SW, NOCONNECTION, NOCONNECTION
-	},
-	/* out west */
-	{	ALUCONNECTION, PE_INPUT_SOUTH, PE_INPUT_EAST, PE_INPUT_DL_S,
-		PE_INPUT_DL_SE, NOCONNECTION, NOCONNECTION, NOCONNECTION
-	}
-};
-
-static int input_output_pair[PE_INPUT_SIZE] = {
-	PE_OUTPUT_SOUTH,	// connect to INPUT_NORTH
-	PE_OUTPUT_NORTH,	// connect to INPUT_SOUTH
-	PE_OUTPUT_WEST,		// connect to INPUT_EAST
-	PE_OUTPUT_EAST, 	// connect to INPUT_WEST
-	ALUCONNECTION,		// connect to INPUT_DL_S
-	ALUCONNECTION,		// connect to INPUT_DL_SE
-	ALUCONNECTION,		// connect to INPUT_DL_SW
-	NOCONNECTION,		// connect to INPUT_CONST_A
-	NOCONNECTION		// connect to INPUT_CONST_B
-}
 
 
 static unsigned int comp_y[345] = {
