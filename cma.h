@@ -15,7 +15,8 @@ class LocalMapper;
 
 class CMA : public CubeAccelerator {
 private:
-	CMAComponents::CMAMemoryModule *dmem_front, *dmem_back, *imem, *const_reg;
+	CMAComponents::CMAMemoryModule *dmem_front, *dmem_back, *imem;
+	CMAComponents::ConstRegController *const_reg;
 	CMAComponents::CMAMemoryModule *ld_tbl, *st_tbl;
 	CMAComponents::ConfigController *confCtrl;
 	CMAComponents::PEArray *pearray;

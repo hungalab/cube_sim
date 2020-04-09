@@ -25,6 +25,17 @@ void CMAMemoryModule::store_word(uint32 offset, uint32 data, DeviceExc *client)
 	*werd = data & mask;
 }
 
+
+uint32 ConstRegController::fetch_word(uint32 offset, int mode, DeviceExc *client)
+{
+	return pearray->load_const(offset);
+}
+
+void ConstRegController::store_word(uint32 offset, uint32 data, DeviceExc *client)
+{
+	pearray->store_const(offset, data);
+}
+
 ConfigController::ConfigController(LocalMapper *bus)
 {
 	rmc_alu = new Range (0, CMA_ALU_RMC_SIZE, 0, MEM_READ_WRITE);
@@ -52,19 +63,17 @@ uint32 ControlReg::fetch_word(uint32 offset, int mode, DeviceExc *client)
 }
 
 
-PEArray::PEArray(int height_, int width_, uint32 *creg, bool preg_en,
+PEArray::PEArray(int height_, int width_, bool preg_en,
 					int se_count, int se_channels) :
 	height(height_), width(width_)
 {
 	make_ALUs();
 	make_SEs(se_count, se_channels);
-	make_const_regs(creg);
+	make_const_regs();
 	if (preg_en) {
 		make_pregs();
 	}
 	make_memports();
-	fprintf(stderr, "ALU in ");
-	alus[0][0]->test();
 }
 
 PEArray::~PEArray()
@@ -93,6 +102,17 @@ void PEArray::make_ALUs()
 			alu_sels[x][y][1] = new MUX();
 			alus[x][y]->connect(alu_sels[x][y][0]);
 			alus[x][y]->connect(alu_sels[x][y][1]);
+
+			//Debug
+			debug_str[alus[x][y]] = std::string("ALU_") + 
+										std::to_string(x) + 
+										std::string("_") + std::to_string(y);
+			debug_str[alu_sels[x][y][0]] = std::string("SEL_A_") + 
+										std::to_string(x) + 
+										std::string("_") + std::to_string(y);
+			debug_str[alu_sels[x][y][1]] = std::string("SEL_B_") + 
+										std::to_string(x) + 
+										std::string("_") + std::to_string(y);
 		}
 	}
 }
@@ -109,16 +129,29 @@ void PEArray::make_SEs(int se_count, int channel_size)
 				for (int ch = 0; ch < channel_size; ch++) {
 					channels[x][y][se][ch] = new MUX();
 				}
+				//Debug
+				debug_str[channels[x][y][0][0]] = std::string("OUT_NORTH") + 
+										std::to_string(x) + 
+										std::string("_") + std::to_string(y);
+				debug_str[channels[x][y][0][1]] = std::string("OUT_SOUTH") + 
+										std::to_string(x) + 
+										std::string("_") + std::to_string(y);
+				debug_str[channels[x][y][0][2]] = std::string("OUT_EAST") + 
+										std::to_string(x) + 
+										std::string("_") + std::to_string(y);
+				debug_str[channels[x][y][0][3]] = std::string("OUT_WEST") + 
+										std::to_string(x) + 
+										std::string("_") + std::to_string(y);
 			}
 		}
 	}
 }
 
-void PEArray::make_const_regs(uint32 *creg)
+void PEArray::make_const_regs()
 {
 	cregs = new ConstReg*[height * 2];
 	for (int i = 0; i < height * 2; i++) {
-		cregs[i] = new ConstReg(&creg[i]);
+		cregs[i] = new ConstReg();
 	}
 }
 
@@ -140,6 +173,24 @@ void PEArray::make_memports()
 	}
 }
 
+uint32 PEArray::load_const(uint32 addr)
+{
+	uint32 index = addr >> 2;
+	if (index > height * 2) {
+		return 0;
+	} else {
+		return cregs[index]->getData();
+	}
+}
+
+void PEArray::store_const(uint32 addr, uint32 data)
+{
+	uint32 index = addr >> 2;
+	if (index < height * 2) {
+		cregs[index]->writeData(data);
+	}
+}
+
 void CCSOTB2::CCSOTB2_PEArray::make_connection()
 {
 	using namespace CCSOTB2;
@@ -154,6 +205,9 @@ void CCSOTB2::CCSOTB2_PEArray::make_connection()
 					(pred_y >= 0 && pred_y < height)) {
 					alu_sels[x][y][0]->connect(channels[pred_x][pred_y][0][OPPOSITE_CHANNEL[ch]]);
 					alu_sels[x][y][1]->connect(channels[pred_x][pred_y][0][OPPOSITE_CHANNEL[ch]]);
+				} else if (ch == SE_SOUTH) {
+					alu_sels[x][y][0]->connect(launch_regs[x]);
+					alu_sels[x][y][1]->connect(launch_regs[x]);
 				} else {
 					alu_sels[x][y][0]->connect(NULL);
 					alu_sels[x][y][1]->connect(NULL);
@@ -187,7 +241,7 @@ void CCSOTB2::CCSOTB2_PEArray::make_connection()
 			if (y > 0) {
 				node_ptr = channels[x][y-1][0][SE_SOUTH];
 			} else {
-				node_ptr = NULL;
+				node_ptr = launch_regs[x];
 			}
 			channels[x][y][0][SE_NORTH]->connect(node_ptr);
 			channels[x][y][0][SE_EAST]->connect(node_ptr);
@@ -242,7 +296,7 @@ void CCSOTB2::CCSOTB2_PEArray::make_connection()
 			channels[x][y][0][SE_WEST]->connect(node_ptr);
 
 			// from southwest (DL)
-			if (y > 0 && x > 0) {
+			if (y > 0 && x < width - 1) {
 				node_ptr = alus[x+1][y-1];
 			} else {
 				node_ptr = NULL;
@@ -253,8 +307,33 @@ void CCSOTB2::CCSOTB2_PEArray::make_connection()
 			// const to SE
 			channels[x][y][0][SE_NORTH]->connect(pregs[y]);
 		}
+		gather_regs[x]->connect(channels[x][0][0][SE_NORTH]);
 	}
 }
+
+
+BFSQueue::~BFSQueue()
+{
+	std::queue<PENodeBase*> empty;
+	std::swap(nodeQueue, empty);
+	added.clear();
+}
+
+void BFSQueue::push(PENodeBase* node)
+{
+	if (added.count(node) == 0) {
+		nodeQueue.push(node);
+		added[node] = true;
+	}
+}
+
+PENodeBase* BFSQueue::pop()
+{
+	PENodeBase* ret = nodeQueue.front();
+	nodeQueue.pop();
+	return ret;
+}
+
 
 PENodeBase::PENodeBase()
 {
@@ -265,11 +344,28 @@ PENodeBase::~PENodeBase()
 {
 	//erase
 	std::vector<PENodeBase*>().swap(predecessors);
+	std::vector<PENodeBase*>().swap(successors);
 }
 
+void PENodeBase::add_successors(BFSQueue* q)
+{
+	for (int i = 0; i < successors.size(); i++) {
+		if (successors[i] != NULL) {
+			if (successors[i]->isUse(this)) {
+				q->push(successors[i]);
+				if (debug_str.count(successors[i]) > 0) {
+					fprintf(stderr, "\t->%s\n", debug_str[successors[i]].c_str());
+				}
+			}
+		}
+	}
+}
 void PENodeBase::connect(PENodeBase* pred)
 {
 	predecessors.push_back(pred);
+	if (pred != NULL) {
+		pred->successors.push_back(this);
+	}
 }
 
 void MUX::exec()
@@ -284,12 +380,23 @@ void MUX::config(uint32 data)
 	}//otherwise: out of range
 }
 
+bool MUX::isUse(PENodeBase* pred)
+{
+	return predecessors[config_data] == pred;
+}
+
 void ALU::exec()
 {
 	uint32 inA, inB;
 	inA = predecessors[0]->getData();
 	inB = predecessors[1]->getData();
 	obuf.push(PE_op_table[opcode](inA, inB));
+	fprintf(stderr, "ALU in %x, %x out %x\n", inA, inB, obuf.front());
+}
+
+bool ALU::isUse(PENodeBase* pred)
+{
+	return opcode != 0;
 }
 
 void ALU::config(uint32 data)
@@ -309,15 +416,27 @@ void PREG::exec()
 	}
 }
 
-void ConstReg::exec()
-{
-	obuf.push(*const_reg_ptr);
-}
+uint32 ConstReg::getData() { 
+#if CMA_CONST_MASK == CMA_WORD_MASK
+	return const_data;
+#elif CMA_CONST_MASK < CMA_DATA_MASK
+	//need sing extension
+	if (const_data > (CMA_CONST_MASK >> 1)) {
+		//negative value
+		return (CMA_DATA_MASK ^ CMA_CONST_MASK) | const_data;
+	} else {
+		//positive value
+		return const_data;
+	}
+#else
+#error invalid const mask for CMA
+#endif
+};
 
-void MemLoadUnit::exec()
-{
-	obuf.push(predecessors[0]->getData());
-}
+void ConstReg::writeData(uint32 data) {
+	const_data = data & CMA_CONST_MASK;
+};
+
 
 void MemStoreUnit::exec()
 {

@@ -9,11 +9,17 @@
 #include <vector>
 #include <queue>
 
+/*for debug */
+#include <map>
+#include <string>
+
 /* general */
 #define CMA_DATA_MASK		0x1FFFFFF
-#define CMA_WORD_MASK		0xFFFFFF
+#define CMA_WORD_MASK		0x1FFFFFF
+#define CMA_CONST_MASK		0x001FFFF
 #define CMA_CARRY_MASK		0x1000000
 #define CMA_CARYY_LSB		24
+
 
 /* PE Array */
 #define CMA_PE_ARRAY_WIDTH	12
@@ -21,26 +27,6 @@
 
 /* PE */
 #define CMA_OP_SIZE			16
-#define ALU_SEL_SIZE		8
-#define MAX_SE_CONNECTION	8
-/* index of input ports */
-#define PE_INPUT_SIZE		9
-#define PE_INPUT_NORTH		0
-#define PE_INPUT_SOUTH		1
-#define PE_INPUT_EAST		2
-#define PE_INPUT_WEST		3
-#define PE_INPUT_DL_S		4
-#define PE_INPUT_DL_SE		5
-#define PE_INPUT_DL_SW		6
-#define PE_INPUT_CONST_A	7
-#define PE_INPUT_CONST_B	8
-/* index of output ports */
-#define PE_OUTPUT_SIZE		4
-#define PE_OUTPUT_NORTH		0
-#define PE_OUTPUT_SOUTH		1
-#define PE_OUTPUT_EAST		2
-#define PE_OUTPUT_WEST		3
-
 
 struct result_stat_t {
 	int result_addr;
@@ -54,6 +40,9 @@ struct result_stat_t {
 class LocalMapper;
 
 namespace CMAComponents {
+	class PEArray;
+	class PENodeBase;
+
 	class CMAMemoryModule : public MemoryModule {
 		int mask;
 	public:
@@ -63,6 +52,18 @@ namespace CMAComponents {
 		void store_word(uint32 offset, uint32 data, DeviceExc *client);
 
 		uint32 *getMemElement() { return (uint32*)address; }
+	};
+
+	class ConstRegController : public Range {
+		private:
+			PEArray *pearray;
+			int mask;
+		public:
+			ConstRegController(size_t size, PEArray *pearray_) :
+				 Range (0, size, 0, MEM_READ_WRITE),
+				pearray(pearray_) {};
+			void store_word(uint32 offset, uint32 data, DeviceExc *client);
+			uint32 fetch_word(uint32 offset, int mode, DeviceExc *client);
 	};
 
 	class ConfigController {
@@ -92,9 +93,23 @@ namespace CMAComponents {
 
 	};
 
+	class BFSQueue {
+		private:
+			std::queue<PENodeBase*> nodeQueue;
+			std::map<PENodeBase*, bool> added;
+		public:
+			~BFSQueue();
+			void push(PENodeBase* node);
+			PENodeBase* pop();
+			bool empty() { return nodeQueue.empty(); };
+	};
+
+	static std::map <PENodeBase*, std::string> debug_str;
+
 	class PENodeBase {
 		protected:
 			std::vector<CMAComponents::PENodeBase*> predecessors;
+			std::vector<CMAComponents::PENodeBase*> successors;
 			std::queue<uint32> obuf;
 
 		public:
@@ -103,17 +118,20 @@ namespace CMAComponents {
 			void connect(CMAComponents::PENodeBase* pred);
 			virtual void exec() = 0;
 			virtual bool isTerminal() { return false; };
+			virtual bool isUse(CMAComponents::PENodeBase* pred) = 0;
 			virtual uint32 getData() {
 				return obuf.empty() ? 0 : obuf.front();
 			};
-			virtual void test() { fprintf(stderr, "in %lu\n", predecessors.size()); };
+
+			virtual void add_successors(BFSQueue* q);
 	};
 
 	class MUX : public PENodeBase {
 		private:
-			uint32 config_data = 0;
+			uint32 config_data = 1;
 		public:
 			void exec();
+			bool isUse(CMAComponents::PENodeBase* pred);
 			void config(uint32 data);
 	};
 
@@ -122,6 +140,7 @@ namespace CMAComponents {
 			uint32 opcode = 0;
 		public:
 			void exec();
+			bool isUse(CMAComponents::PENodeBase* pred);
 			void config(uint32 data);
 	};
 
@@ -131,6 +150,7 @@ namespace CMAComponents {
 			uint32 latch = 0;
 		public:
 			void exec();
+			bool isUse(CMAComponents::PENodeBase* pred) { return true; };
 			void activate() { activated = true; };
 			void deactivate() { activated = false; };
 			virtual bool isTerminal() { return activated; };
@@ -138,23 +158,26 @@ namespace CMAComponents {
 
 	class ConstReg : public PENodeBase {
 		private:
-			uint32* const_reg_ptr;
+			uint32 const_data = 0;
 		public:
-			ConstReg(uint32 *const_element) :
-				const_reg_ptr(const_element) {};
-			void exec();
+			uint32 getData();
+			void writeData(uint32 data);
+			void exec() {}; //nothing to do
+			bool isUse(CMAComponents::PENodeBase* pred) { return false; };
 	};
 
 	class MemLoadUnit : public PENodeBase {
 		public:
-			void exec();
+			void exec() {};
 			void launch(uint32 data) { obuf.push(data); };
+			bool isUse(CMAComponents::PENodeBase* pred) { return false; };
 	};
 
 	class MemStoreUnit : public PENodeBase {
 		public:
 			void exec();
 			uint32 gather();
+			bool isUse(CMAComponents::PENodeBase* pred) { return true; };
 	};
 
 	class PEArray {
@@ -168,17 +191,49 @@ namespace CMAComponents {
 			CMAComponents::MemLoadUnit **launch_regs;
 			CMAComponents::MemStoreUnit **gather_regs;
 
+
+			//member funcs
+			// for build PE array
 			void make_ALUs();
 			void make_SEs(int se_count, int channel_size);
-			void make_const_regs(uint32 *creg);
+			void make_const_regs();
 			void make_pregs();
 			void make_memports();
 			virtual void make_connection() = 0;
 
+
 		public:
-			PEArray(int height_, int width_, uint32 *creg, bool preg_en,
+			PEArray(int height_, int width_, bool preg_en,
 					 int se_count = 2, int se_channels = 4);
 			~PEArray();
+
+			// for configuration
+			uint32 load_const(uint32 addr);
+			void store_const(uint32 addr, uint32 data);
+
+
+			virtual void test() {
+				alus[0][0]->config(1); //addd
+				alu_sels[0][0][0]->config(0); //from south
+				alu_sels[0][0][1]->config(6); //from const A
+				launch_regs[0]->launch(10);
+
+				BFSQueue q;
+				q.push(launch_regs[0]);
+				q.push(cregs[0]);
+
+				int cnt = 0;
+				do {
+					PENodeBase* p = q.pop();
+					if (debug_str.count(p) > 0) {
+						fprintf(stderr, "%s\n", debug_str[p].c_str());
+					}
+					p->exec();
+
+					p->add_successors(&q);
+				} while (!q.empty());
+
+			}
 
 	};
 
@@ -214,23 +269,12 @@ namespace CMAComponents {
 			private:
 				void make_connection();
 			public:
-				CCSOTB2_PEArray(int height_, int width_, uint32 *creg,
+				CCSOTB2_PEArray(int height_, int width_,
 								 int se_count = 2, int se_channels = 4)
-								 : PEArray(height_, width_, creg,
+								 : PEArray(height_, width_,
 								 		true, se_count, se_channels) {
-						make_connection();
-
-	fprintf(stderr, "SEL ");
-	alu_sels[0][0][0]->test();
-	fprintf(stderr, "OUT NORTH ");
-	channels[0][0][0][0]->test();
-	fprintf(stderr, "OUT SOUTH ");
-	channels[0][0][0][1]->test();
-	fprintf(stderr, "OUT EAST ");
-	channels[0][0][0][2]->test();
-	fprintf(stderr, "OUT WEST ");
-	channels[0][0][0][3]->test();
-										 };
+					make_connection();
+				};
 		};
 	}
 
