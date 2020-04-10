@@ -8,18 +8,59 @@
 
 #include <vector>
 #include <queue>
+#include <map>
 
 /*for debug */
-#include <map>
 #include <string>
 
-/* general */
-#define CMA_DATA_MASK		0x1FFFFFF
-#define CMA_WORD_MASK		0x1FFFFFF
-#define CMA_CONST_MASK		0x001FFFF
+/* word size */
+#define CMA_DWORD_MASK 		0x1FFFFFF	//25bit
 #define CMA_CARRY_MASK		0x1000000
+#define CMA_DATA_MASK		(CMA_DWORD_MASK ^ CMA_CARRY_MASK)
 #define CMA_CARYY_LSB		24
+#define CMA_CONST_MASK		0x001FFFF	//17bit
+#define CMA_IWORD_MASK		0xFFFF		//16bit
+#define CMA_TABLE_WORD_MASK	0xFFFFFF	//24bit
+#define CMA_ALU_RMC_MASK	0x3FFFFFFF	//30bit (8bit row, 12bit col, 10bit conf)
+#define CMA_SE_RMC_MASK		0x3FFFFFFF	//30bit (8bit row, 12bit col, 10bit conf)
+#define CMA_PE_CONF_MASK	0x000FFFFF	//20bit
 
+/* for controller */
+#define CMA_CTRL_DONEDMA_BIT 	0x10
+#define CMA_CTRL_DONEDMA_LSB	4
+#define CMA_CTRL_RESTART_BIT 	0x08 //not used
+#define CMA_CTRL_RESTART_LSB	3
+#define CMA_CTRL_BANKSEL_MASK 	0x04
+#define CMA_CTRL_BANKSEL_LSB	2
+#define CMA_CTRL_RUN_BIT 		0x02
+#define CMA_CTRL_RUN_LSB		1
+
+/* for configuration */
+#define CMA_RMC_ROW_BITMAP_LSB	22
+#define CMA_RMC_ROW_BITMAP_MASK	0x3FC00000 //8bit [29:22]
+#define CMA_RMC_COL_BITMAP_LSB	10
+#define CMA_RMC_COL_BITMAP_MASK	0x003FFC00 //12bit [21:10]
+#define CMA_RMC_CONFIG_MASK		0x000003FF //10bit [9:0]
+#define CMA_OPCODE_MASK			0x3C0
+#define CMA_OPCODE_LSB			6
+#define CMA_SEL_A_MASK			0x038
+#define CMA_SEL_A_LSB			3
+#define CMA_SEL_B_MASK			0x007
+#define CMA_SE_NORTH_MASK		0x380
+#define CMA_SE_NORTH_LSB		7
+#define CMA_SE_SOUTH_MASK		0x060
+#define CMA_SE_SOUTH_LSB		5
+#define CMA_SE_EAST_MASK		0x01C
+#define CMA_SE_EAST_LSB			2
+#define CMA_SE_WEST_MASK		0x003
+#define CMA_ALU_CONFIG_MASK		0x000003FF
+#define CMA_SE_CONFIG_MASK		0x000FFC00
+#define CMA_SE_CONF_LSB			10
+
+/* for data manipulator */
+#define CMA_INTERLEAVE_SIZE		12
+#define CMA_TABLE_ELEMENT_MASK	0xF
+#define CMA_TABLE_ELEMENT_BITW	0x4
 
 /* PE Array */
 #define CMA_PE_ARRAY_WIDTH	12
@@ -42,6 +83,10 @@ class LocalMapper;
 namespace CMAComponents {
 	class PEArray;
 	class PENodeBase;
+	class DataManipulator;
+
+	using NodeList = std::vector<CMAComponents::PENodeBase*>;
+	using ArrayData = std::vector<uint32>;
 
 	class CMAMemoryModule : public MemoryModule {
 		int mask;
@@ -54,25 +99,69 @@ namespace CMAComponents {
 		uint32 *getMemElement() { return (uint32*)address; }
 	};
 
-	class ConstRegController : public Range {
+	class ConstRegCtrl : public Range {
 		private:
 			PEArray *pearray;
 			int mask;
 		public:
-			ConstRegController(size_t size, PEArray *pearray_) :
+			ConstRegCtrl(size_t size, PEArray *pearray_) :
 				 Range (0, size, 0, MEM_READ_WRITE),
 				pearray(pearray_) {};
 			void store_word(uint32 offset, uint32 data, DeviceExc *client);
 			uint32 fetch_word(uint32 offset, int mode, DeviceExc *client);
 	};
 
-	class ConfigController {
-	private:
-		Range *rmc_alu, *rmc_se, *pe_config, *preg_config;
-	public:
-		ConfigController(LocalMapper *bus);
-		~ConfigController() {};
+	class DManuTableCtrl : public Range {
+		private:
+			DataManipulator *dmanu;
+		public:
+			DManuTableCtrl(size_t size, DataManipulator *dmanu_) :
+					Range (0, size, 0, MEM_READ_WRITE),
+					dmanu(dmanu_) {};
+
+			void store_word(uint32 offset, uint32 data, DeviceExc *client);
+			uint32 fetch_word(uint32 offset, int mode, DeviceExc *client);
 	};
+
+	class ConfigCtrl : public Range {
+		protected:
+			PEArray *pearray;
+		public:
+			ConfigCtrl(size_t size, PEArray *pearray_) :
+				Range(0, size, 0, MEM_WRITE), pearray(pearray_) {};
+			~ConfigCtrl() {};
+			virtual uint32 fetch_word(uint32 offset, int mode, DeviceExc *client) { return 0; }; //WRITE ONLY
+			virtual void store_word(uint32 offset, uint32 data, DeviceExc *client) = 0;
+	};
+
+	class RMCALUConfigCtrl : public ConfigCtrl {
+		public:
+			RMCALUConfigCtrl(PEArray* pearray) :
+				ConfigCtrl(CMA_ALU_RMC_SIZE, pearray) {};
+			void store_word(uint32 offset, uint32 data, DeviceExc *client);
+	};
+
+	class PREGConfigCtrl : public ConfigCtrl {
+		public:
+			PREGConfigCtrl(PEArray* pearray) :
+				ConfigCtrl(CMA_PREG_CONF_SIZE, pearray) {};
+			void store_word(uint32 offset, uint32 data, DeviceExc *client);
+	};
+
+	class RMCSEConfigCtrl : public ConfigCtrl {
+		public:
+			RMCSEConfigCtrl(PEArray* pearray) :
+				ConfigCtrl(CMA_SE_RMC_SIZE, pearray) {};
+			void store_word(uint32 offset, uint32 data, DeviceExc *client);
+	};
+
+	class PEConfigCtrl : public ConfigCtrl {
+		public:
+			PEConfigCtrl(PEArray* pearray) :
+				ConfigCtrl(CMA_PE_CONF_SIZE, pearray) {};
+			void store_word(uint32 offset, uint32 data, DeviceExc *client);
+	};
+
 
 	class ControlReg : public Range {
 	private:
@@ -93,23 +182,23 @@ namespace CMAComponents {
 
 	};
 
-	class BFSQueue {
-		private:
-			std::queue<PENodeBase*> nodeQueue;
-			std::map<PENodeBase*, bool> added;
-		public:
-			~BFSQueue();
-			void push(PENodeBase* node);
-			PENodeBase* pop();
-			bool empty() { return nodeQueue.empty(); };
-	};
+	// class BFSQueue {
+	// 	private:
+	// 		std::queue<PENodeBase*> nodeQueue;
+	// 		std::map<PENodeBase*, bool> added;
+	// 	public:
+	// 		~BFSQueue();
+	// 		void push(PENodeBase* node);
+	// 		PENodeBase* pop();
+	// 		bool empty() { return nodeQueue.empty(); };
+	// };
 
 	static std::map <PENodeBase*, std::string> debug_str;
 
 	class PENodeBase {
 		protected:
-			std::vector<CMAComponents::PENodeBase*> predecessors;
-			std::vector<CMAComponents::PENodeBase*> successors;
+			NodeList predecessors;
+			NodeList successors;
 			std::queue<uint32> obuf;
 
 		public:
@@ -119,11 +208,12 @@ namespace CMAComponents {
 			virtual void exec() = 0;
 			virtual bool isTerminal() { return false; };
 			virtual bool isUse(CMAComponents::PENodeBase* pred) = 0;
+			virtual int in_degree() { return 0; };
 			virtual uint32 getData() {
 				return obuf.empty() ? 0 : obuf.front();
 			};
 
-			virtual void add_successors(BFSQueue* q);
+			virtual NodeList use_successors();
 	};
 
 	class MUX : public PENodeBase {
@@ -133,6 +223,8 @@ namespace CMAComponents {
 			void exec();
 			bool isUse(CMAComponents::PENodeBase* pred);
 			void config(uint32 data);
+			int in_degree() { return 1; };
+			void test() { fprintf(stderr, "%d\n", config_data); }
 	};
 
 	class ALU : public PENodeBase {
@@ -142,6 +234,8 @@ namespace CMAComponents {
 			void exec();
 			bool isUse(CMAComponents::PENodeBase* pred);
 			void config(uint32 data);
+			int in_degree();
+			void test() { fprintf(stderr, "%d\n", opcode); }
 	};
 
 	class PREG : public PENodeBase {
@@ -154,6 +248,7 @@ namespace CMAComponents {
 			void activate() { activated = true; };
 			void deactivate() { activated = false; };
 			virtual bool isTerminal() { return activated; };
+			int in_degree() { return 1; };
 	};
 
 	class ConstReg : public PENodeBase {
@@ -169,20 +264,23 @@ namespace CMAComponents {
 	class MemLoadUnit : public PENodeBase {
 		public:
 			void exec() {};
-			void launch(uint32 data) { obuf.push(data); };
+			void store(uint32 data) { obuf.push(data); };
 			bool isUse(CMAComponents::PENodeBase* pred) { return false; };
 	};
 
 	class MemStoreUnit : public PENodeBase {
 		public:
 			void exec();
-			uint32 gather();
+			uint32 load();
 			bool isUse(CMAComponents::PENodeBase* pred) { return true; };
+			int in_degree() { return 1; }
 	};
 
 	class PEArray {
 		protected:
 			int height, width;
+			int se_count, se_channels;
+			bool preg_enabled;
 			CMAComponents::ALU ***alus;
 			CMAComponents::MUX ****alu_sels;
 			CMAComponents::MUX *****channels;
@@ -191,59 +289,116 @@ namespace CMAComponents {
 			CMAComponents::MemLoadUnit **launch_regs;
 			CMAComponents::MemStoreUnit **gather_regs;
 
+		private:
+			//status
+			bool config_changed;
 
-			//member funcs
 			// for build PE array
 			void make_ALUs();
-			void make_SEs(int se_count, int channel_size);
+			void make_SEs();
 			void make_const_regs();
 			void make_pregs();
 			void make_memports();
 			virtual void make_connection() = 0;
 
+			// for execution
+			std::map <PENodeBase*, int> in_degrees;
+			std::vector <PENodeBase*> tsorted_list;
+			void analyze_dataflow();
+
+			// for configuration
+			void decode_alu_conf(uint32 data, uint32& opcode,
+									uint32& sel_a, uint32& sel_b);
+			void decode_se_conf(uint32 data, uint32& se_north,
+									uint32& se_south, uint32& se_east,
+									uint32& se_west);
 
 		public:
 			PEArray(int height_, int width_, bool preg_en,
-					 int se_count = 2, int se_channels = 4);
+					 int se_count_ = 1, int se_channels_ = 4);
 			~PEArray();
 
 			// for configuration
 			uint32 load_const(uint32 addr);
 			void store_const(uint32 addr, uint32 data);
-
+			void config_PREG(uint32 data);
+			void config_SE_RMC(int col_bitmap, int row_bitmap, int data);
+			void config_ALU_RMC(int col_bitmap, int row_bitmap, int data);
+			void config_PE(int pe_addr, int data);
+			void config_PE(int x, int y, int data);
 
 			virtual void test() {
-				alus[0][0]->config(1); //addd
-				alu_sels[0][0][0]->config(0); //from south
-				alu_sels[0][0][1]->config(6); //from const A
-				launch_regs[0]->launch(10);
+				for (int y = 0; y < 8; y++) {
+					for (int x = 0; x < 2; x++) {
+						fprintf(stderr, "\n(%d %d)\n", x, y);
+						fprintf(stderr, "\tALU opcode ");
+						alus[x][y]->test();
+						fprintf(stderr, "\tSEL_A ");
+						alu_sels[x][y][0]->test();
+						fprintf(stderr, "\tSEL_B ");
+						alu_sels[x][y][1]->test();
+						fprintf(stderr, "\tOUT N  ");
+						channels[x][y][0][0]->test();
+						fprintf(stderr, "\tOUT S  ");
+						channels[x][y][0][1]->test();
+						fprintf(stderr, "\tOUT E  ");
+						channels[x][y][0][2]->test();
+						fprintf(stderr, "\tOUT W  ");
+						channels[x][y][0][3]->test();
 
-				BFSQueue q;
-				q.push(launch_regs[0]);
-				q.push(cregs[0]);
-
-				int cnt = 0;
-				do {
-					PENodeBase* p = q.pop();
-					if (debug_str.count(p) > 0) {
-						fprintf(stderr, "%s\n", debug_str[p].c_str());
 					}
-					p->exec();
+				}
+				analyze_dataflow();
+				//init in_degree for each node
 
-					p->add_successors(&q);
-				} while (!q.empty());
+				// alus[0][0]->config(1); //addd
+				// alu_sels[0][0][0]->config(0); //from south
+				// alu_sels[0][0][1]->config(6); //from const A
+				// launch_regs[0]->launch(10);
+
+				// BFSQueue q;
+				// q.push(launch_regs[0]);
+				// q.push(cregs[0]);
+
+				// int cnt = 0;
+				// do {
+				// 	PENodeBase* p = q.pop();
+				// 	if (debug_str.count(p) > 0) {
+				// 		fprintf(stderr, "%s\n", debug_str[p].c_str());
+				// 	}
+				// 	p->exec();
+
+				// 	p->add_successors(&q);
+				// } while (!q.empty());
 
 			}
 
 	};
 
+	class DataManipulator {
+		private:
+			bool *bitmap[CMA_TABLE_ENTRY_SIZE];
+			int *table[CMA_TABLE_ENTRY_SIZE];
+			int interleave_size;
 
-	class LDUnit {
-
+		public:
+			DataManipulator(int interleave_size_);
+			void setBitmap(int index, int pos, bool flag);
+			void setTable(int index, int pos, int data);
+			bool getBitmap(int index, int pos);
+			int getTable(int index, int pos);
+			ArrayData send(ArrayData *input_data, int table_index);
 	};
 
-	class STUnit {
+	using LDUnit = DataManipulator;
 
+	class STUnit : public DataManipulator {
+		private:
+			int max_delay;
+		public:
+			STUnit(int interleave_size_, int max_delay_ = 7):
+				DataManipulator(interleave_size_),
+				max_delay(max_delay_) {};
 	};
 
 	namespace CCSOTB2 {
@@ -260,8 +415,8 @@ namespace CMAComponents {
 		};
 
 		static int CONNECT_COORD[7][2] = {
-			{0, 1}, {0, -1}, {-1, 0}, {1, 1},
-			{0, -1}, {-1, -1}, {1, -1}
+			{0, 1}, {0, -1}, {1, 0}, {-1, 0},
+			{0, -1}, {1, -1}, {-1, -1}
 		};
 
 
@@ -270,7 +425,7 @@ namespace CMAComponents {
 				void make_connection();
 			public:
 				CCSOTB2_PEArray(int height_, int width_,
-								 int se_count = 2, int se_channels = 4)
+								 int se_count = 1, int se_channels = 4)
 								 : PEArray(height_, width_,
 								 		true, se_count, se_channels) {
 					make_connection();
@@ -320,6 +475,11 @@ static uint32 (*PE_op_table[CMA_OP_SIZE])(uint32, uint32) = {
 	exec_sl, exec_sr, exec_sra, exec_sel,
 	exec_cat, exec_not, exec_and, exec_or,
 	exec_xor, exec_eql, exec_gt, exec_lt
+};
+
+static uint32 PE_operand_size[CMA_OP_SIZE] = {
+	0, 2, 2, 2, 2, 2, 2, 2,
+	1, 1, 2, 2, 2, 2, 2, 2
 };
 
 
