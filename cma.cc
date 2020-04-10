@@ -7,9 +7,9 @@ CMA::CMA(uint32 node_ID, Router* upperRouter)
 {
 	pearray = new CCSOTB2::CCSOTB2_PEArray(CMA_PE_ARRAY_HEIGHT,
 											CMA_PE_ARRAY_WIDTH);
-	dmem_front = new CMAMemoryModule(CMA_DBANK0_SIZE, CMA_DWORD_MASK);
-	dmem_back = new CMAMemoryModule(CMA_DBANK1_SIZE, CMA_DWORD_MASK);
-	imem = new CMAMemoryModule(CMA_IMEM_SIZE, CMA_IWORD_MASK);
+	dmem_front = new DoubleBuffer(CMA_DBANK0_SIZE, CMA_DWORD_MASK);
+	dmem_back = new DoubleBuffer(CMA_DBANK1_SIZE, CMA_DWORD_MASK);
+	imem = new DoubleBuffer(CMA_IMEM_SIZE, CMA_IWORD_MASK);
 	const_reg = new ConstRegCtrl(CMA_CONST_SIZE, pearray);
 
 	ctrl_reg = new ControlReg();
@@ -24,7 +24,7 @@ CMA::CMA(uint32 node_ID, Router* upperRouter)
 	pe_config = new PEConfigCtrl(pearray);
 	preg_config = new PREGConfigCtrl(pearray);
 
-
+	mc = new MicroController(imem, &mc_done);
 
 	node = node_ID;
 }
@@ -65,21 +65,37 @@ void CMA::setup()
 	localBus->store_word(CMA_CONST_ADDR, (uint32)(-1));
 }
 
+void CMA::core_reset()
+{
+	mc->reset();
+}
+
 void CMA::core_step()
 {
+
 	static bool dis = false;
+
 	if (ctrl_reg->getRun()) {
+
 		if (!dis) {
+			imem->buf_switch();
 			fprintf(stderr, "CMA Running\n");
-			ArrayData tmp(CMA_PE_ARRAY_WIDTH, 0);
-			tmp[0] = 0x0f0f0f;
-			ArrayData tmp2 = ld_unit->send(&tmp, 0);
-			int i = 0;
-			for (auto it = tmp2.begin(); it != tmp2.end(); it++) {
-				fprintf(stderr, "%d after dman %06x\n", i++, *it);
-			}
+			// ArrayData tmp(CMA_PE_ARRAY_WIDTH, 0);
+			// tmp[0] = 0x0f0f0f;
+			// ArrayData tmp2 = ld_unit->send(&tmp, 0);
+			// int i = 0;
+			// for (auto it = tmp2.begin(); it != tmp2.end(); it++) {
+			// 	fprintf(stderr, "%d after dman %06x\n", i++, *it);
+			// }
 			//pearray->test();
 			dis = true;
 		}
+		if (!mc_done) {
+			mc->step();
+		} else {
+			done_signal(ctrl_reg->getDoneDMA());
+		}
+	} else {
+		mc_done = false;
 	}
 }

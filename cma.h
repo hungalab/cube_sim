@@ -2,20 +2,21 @@
 #define _CMA_H_
 
 #include "accelerator.h"
-#include "memorymodule.h"
 #include "accesstypes.h"
 #include "types.h"
 #include "cmamodules.h"
 #include "cmaAddressMap.h"
+#include "dbuf.h"
 
 class DeviceExc;
 class CubeAccelerator;
 class MemoryModule;
 class LocalMapper;
+class DoubleBuffer;
 
 class CMA : public CubeAccelerator {
 private:
-	CMAComponents::CMAMemoryModule *dmem_front, *dmem_back, *imem;
+	DoubleBuffer *dmem_front, *dmem_back, *imem;
 	CMAComponents::ConstRegCtrl *const_reg;
 	CMAComponents::DManuTableCtrl *ld_tbl, *st_tbl;
 	CMAComponents::LDUnit *ld_unit;
@@ -25,8 +26,12 @@ private:
 	CMAComponents::RMCSEConfigCtrl *rmc_se;
 	CMAComponents::PEConfigCtrl *pe_config;
 	CMAComponents::PREGConfigCtrl *preg_config;
+	CMAComponents::MicroController *mc;
 
 	int node;
+
+	//status
+	bool mc_done;
 
 public:
 	CMA(uint32 node_ID, Router* upperRouter);
@@ -34,7 +39,7 @@ public:
 
 	void setup();
 	void core_step();
-	void core_reset() {};
+	void core_reset();
 	const char *accelerator_name() { return "CMA"; }
 
 	CMAComponents::ControlReg *ctrl_reg;

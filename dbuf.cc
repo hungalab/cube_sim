@@ -2,7 +2,7 @@
 #include "mmapglue.h"
 #include <cstring>
 
-DoubleBuffer::DoubleBuffer(size_t size, uint32 mask_ = 0xFFFFFFFF, FILE *init_data = NULL)
+DoubleBuffer::DoubleBuffer(size_t size, uint32 mask_, FILE *init_data)
 	: Range (0, size, 0, MEM_READ_WRITE), mask(mask_) {
 	front = new uint32[size / 4]();
 	back = new uint32[size / 4]();

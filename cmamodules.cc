@@ -4,14 +4,14 @@
 
 using namespace CMAComponents;
 
-void CMAMemoryModule::store_word(uint32 offset, uint32 data, DeviceExc *client)
-{
-	uint32 *werd;
-	/* calculate address */
-	werd = ((uint32 *) address) + (offset / 4);
-	/* store word */
-	*werd = data & mask;
-}
+// void CMAMemoryModule::store_word(uint32 offset, uint32 data, DeviceExc *client)
+// {
+// 	uint32 *werd;
+// 	/* calculate address */
+// 	werd = ((uint32 *) address) + (offset / 4);
+// 	/* store word */
+// 	*werd = data & mask;
+// }
 
 
 uint32 ConstRegCtrl::fetch_word(uint32 offset, int mode, DeviceExc *client)
@@ -491,6 +491,109 @@ ArrayData DataManipulator::send(ArrayData *input_data, int table_index)
 	return send_data;
 }
 
+STUnit::STUnit(int interleave_size_, int max_delay_):
+	DataManipulator(interleave_size_),
+	max_delay(max_delay_)
+{
+	for (int i = 0;i < max_delay; i++) {
+		late_signal.push_back(st_signal_t{false, 0, 0});
+	}
+};
+
+void MicroController::reset()
+{
+	fprintf(stderr, "MC reset!!\n");
+	for (int i = 0; i < CMA_MC_REG_SIZE; i++) {
+		regfile[i] = 0;
+	}
+	pc = 0;
+	launch_addr = launch_incr = gather_addr = gather_incr = 0;
+}
+
+void MicroController::step()
+{
+	uint32 next_pc = pc + 4;
+	uint16 instr = (uint16)imem->fetch_word_from_inner(pc);
+
+	uint8 src, dst;
+	src = reg_src(instr);
+	dst = reg_dst(instr);
+
+	switch (opcode(instr)) {
+		case CMA_MC_OPCODE_REG:
+			switch (func(instr)) {
+				case CMA_MC_FUNC_NOP:
+					//nothing to do
+					break;
+				case CMA_MC_FUNC_ADD:
+					regfile[dst] = regfile[dst] + regfile[src];
+					break;
+				case CMA_MC_FUNC_SUB:
+					regfile[dst] = regfile[dst] - regfile[src];
+					break;
+				case CMA_MC_FUNC_MV:
+					regfile[dst] = regfile[src];
+					break;
+				case CMA_MC_FUNC_DONE:
+					*done_ptr = true;
+					break;
+				case CMA_MC_FUNC_DELAY:
+					delay = dst;
+					break;
+				default:
+					break;
+			}
+			break;
+		case CMA_MC_OPCODE_LDI:
+			regfile[dst] = imm(instr);
+			break;
+		case CMA_MC_OPCODE_ADDI:
+			regfile[dst] = (uint16)((int16)regfile[dst]
+									+ (int16)s_imm(instr));
+			break;
+		case CMA_MC_OPCODE_LD_ST_ADD:
+			//exec launch & issue gather
+
+			launch_addr += launch_incr;
+			gather_addr += gather_incr;
+			break;
+		case CMA_MC_OPCODE_BEZ:
+			if (regfile[dst] == 0) {
+				next_pc = (uint32)((int16)pc + 4 + (int16)s_imm(instr) * 4);
+			}
+			break;
+		case CMA_MC_OPCODE_BEZD:
+			if (regfile[dst] == 0) {
+				next_pc = (uint32)((int16)pc + 4 + (int16)s_imm(instr) * 4);
+				regfile[dst]--;
+			}
+			break;
+		case CMA_MC_OPCODE_BNZ:
+			if (regfile[dst] != 0) {
+				next_pc = (uint32)((int16)pc + 4 + (int16)s_imm(instr) * 4);
+			}
+			break;
+		case CMA_MC_OPCODE_BNZD:
+			if (regfile[dst] != 0) {
+				next_pc = (uint32)((int16)pc + 4 + (int16)s_imm(instr) * 4);
+				regfile[dst]--;
+			}
+			break;
+		case CMA_MC_OPCODE_SET_LD:
+			launch_incr = func(instr);
+			launch_addr = addr(instr);
+			break;
+		case CMA_MC_OPCODE_SET_ST:
+			gather_incr = func(instr);
+			gather_addr = addr(instr);
+			break;
+		default:
+			break;
+	}
+	pc = next_pc;
+}
+
+
 void CCSOTB2::CCSOTB2_PEArray::make_connection()
 {
 	using namespace CCSOTB2;
@@ -725,7 +828,7 @@ void PREG::exec()
 	}
 }
 
-uint32 ConstReg::getData() { 
+uint32 ConstReg::getData() {
 #if CMA_CONST_MASK == CMA_DWORDMASK
 	return const_data;
 #elif CMA_CONST_MASK < CMA_DWORD_MASK
@@ -757,17 +860,17 @@ uint32 MemStoreUnit::load()
 	return obuf.front();
 }
 
-uint32 exec_nop(uint32 inA, uint32 inB)
+uint32 CMAComponents::exec_nop(uint32 inA, uint32 inB)
 {
 	return 0;
 }
 
-uint32 exec_add(uint32 inA, uint32 inB)
+uint32 CMAComponents::exec_add(uint32 inA, uint32 inB)
 {
 	return CMA_DWORD_MASK & (inA + inB);
 }
 
-uint32 exec_sub(uint32 inA, uint32 inB)
+uint32 CMAComponents::exec_sub(uint32 inA, uint32 inB)
 {
 	uint32 tmpA, tmpB;
 	tmpA = inA & CMA_DWORD_MASK;
@@ -775,7 +878,7 @@ uint32 exec_sub(uint32 inA, uint32 inB)
 	return (tmpA + tmpB + 1U) & CMA_DATA_MASK;
 }
 
-uint32 exec_mult(uint32 inA, uint32 inB)
+uint32 CMAComponents::exec_mult(uint32 inA, uint32 inB)
 {
 	uint32 tmpA = inA & CMA_DATA_MASK;
 	uint32 carryA = inA & CMA_CARRY_MASK;
@@ -784,17 +887,17 @@ uint32 exec_mult(uint32 inA, uint32 inB)
 	return (carryA ^ carryB) | ((tmpA * tmpB) & CMA_DATA_MASK);
 }
 
-uint32 exec_sl(uint32 inA, uint32 inB)
+uint32 CMAComponents::exec_sl(uint32 inA, uint32 inB)
 {
 	return CMA_DWORD_MASK & (inA << inB);
 }
 
-uint32 exec_sr(uint32 inA, uint32 inB)
+uint32 CMAComponents::exec_sr(uint32 inA, uint32 inB)
 {
 	return CMA_DWORD_MASK & (inA >> inB);
 }
 
-uint32 exec_sra(uint32 inA, uint32 inB)
+uint32 CMAComponents::exec_sra(uint32 inA, uint32 inB)
 {
 	uint32 carryA = inA & CMA_CARRY_MASK;
 	uint32 tmp;
@@ -808,11 +911,11 @@ uint32 exec_sra(uint32 inA, uint32 inB)
 			return tmp | (1 << CMA_CARYY_LSB);
 		}
 	} else {
-		return exec_sr(inA, inB);
+		return CMAComponents::exec_sr(inA, inB);
 	}
 }
 
-uint32 exec_sel(uint32 inA, uint32 inB)
+uint32 CMAComponents::exec_sel(uint32 inA, uint32 inB)
 {
 	uint32 carryA = inA & CMA_CARRY_MASK;
 	if (carryA == 0) {
@@ -822,32 +925,32 @@ uint32 exec_sel(uint32 inA, uint32 inB)
 	}
 }
 
-uint32 exec_cat(uint32 inA, uint32 inB)
+uint32 CMAComponents::exec_cat(uint32 inA, uint32 inB)
 {
 	return inA;
 }
 
-uint32 exec_not(uint32 inA, uint32 inB)
+uint32 CMAComponents::exec_not(uint32 inA, uint32 inB)
 {
 	return ~inA;
 }
 
-uint32 exec_and(uint32 inA, uint32 inB)
+uint32 CMAComponents::exec_and(uint32 inA, uint32 inB)
 {
 	return inA & inB;
 }
 
-uint32 exec_or(uint32 inA, uint32 inB)
+uint32 CMAComponents::exec_or(uint32 inA, uint32 inB)
 {
 	return inA | inB;
 }
 
-uint32 exec_xor(uint32 inA, uint32 inB)
+uint32 CMAComponents::exec_xor(uint32 inA, uint32 inB)
 {
 	return inA ^ inB;
 }
 
-uint32 exec_eql(uint32 inA, uint32 inB)
+uint32 CMAComponents::exec_eql(uint32 inA, uint32 inB)
 {
 	uint32 tmpA = inA & CMA_DATA_MASK;
 	uint32 tmpB = inB & CMA_DATA_MASK;
@@ -858,7 +961,7 @@ uint32 exec_eql(uint32 inA, uint32 inB)
 	}
 }
 
-uint32 exec_gt(uint32 inA, uint32 inB)
+uint32 CMAComponents::exec_gt(uint32 inA, uint32 inB)
 {
 	//exec inA > inB
 	uint32 tmpA = inA & CMA_DATA_MASK;
@@ -876,10 +979,10 @@ uint32 exec_gt(uint32 inA, uint32 inB)
 
 }
 
-uint32 exec_lt(uint32 inA, uint32 inB)
+uint32 CMAComponents::exec_lt(uint32 inA, uint32 inB)
 {
 	//exec inA <= inB
-	uint32 tmp = exec_gt(inA, inB);
+	uint32 tmp = CMAComponents::exec_gt(inA, inB);
 	if (tmp != 0) {
 		return 0;
 	} else {
