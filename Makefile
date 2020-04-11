@@ -240,4 +240,4 @@ cma.o: cma.cc cma.h accelerator.h dbuf.h accesstypes.h\
 cmamodules.o: cmamodules.h cmamodules.cc cmaAddressMap.h dbuf.h \
             accelerator.h acceleratorcore.h
 
-dbuf.o: dbuf.h dbuf.cc range.h types.h fileutils.h
+dbuf.o: dbuf.h dbuf.cc range.h types.h fileutils.h vmips.h options.h

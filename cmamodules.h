@@ -388,8 +388,7 @@ namespace CMAComponents {
 		public:
 			MemLoadUnit() { obuf.push(0); };
 			void exec() {};
-			void store(uint32 data) { obuf.push(data); 
-				fprintf(stderr, "mem buf size %d\n", obuf.size());};
+			void store(uint32 data) { obuf.push(data); };
 			bool isUse(CMAComponents::PENodeBase* pred) { return false; };
 			void update() { if (obuf.size() > 1) obuf.pop(); };
 			// void test() { fprintf(stderr, "imem %X\n", latch); };
@@ -461,13 +460,6 @@ namespace CMAComponents {
 
 			void exec();
 			void update();
-
-			void test() {
-				fprintf(stderr, "IN SOUTH(0,0) ");
-				alu_sels[0][0][0]->test();
-				fprintf(stderr, "IN NORTH(0,0) ");
-				channels[1][0][0][1]->test2();
-			}
 
 	};
 

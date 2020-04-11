@@ -578,15 +578,9 @@ void STUnit::step()
 		late_signal.push_front(st_signal_t{false, 0, 0});
 	}
 	st_signal_t current_signal = late_signal[delay+1];
-	for (int i = 0; i < max_delay; i++) {
-		fprintf(stderr, "%d ", late_signal[i].enable);
-	}
-	fprintf(stderr, "\n");
 
 	if (current_signal.enable) {
 		// execute store
-		fprintf(stderr, "%d gather exec (addr %d)\n", machine->num_cycles,
-									current_signal.store_addr);
 		fromPEArray(current_signal.store_addr, current_signal.table_sel);
 		pending_count--;
 	}
@@ -618,6 +612,8 @@ void MicroController::step()
 	src = reg_src(instr);
 	dst = reg_dst(instr);
 
+	//fprintf(stderr, "MC PC = %X instr %X\n", pc, instr);
+
 	switch (opcode(instr)) {
 		case CMA_MC_OPCODE_REG:
 			switch (func(instr)) {
@@ -637,7 +633,6 @@ void MicroController::step()
 					if (st_unit->isWorking()) {
 						// stall
 						next_pc = pc;
-						fprintf(stderr, "Done stall\n");
 					} else {
 						*done_ptr = true;
 					}
@@ -657,7 +652,6 @@ void MicroController::step()
 									+ (int16)s_imm(instr));
 			break;
 		case CMA_MC_OPCODE_LD_ST_ADD:
-			fprintf(stderr, "%d LDST add issue\n", machine->num_cycles);
 			//exec launch & issue gather
 			ld_table_index = reg_src(instr);
 			st_table_index = func(instr);
@@ -965,9 +959,6 @@ void MemStoreUnit::exec()
 {
 	obuf.pop();
 	obuf.push(predecessors[0]->getData());
-	fprintf(stderr, "%d gather reg %06X ---> %06X size %lu\n", 
-		machine->num_cycles, 
-		obuf.back(), obuf.front(), obuf.size());
 }
 
 uint32 MemStoreUnit::load()

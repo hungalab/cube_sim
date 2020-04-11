@@ -88,6 +88,7 @@ void CMA::core_step()
 {
 	if (ctrl_reg->getRun()) {
 		if (!mc_working) {
+			fprintf(stderr, "Kick CMA\n");
 			// kick microcontroller
 			imem->buf_switch();
 			if (ctrl_reg->getBankSel() == 0) {
@@ -105,21 +106,23 @@ void CMA::core_step()
 		if (!mc_done) {
 			// execute microcontroller
 			mc->step();
-			pearray->test();
 			pearray->exec();
 			st_unit->step();
-			fprintf(stderr, "\n");
 		} else if (!done_notif) {
+			fprintf(stderr, "nortif Done\n");
 			// finish exeution
 			if (ctrl_reg->getBankSel() == 0) {
 				dmem_front->buf_switch();
 			} else {
 				dmem_back->buf_switch();
 			}
+			imem->buf_switch();
 			done_signal(ctrl_reg->getDoneDMA());
 			done_notif = true;
 		}
 	} else {
 		mc_done = false;
+		mc_working = false;
+		mc->reset();
 	}
 }
