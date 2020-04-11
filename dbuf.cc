@@ -30,6 +30,7 @@ void DoubleBuffer::store_word(uint32 offset, uint32 data, DeviceExc *client)
 	werd = ((uint32 *) address) + (offset / 4);
 	/* store word */
 	*werd = data & mask;
+	fprintf(stderr, "dmem[%d] <= %08X\n", offset, data);
 }
 
 void DoubleBuffer::buf_switch() {
@@ -58,9 +59,12 @@ void DoubleBuffer::store_word_from_inner(uint32 offset, uint32 data)
 	if (front_connected) {
 		werd = ((uint32 *) back) + (offset / 4);
 	} else {
+		fprintf(stderr, "dmem[192] %08X dmem[%d] <= %08X\n", 
+				fetch_word_from_inner(192), offset, data);
 		werd = ((uint32 *) front) + (offset / 4);
 	}
 
 	/* store word */
 	*werd = data & mask;
+
 }

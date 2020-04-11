@@ -4,16 +4,6 @@
 
 using namespace CMAComponents;
 
-// void CMAMemoryModule::store_word(uint32 offset, uint32 data, DeviceExc *client)
-// {
-// 	uint32 *werd;
-// 	/* calculate address */
-// 	werd = ((uint32 *) address) + (offset / 4);
-// 	/* store word */
-// 	*werd = data & mask;
-// }
-
-
 uint32 ConstRegCtrl::fetch_word(uint32 offset, int mode, DeviceExc *client)
 {
 	return pearray->load_const(offset);
@@ -414,16 +404,14 @@ void PEArray::analyze_dataflow()
 				del_list.push_back(p);
 				NodeList list = p->use_successors();
 				if (list.size() > 0) {
-					fprintf(stderr, "current node %s\n", debug_str[p].c_str());
+					//fprintf(stderr, "current node %s\n", debug_str[p].c_str());
 					tsorted_list.push_back(p);
 					for (auto j = list.begin(); j != list.end(); j++) {
-						 fprintf(stderr, "next is %s %d\n", debug_str[*j].c_str(), in_degrees[*j]);
+						 //fprintf(stderr, "next is %s %d\n", debug_str[*j].c_str(), in_degrees[*j]);
 						(in_degrees[*j])--;
 					}
-				} else {
-					fprintf(stderr, "node %s not used\n", debug_str[p].c_str());
 				}
-			} 
+			}
 		}
 		//fprintf(stderr, "del nodes %d\n", del_list.size());
 		for (auto i = del_list.begin(); i != del_list.end(); i++) {
@@ -431,19 +419,58 @@ void PEArray::analyze_dataflow()
 		}
 	} while (in_degrees.size() < prev_size);
 
-	launch_regs[0]->store(0x0f0f0f);
-	launch_regs[1]->store(0x0f0f0f);
-	for (auto i = tsorted_list.begin(); i != tsorted_list.end(); i++) {
-		PENodeBase *p = *i;
-		fprintf(stderr, "%s\n", debug_str[p].c_str());
+	// launch_regs[0]->store(0x0f0f0f);
+	// launch_regs[1]->store(0x0f0f0f);
+	// for (auto i = tsorted_list.begin(); i != tsorted_list.end(); i++) {
+	// 	PENodeBase *p = *i;
+	// 	fprintf(stderr, "%s\n", debug_str[p].c_str());
+	// 	//p->exec();
+	// }
+
+	//exit(1);
+	config_changed = false;
+}
+
+void PEArray::exec()
+{
+	if (config_changed) {
+		analyze_dataflow();
+	}
+	for (auto it = tsorted_list.begin(); it != tsorted_list.end(); it++) {
+		PENodeBase *p = *it;
 		p->exec();
 	}
 
-	exit(1);
+	for (int i = 0; i < width; i++) {
+		gather_regs[i]->exec();
+	}
+	for (auto it = tsorted_list.begin(); it != tsorted_list.end(); it++) {
+		PENodeBase *p = *it;
+		p->update();
+	}
 }
 
-DataManipulator::DataManipulator(int interleave_size_) :
-	interleave_size(interleave_size_)
+void PEArray::launch(ArrayData input_data)
+{
+	for (int i = 0; i < width; i++) {
+		launch_regs[i]->store(input_data[i]);
+	}
+}
+
+ArrayData PEArray::gather()
+{
+	ArrayData output_data(width);
+	for (int i = 0; i < width; i++) {
+		output_data[i] = gather_regs[i]->load();
+	}
+	return output_data;
+}
+
+DataManipulator::DataManipulator(int interleave_size_,
+								DoubleBuffer*** dbank_,
+								PEArray *pearray_) :
+	interleave_size(interleave_size_),
+	dbank(dbank_), pearray(pearray_)
 {
 	for (int i = 0; i < CMA_TABLE_ENTRY_SIZE; i++) {
 		bitmap[i] = new bool[interleave_size];
@@ -475,34 +502,105 @@ int DataManipulator::getTable(int index, int pos)
 	return (index < CMA_TABLE_ENTRY_SIZE) ? table[index][pos] : 0;
 }
 
-ArrayData DataManipulator::send(ArrayData *input_data, int table_index)
-{
-	ArrayData send_data(interleave_size, 0);
+// ArrayData DataManipulator::send(ArrayData *input_data, int table_index)
+// {
+// 	ArrayData send_data(interleave_size, 0);
 
+// 	if (table_index < CMA_TABLE_ENTRY_SIZE) {
+// 		bool *use_bitmap = bitmap[table_index];
+// 		int *use_table = table[table_index];
+// 		for (int i = 0; i < interleave_size; i++) {
+// 			if (use_bitmap[i]) {
+// 				send_data[i] = (*input_data)[use_table[i]];
+// 			}
+// 		}
+// 	}
+// 	return send_data;
+// }
+
+void DataManipulator::toPEArray(uint32 load_addr, int table_index)
+{
 	if (table_index < CMA_TABLE_ENTRY_SIZE) {
 		bool *use_bitmap = bitmap[table_index];
 		int *use_table = table[table_index];
+
+		uint32 dmem_addr;
+
+		ArrayData launch_data(interleave_size, 0);
 		for (int i = 0; i < interleave_size; i++) {
 			if (use_bitmap[i]) {
-				send_data[i] = (*input_data)[use_table[i]];
+				dmem_addr = load_addr + (use_table[i] * 4);
+				launch_data[i] = (**dbank)->fetch_word_from_inner(dmem_addr);
 			}
 		}
+		pearray->launch(launch_data);
 	}
-	return send_data;
 }
 
-STUnit::STUnit(int interleave_size_, int max_delay_):
-	DataManipulator(interleave_size_),
+void DataManipulator::fromPEArray(uint32 store_addr, int table_index)
+{
+	if (table_index < CMA_TABLE_ENTRY_SIZE) {
+		bool *use_bitmap = bitmap[table_index];
+		int *use_table = table[table_index];
+
+		uint32 dmem_addr;
+
+		ArrayData gather_data = pearray->gather();
+		for (int i = 0; i < interleave_size; i++) {
+			if (use_bitmap[i]) {
+				dmem_addr = store_addr + i * 4;
+				(**dbank)->store_word_from_inner(dmem_addr,
+					gather_data[use_table[i]]);
+			}
+		}
+
+	}
+}
+
+
+
+STUnit::STUnit(int interleave_size_,  DoubleBuffer*** dbank_,
+				PEArray *pearray_, int max_delay_):
+	DataManipulator(interleave_size_, dbank_, pearray_),
 	max_delay(max_delay_)
 {
 	for (int i = 0;i < max_delay; i++) {
 		late_signal.push_back(st_signal_t{false, 0, 0});
 	}
+	delay = 0;
+	pending_count = 0;
 };
+
+void STUnit::step()
+{
+	late_signal.pop_back();
+	if (late_signal.size() < max_delay) {
+		late_signal.push_front(st_signal_t{false, 0, 0});
+	}
+	st_signal_t current_signal = late_signal[delay+1];
+	for (int i = 0; i < max_delay; i++) {
+		fprintf(stderr, "%d ", late_signal[i].enable);
+	}
+	fprintf(stderr, "\n");
+
+	if (current_signal.enable) {
+		// execute store
+		fprintf(stderr, "%d gather exec (addr %d)\n", machine->num_cycles,
+									current_signal.store_addr);
+		fromPEArray(current_signal.store_addr, current_signal.table_sel);
+		pending_count--;
+	}
+}
+
+void STUnit::issue(uint32 store_addr, uint32 table_index)
+{
+	late_signal.push_front(st_signal_t{true, table_index, store_addr});
+	pending_count++;
+}
+
 
 void MicroController::reset()
 {
-	fprintf(stderr, "MC reset!!\n");
 	for (int i = 0; i < CMA_MC_REG_SIZE; i++) {
 		regfile[i] = 0;
 	}
@@ -516,6 +614,7 @@ void MicroController::step()
 	uint16 instr = (uint16)imem->fetch_word_from_inner(pc);
 
 	uint8 src, dst;
+	uint8 ld_table_index, st_table_index;
 	src = reg_src(instr);
 	dst = reg_dst(instr);
 
@@ -535,10 +634,16 @@ void MicroController::step()
 					regfile[dst] = regfile[src];
 					break;
 				case CMA_MC_FUNC_DONE:
-					*done_ptr = true;
+					if (st_unit->isWorking()) {
+						// stall
+						next_pc = pc;
+						fprintf(stderr, "Done stall\n");
+					} else {
+						*done_ptr = true;
+					}
 					break;
 				case CMA_MC_FUNC_DELAY:
-					delay = dst;
+					st_unit->setDelay(dst);
 					break;
 				default:
 					break;
@@ -552,8 +657,13 @@ void MicroController::step()
 									+ (int16)s_imm(instr));
 			break;
 		case CMA_MC_OPCODE_LD_ST_ADD:
+			fprintf(stderr, "%d LDST add issue\n", machine->num_cycles);
 			//exec launch & issue gather
-
+			ld_table_index = reg_src(instr);
+			st_table_index = func(instr);
+			//word addressing -> byte addressing
+			ld_unit->toPEArray(launch_addr << 2, ld_table_index);
+			st_unit->issue(gather_addr << 2, st_table_index);
 			launch_addr += launch_incr;
 			gather_addr += gather_incr;
 			break;
@@ -601,7 +711,7 @@ void CCSOTB2::CCSOTB2_PEArray::make_connection()
 	for (int x = 0; x < width; x++) {
 		for (int y = 0; y < height; y++) {
 			//SE to ALU
-			for (int ch = SE_SOUTH; ch <= SE_WEST; ch++) {
+			for (int ch = IN_SE_SOUTH; ch <= IN_SE_WEST; ch++) {
 				int pred_x = CONNECT_COORD[ch][0] + x;
 				int pred_y = CONNECT_COORD[ch][1] + y;
 				if ((pred_x >= 0 && pred_x < width) &&
@@ -617,7 +727,7 @@ void CCSOTB2::CCSOTB2_PEArray::make_connection()
 				}
 			}
 			//ALU to ALU (Direct Link)
-			for (int ch = DL_S; ch <= DL_SW; ch++) {
+			for (int ch = IN_DL_S; ch <= IN_DL_SW; ch++) {
 				int pred_x = CONNECT_COORD[ch][0] + x;
 				int pred_y = CONNECT_COORD[ch][1] + y;
 				if ((pred_x >= 0 && pred_x < width) &&
@@ -636,47 +746,47 @@ void CCSOTB2::CCSOTB2_PEArray::make_connection()
 			alu_sels[x][y][1]->connect(cregs[y + height]);
 
 			//own ALU to SE
-			channels[x][y][0][SE_NORTH]->connect(alus[x][y]);
-			channels[x][y][0][SE_SOUTH]->connect(alus[x][y]);
-			channels[x][y][0][SE_EAST]->connect(alus[x][y]);
+			channels[x][y][0][OUT_SE_NORTH]->connect(alus[x][y]);
+			channels[x][y][0][OUT_SE_SOUTH]->connect(alus[x][y]);
+			channels[x][y][0][OUT_SE_EAST]->connect(alus[x][y]);
 
 			// from south
 			if (y > 0) {
-				node_ptr = channels[x][y-1][0][SE_SOUTH];
+				node_ptr = channels[x][y-1][0][OPPOSITE_CHANNEL[IN_SE_SOUTH]];
 			} else {
 				node_ptr = launch_regs[x];
 			}
-			channels[x][y][0][SE_NORTH]->connect(node_ptr);
-			channels[x][y][0][SE_EAST]->connect(node_ptr);
-			channels[x][y][0][SE_WEST]->connect(node_ptr);
+			channels[x][y][0][OUT_SE_NORTH]->connect(node_ptr);
+			channels[x][y][0][OUT_SE_EAST]->connect(node_ptr);
+			channels[x][y][0][OUT_SE_WEST]->connect(node_ptr);
 
 			// from north
 			if (y < height - 1) {
-				node_ptr = channels[x][y+1][0][SE_NORTH];
+				node_ptr = channels[x][y+1][0][OPPOSITE_CHANNEL[IN_SE_NORTH]];
 			} else {
 				node_ptr = NULL;
 			}
-			channels[x][y][0][SE_SOUTH]->connect(node_ptr);
+			channels[x][y][0][OUT_SE_SOUTH]->connect(node_ptr);
 
 			// from east
 			if (x > 0) {
-				node_ptr = channels[x-1][y][0][SE_WEST];
+				node_ptr = channels[x-1][y][0][OPPOSITE_CHANNEL[IN_SE_EAST]];
 			} else {
 				node_ptr = NULL;
 			}
-			channels[x][y][0][SE_NORTH]->connect(node_ptr);
-			channels[x][y][0][SE_SOUTH]->connect(node_ptr);
-			channels[x][y][0][SE_WEST]->connect(node_ptr);
+			channels[x][y][0][OUT_SE_NORTH]->connect(node_ptr);
+			channels[x][y][0][OUT_SE_SOUTH]->connect(node_ptr);
+			channels[x][y][0][OUT_SE_WEST]->connect(node_ptr);
 
 			// from west
 			if (x < width - 1) {
-				node_ptr = channels[x+1][y][0][SE_EAST];
+				node_ptr = channels[x+1][y][0][OPPOSITE_CHANNEL[IN_SE_WEST]];
 			} else {
 				node_ptr = NULL;
 			}
-			channels[x][y][0][SE_NORTH]->connect(node_ptr);
-			channels[x][y][0][SE_SOUTH]->connect(node_ptr);
-			channels[x][y][0][SE_EAST]->connect(node_ptr);
+			channels[x][y][0][OUT_SE_NORTH]->connect(node_ptr);
+			channels[x][y][0][OUT_SE_SOUTH]->connect(node_ptr);
+			channels[x][y][0][OUT_SE_EAST]->connect(node_ptr);
 
 			// from south (DL)
 			if (y > 0) {
@@ -684,9 +794,9 @@ void CCSOTB2::CCSOTB2_PEArray::make_connection()
 			} else {
 				node_ptr = NULL;
 			}
-			channels[x][y][0][SE_NORTH]->connect(node_ptr);
-			channels[x][y][0][SE_EAST]->connect(node_ptr);
-			channels[x][y][0][SE_WEST]->connect(node_ptr);
+			channels[x][y][0][OUT_SE_NORTH]->connect(node_ptr);
+			channels[x][y][0][OUT_SE_EAST]->connect(node_ptr);
+			channels[x][y][0][OUT_SE_WEST]->connect(node_ptr);
 
 			// from southeast (DL)
 			if (y > 0 && x < width - 1) {
@@ -694,9 +804,9 @@ void CCSOTB2::CCSOTB2_PEArray::make_connection()
 			} else {
 				node_ptr = NULL;
 			}
-			channels[x][y][0][SE_NORTH]->connect(node_ptr);
-			channels[x][y][0][SE_EAST]->connect(node_ptr);
-			channels[x][y][0][SE_WEST]->connect(node_ptr);
+			channels[x][y][0][OUT_SE_NORTH]->connect(node_ptr);
+			channels[x][y][0][OUT_SE_EAST]->connect(node_ptr);
+			channels[x][y][0][OUT_SE_WEST]->connect(node_ptr);
 
 			// from southwest (DL)
 			if (y > 0 && x > 0) {
@@ -704,13 +814,13 @@ void CCSOTB2::CCSOTB2_PEArray::make_connection()
 			} else {
 				node_ptr = NULL;
 			}
-			channels[x][y][0][SE_NORTH]->connect(node_ptr);
-			channels[x][y][0][SE_EAST]->connect(node_ptr);
+			channels[x][y][0][OUT_SE_NORTH]->connect(node_ptr);
+			channels[x][y][0][OUT_SE_EAST]->connect(node_ptr);
 
 			// const to SE
-			channels[x][y][0][SE_NORTH]->connect(pregs[y]);
+			channels[x][y][0][OUT_SE_NORTH]->connect(pregs[y]);
 		}
-		gather_regs[x]->connect(channels[x][0][0][SE_NORTH]);
+		gather_regs[x]->connect(channels[x][0][0][OUT_SE_SOUTH]);
 	}
 }
 
@@ -758,9 +868,9 @@ NodeList PENodeBase::use_successors()
 			if (successors[i]->isUse(this)) {
 				list.push_back(successors[i]);
 			} else {
-				fprintf(stderr, "%s not used after %s\n", 
-					debug_str[successors[i]].c_str(),
-					debug_str[this].c_str());
+				// fprintf(stderr, "%s not used after %s\n", 
+				// 	debug_str[successors[i]].c_str(),
+				// 	debug_str[this].c_str());
 			}
 		}
 	}
@@ -773,6 +883,7 @@ void PENodeBase::connect(PENodeBase* pred)
 		pred->successors.push_back(this);
 	}
 }
+
 
 void MUX::exec()
 {
@@ -797,7 +908,7 @@ void ALU::exec()
 	inA = predecessors[0]->getData();
 	inB = predecessors[1]->getData();
 	obuf.push(PE_op_table[opcode](inA, inB));
-	fprintf(stderr, "ALU in %x, %x out %x\n", inA, inB, obuf.front());
+	//fprintf(stderr, "ALU in %x, %x out %x\n", inA, inB, obuf.front());
 }
 
 bool ALU::isUse(PENodeBase* pred)
@@ -852,7 +963,11 @@ void ConstReg::writeData(uint32 data) {
 
 void MemStoreUnit::exec()
 {
+	obuf.pop();
 	obuf.push(predecessors[0]->getData());
+	fprintf(stderr, "%d gather reg %06X ---> %06X size %lu\n", 
+		machine->num_cycles, 
+		obuf.back(), obuf.front(), obuf.size());
 }
 
 uint32 MemStoreUnit::load()

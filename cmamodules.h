@@ -146,6 +146,7 @@ namespace CMAComponents {
 	class DManuTableCtrl : public Range {
 		private:
 			DataManipulator *dmanu;
+			DoubleBuffer **dbank;
 		public:
 			DManuTableCtrl(size_t size, DataManipulator *dmanu_) :
 					Range (0, size, 0, MEM_READ_WRITE),
@@ -196,26 +197,74 @@ namespace CMAComponents {
 
 
 	class ControlReg : public Range {
-	private:
-		bool donedma, run;
-		int bank_sel;
-	public:
-		ControlReg() : Range(0, CMA_CTRL_SIZE, 0, MEM_READ_WRITE), donedma(false),
-							run(false), bank_sel(false) {}
-		bool getDoneDMA() { return donedma; };
-		bool getRun() { return run; };
-		int getBankSel() { return bank_sel; };
+		private:
+			bool donedma, run;
+			int bank_sel;
+		public:
+			ControlReg() : Range(0, CMA_CTRL_SIZE, 0, MEM_READ_WRITE), donedma(false),
+								run(false), bank_sel(false) {}
+			bool getDoneDMA() { return donedma; };
+			bool getRun() { return run; };
+			int getBankSel() { return bank_sel; };
 
-		void store_word(uint32 offset, uint32 data, DeviceExc *client);
-		uint32 fetch_word(uint32 offset, int mode, DeviceExc *client);
+			void store_word(uint32 offset, uint32 data, DeviceExc *client);
+			uint32 fetch_word(uint32 offset, int mode, DeviceExc *client);
+	};
+
+	class DataManipulator {
+		private:
+			bool *bitmap[CMA_TABLE_ENTRY_SIZE];
+			int *table[CMA_TABLE_ENTRY_SIZE];
+			int interleave_size;
+
+		protected:
+			DoubleBuffer ***dbank;
+			PEArray *pearray;
+
+		public:
+			DataManipulator(int interleave_size_, DoubleBuffer*** dbank_,
+							PEArray *pearray_);
+			void setBitmap(int index, int pos, bool flag);
+			void setTable(int index, int pos, int data);
+			bool getBitmap(int index, int pos);
+			int getTable(int index, int pos);
+			void toPEArray(uint32 load_addr, int table_index);
+			void fromPEArray(uint32 store_addr, int table_index);
+	};
+
+	using LDUnit = DataManipulator;
+
+	class STUnit : public DataManipulator {
+		private:
+			struct st_signal_t
+			{
+				bool enable;
+				uint32 table_sel;
+				uint32 store_addr;
+			};
+
+			int max_delay;
+			std::deque<st_signal_t> late_signal;
+			int pending_count;
+			int delay;
+
+
+		public:
+			STUnit(int interleave_size_, DoubleBuffer*** dbank_,
+					PEArray *pearray_, int max_delay_ = 16);
+			void issue(uint32 store_addr, uint32 table_index);
+			void step();
+			void setDelay(int delay_) { delay = delay_; };
+			bool isWorking() { return pending_count > 0; };
 	};
 
 	class MicroController {
 		private:
 			DoubleBuffer *imem;
+			LDUnit *ld_unit;
+			STUnit *st_unit;
 			uint16 regfile[CMA_MC_REG_SIZE];
 			uint32 pc;
-			uint8 delay;
 			bool *done_ptr;
 			uint8 launch_addr, launch_incr;
 			uint8 gather_addr, gather_incr;
@@ -240,12 +289,14 @@ namespace CMAComponents {
 				return i & CMA_MC_IMM_MASK;
 			}
 			static uint8 addr(const uint16 i) {
-				return (i & CMA_MC_ADDR_MASK) >> CMA_PE_ADDR_LSB;
+				return (i & CMA_MC_ADDR_MASK) >> CMA_MC_ADDR_LSB;
 			}
 
 		public:
-			MicroController(DoubleBuffer *imem_, bool *done_ptr_)
-				: imem(imem_), done_ptr(done_ptr_) {};
+			MicroController(DoubleBuffer *imem_, LDUnit* ld_unit_,
+							STUnit *st_unit_, bool *done_ptr_)
+				: imem(imem_), done_ptr(done_ptr_),
+				  ld_unit(ld_unit_), st_unit(st_unit_) {};
 			void step();
 			void reset();
 	};
@@ -280,6 +331,7 @@ namespace CMAComponents {
 			virtual uint32 getData() {
 				return obuf.empty() ? 0 : obuf.front();
 			};
+			virtual void update() { obuf.pop(); };
 
 			virtual NodeList use_successors();
 	};
@@ -292,7 +344,8 @@ namespace CMAComponents {
 			bool isUse(CMAComponents::PENodeBase* pred);
 			void config(uint32 data);
 			int in_degree() { return 1; };
-			void test() { fprintf(stderr, "%d\n", config_data); }
+			void test() { fprintf(stderr, "%06X\n", predecessors[0]->getData()); }
+			void test2() { fprintf(stderr, "%06X\n", predecessors[1]->getData()); }
 	};
 
 	class ALU : public PENodeBase {
@@ -303,7 +356,7 @@ namespace CMAComponents {
 			bool isUse(CMAComponents::PENodeBase* pred);
 			void config(uint32 data);
 			int in_degree();
-			void test() { fprintf(stderr, "%d\n", opcode); }
+			// void test() { fprintf(stderr, "%d\n", opcode); }
 	};
 
 	class PREG : public PENodeBase {
@@ -330,18 +383,26 @@ namespace CMAComponents {
 	};
 
 	class MemLoadUnit : public PENodeBase {
+		private:
+			uint32 latch;
 		public:
+			MemLoadUnit() { obuf.push(0); };
 			void exec() {};
-			void store(uint32 data) { obuf.push(data); };
+			void store(uint32 data) { obuf.push(data); 
+				fprintf(stderr, "mem buf size %d\n", obuf.size());};
 			bool isUse(CMAComponents::PENodeBase* pred) { return false; };
+			void update() { if (obuf.size() > 1) obuf.pop(); };
+			// void test() { fprintf(stderr, "imem %X\n", latch); };
 	};
 
 	class MemStoreUnit : public PENodeBase {
 		public:
+			MemStoreUnit() { obuf.push(0); obuf.push(0); };
 			void exec();
 			uint32 load();
 			bool isUse(CMAComponents::PENodeBase* pred) { return true; };
 			int in_degree() { return 1; }
+			// void test() { fprintf(stderr, "omem in %06X\n", predecessors[0]->getData()); };
 	};
 
 	class PEArray {
@@ -395,104 +456,51 @@ namespace CMAComponents {
 			void config_PE(int pe_addr, int data);
 			void config_PE(int x, int y, int data);
 
-			virtual void test() {
-				for (int y = 0; y < 8; y++) {
-					for (int x = 0; x < 2; x++) {
-						fprintf(stderr, "\n(%d %d)\n", x, y);
-						fprintf(stderr, "\tALU opcode ");
-						alus[x][y]->test();
-						fprintf(stderr, "\tSEL_A ");
-						alu_sels[x][y][0]->test();
-						fprintf(stderr, "\tSEL_B ");
-						alu_sels[x][y][1]->test();
-						fprintf(stderr, "\tOUT N  ");
-						channels[x][y][0][0]->test();
-						fprintf(stderr, "\tOUT S  ");
-						channels[x][y][0][1]->test();
-						fprintf(stderr, "\tOUT E  ");
-						channels[x][y][0][2]->test();
-						fprintf(stderr, "\tOUT W  ");
-						channels[x][y][0][3]->test();
+			void launch(ArrayData input_data);
+			ArrayData gather();
 
-					}
-				}
-				analyze_dataflow();
-				//init in_degree for each node
+			void exec();
+			void update();
 
-				// alus[0][0]->config(1); //addd
-				// alu_sels[0][0][0]->config(0); //from south
-				// alu_sels[0][0][1]->config(6); //from const A
-				// launch_regs[0]->launch(10);
-
-				// BFSQueue q;
-				// q.push(launch_regs[0]);
-				// q.push(cregs[0]);
-
-				// int cnt = 0;
-				// do {
-				// 	PENodeBase* p = q.pop();
-				// 	if (debug_str.count(p) > 0) {
-				// 		fprintf(stderr, "%s\n", debug_str[p].c_str());
-				// 	}
-				// 	p->exec();
-
-				// 	p->add_successors(&q);
-				// } while (!q.empty());
-
+			void test() {
+				fprintf(stderr, "IN SOUTH(0,0) ");
+				alu_sels[0][0][0]->test();
+				fprintf(stderr, "IN NORTH(0,0) ");
+				channels[1][0][0][1]->test2();
 			}
 
 	};
 
-	class DataManipulator {
-		private:
-			bool *bitmap[CMA_TABLE_ENTRY_SIZE];
-			int *table[CMA_TABLE_ENTRY_SIZE];
-			int interleave_size;
-
-		public:
-			DataManipulator(int interleave_size_);
-			void setBitmap(int index, int pos, bool flag);
-			void setTable(int index, int pos, int data);
-			bool getBitmap(int index, int pos);
-			int getTable(int index, int pos);
-			ArrayData send(ArrayData *input_data, int table_index);
-	};
-
-	using LDUnit = DataManipulator;
-
-	class STUnit : public DataManipulator {
-		private:
-			struct st_signal_t
-			{
-				bool enable;
-				uint32 table_sel;
-				uint32 store_addr;
-			};
-
-			int max_delay;
-			std::deque<st_signal_t> late_signal;
-			bool working;
-
-		public:
-			STUnit(int interleave_size_, int max_delay_ = 16);
-	};
-
 	namespace CCSOTB2 {
-		static int SE_NORTH	= 0;
-		static int SE_SOUTH	= 1;
-		static int SE_EAST	= 2;
-		static int SE_WEST	= 3;
-		static int DL_S		= 4;
-		static int DL_SE	= 5;
-		static int DL_SW	= 6;
+		static int IN_SE_NORTH	= 0;
+		static int IN_SE_SOUTH	= 1;
+		static int IN_SE_EAST	= 2;
+		static int IN_SE_WEST	= 3;
+		static int IN_DL_S		= 4;
+		static int IN_DL_SE		= 5;
+		static int IN_DL_SW		= 6;
 
+		static int OUT_SE_NORTH	= 0;
+		static int OUT_SE_SOUTH	= 1;
+		static int OUT_SE_EAST	= 2;
+		static int OUT_SE_WEST	= 3;
+
+		// indexed by input channels
 		static int OPPOSITE_CHANNEL[4] = {
-			1, 0, 3, 2
+			OUT_SE_SOUTH, // to IN_SE_NORTH
+			OUT_SE_NORTH, // to IN_SE_SOUTH
+			OUT_SE_WEST,  // to IN_SE_EAST
+			OUT_SE_EAST   // to IN_SE_WEST
 		};
 
 		static int CONNECT_COORD[7][2] = {
-			{0, 1}, {0, -1}, {1, 0}, {-1, 0},
-			{0, -1}, {1, -1}, {-1, -1}
+			{0, 1},  // IN_SE_NORTH
+			{0, -1}, // IN_SE_SOUTH
+			{1, 0},  // IN_SE_EAST
+			{-1, 0}, // IN_SE_WEST
+			{0, -1}, // IN_DL_S
+			{1, -1}, // IN_DL_SE
+			{-1, -1} // IN_DL_SW
 		};
 
 

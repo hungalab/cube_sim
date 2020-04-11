@@ -16,6 +16,7 @@ class DoubleBuffer;
 
 class CMA : public CubeAccelerator {
 private:
+	DoubleBuffer **dbank;
 	DoubleBuffer *dmem_front, *dmem_back, *imem;
 	CMAComponents::ConstRegCtrl *const_reg;
 	CMAComponents::DManuTableCtrl *ld_tbl, *st_tbl;
@@ -32,6 +33,8 @@ private:
 
 	//status
 	bool mc_done;
+	bool mc_working;
+	bool done_notif;
 
 public:
 	CMA(uint32 node_ID, Router* upperRouter);
