@@ -120,17 +120,6 @@ namespace CMAComponents {
 	using NodeList = std::vector<CMAComponents::PENodeBase*>;
 	using ArrayData = std::vector<uint32>;
 
-	// class CMAMemoryModule : public MemoryModule {
-	// 	int mask;
-	// public:
-	// 	//constructor
-	// 	CMAMemoryModule(size_t size, int mask_) : MemoryModule(size), mask(mask_) {};
-
-	// 	void store_word(uint32 offset, uint32 data, DeviceExc *client);
-
-	// 	uint32 *getMemElement() { return (uint32*)address; }
-	// };
-
 	class ConstRegCtrl : public Range {
 		private:
 			PEArray *pearray;
@@ -266,8 +255,8 @@ namespace CMAComponents {
 			uint16 regfile[CMA_MC_REG_SIZE];
 			uint32 pc;
 			bool *done_ptr;
-			uint8 launch_addr, launch_incr;
-			uint8 gather_addr, gather_incr;
+			uint32 launch_addr, launch_incr;
+			uint32 gather_addr, gather_incr;
 
 			// op decode
 			static uint16 opcode(const uint16 i) {
@@ -301,17 +290,6 @@ namespace CMAComponents {
 			void reset();
 	};
 
-	// class BFSQueue {
-	// 	private:
-	// 		std::queue<PENodeBase*> nodeQueue;
-	// 		std::map<PENodeBase*, bool> added;
-	// 	public:
-	// 		~BFSQueue();
-	// 		void push(PENodeBase* node);
-	// 		PENodeBase* pop();
-	// 		bool empty() { return nodeQueue.empty(); };
-	// };
-
 	static std::map <PENodeBase*, std::string> debug_str;
 
 	class PENodeBase {
@@ -344,8 +322,6 @@ namespace CMAComponents {
 			bool isUse(CMAComponents::PENodeBase* pred);
 			void config(uint32 data);
 			int in_degree() { return 1; };
-			void test() { fprintf(stderr, "%06X\n", predecessors[0]->getData()); }
-			void test2() { fprintf(stderr, "%06X\n", predecessors[1]->getData()); }
 	};
 
 	class ALU : public PENodeBase {
@@ -356,7 +332,6 @@ namespace CMAComponents {
 			bool isUse(CMAComponents::PENodeBase* pred);
 			void config(uint32 data);
 			int in_degree();
-			// void test() { fprintf(stderr, "%d\n", opcode); }
 	};
 
 	class PREG : public PENodeBase {
@@ -391,7 +366,6 @@ namespace CMAComponents {
 			void store(uint32 data) { obuf.push(data); };
 			bool isUse(CMAComponents::PENodeBase* pred) { return false; };
 			void update() { if (obuf.size() > 1) obuf.pop(); };
-			// void test() { fprintf(stderr, "imem %X\n", latch); };
 	};
 
 	class MemStoreUnit : public PENodeBase {
@@ -401,7 +375,6 @@ namespace CMAComponents {
 			uint32 load();
 			bool isUse(CMAComponents::PENodeBase* pred) { return true; };
 			int in_degree() { return 1; }
-			// void test() { fprintf(stderr, "omem in %06X\n", predecessors[0]->getData()); };
 	};
 
 	class PEArray {
@@ -460,7 +433,6 @@ namespace CMAComponents {
 
 			void exec();
 			void update();
-
 	};
 
 	namespace CCSOTB2 {

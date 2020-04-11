@@ -502,21 +502,6 @@ int DataManipulator::getTable(int index, int pos)
 	return (index < CMA_TABLE_ENTRY_SIZE) ? table[index][pos] : 0;
 }
 
-// ArrayData DataManipulator::send(ArrayData *input_data, int table_index)
-// {
-// 	ArrayData send_data(interleave_size, 0);
-
-// 	if (table_index < CMA_TABLE_ENTRY_SIZE) {
-// 		bool *use_bitmap = bitmap[table_index];
-// 		int *use_table = table[table_index];
-// 		for (int i = 0; i < interleave_size; i++) {
-// 			if (use_bitmap[i]) {
-// 				send_data[i] = (*input_data)[use_table[i]];
-// 			}
-// 		}
-// 	}
-// 	return send_data;
-// }
 
 void DataManipulator::toPEArray(uint32 load_addr, int table_index)
 {
@@ -556,7 +541,6 @@ void DataManipulator::fromPEArray(uint32 store_addr, int table_index)
 
 	}
 }
-
 
 
 STUnit::STUnit(int interleave_size_,  DoubleBuffer*** dbank_,
@@ -763,8 +747,8 @@ void CCSOTB2::CCSOTB2_PEArray::make_connection()
 			channels[x][y][0][OUT_SE_SOUTH]->connect(node_ptr);
 
 			// from east
-			if (x > 0) {
-				node_ptr = channels[x-1][y][0][OPPOSITE_CHANNEL[IN_SE_EAST]];
+			if (x < width - 1) {
+				node_ptr = channels[x+1][y][0][OPPOSITE_CHANNEL[IN_SE_EAST]];
 			} else {
 				node_ptr = NULL;
 			}
@@ -773,8 +757,8 @@ void CCSOTB2::CCSOTB2_PEArray::make_connection()
 			channels[x][y][0][OUT_SE_WEST]->connect(node_ptr);
 
 			// from west
-			if (x < width - 1) {
-				node_ptr = channels[x+1][y][0][OPPOSITE_CHANNEL[IN_SE_WEST]];
+			if (x > 0) {
+				node_ptr = channels[x-1][y][0][OPPOSITE_CHANNEL[IN_SE_WEST]];
 			} else {
 				node_ptr = NULL;
 			}
@@ -812,35 +796,11 @@ void CCSOTB2::CCSOTB2_PEArray::make_connection()
 			channels[x][y][0][OUT_SE_EAST]->connect(node_ptr);
 
 			// const to SE
-			channels[x][y][0][OUT_SE_NORTH]->connect(pregs[y]);
+			channels[x][y][0][OUT_SE_NORTH]->connect(cregs[y]);
 		}
 		gather_regs[x]->connect(channels[x][0][0][OUT_SE_SOUTH]);
 	}
 }
-
-
-// BFSQueue::~BFSQueue()
-// {
-// 	std::queue<PENodeBase*> empty;
-// 	std::swap(nodeQueue, empty);
-// 	added.clear();
-// }
-
-// void BFSQueue::push(PENodeBase* node)
-// {
-// 	if (added.count(node) == 0) {
-// 		nodeQueue.push(node);
-// 		added[node] = true;
-// 	}
-// }
-
-// PENodeBase* BFSQueue::pop()
-// {
-// 	PENodeBase* ret = nodeQueue.front();
-// 	nodeQueue.pop();
-// 	return ret;
-// }
-
 
 PENodeBase::PENodeBase()
 {
@@ -877,7 +837,6 @@ void PENodeBase::connect(PENodeBase* pred)
 		pred->successors.push_back(this);
 	}
 }
-
 
 void MUX::exec()
 {

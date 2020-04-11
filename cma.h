@@ -29,8 +29,6 @@ private:
 	CMAComponents::PREGConfigCtrl *preg_config;
 	CMAComponents::MicroController *mc;
 
-	int node;
-
 	//status
 	bool mc_done;
 	bool mc_working;

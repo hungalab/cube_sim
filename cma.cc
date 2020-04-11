@@ -13,24 +13,30 @@ CMA::CMA(uint32 node_ID, Router* upperRouter)
 	dmem_back = new DoubleBuffer(CMA_DBANK1_SIZE, CMA_DWORD_MASK);
 	dbank = &dmem_front;
 
+	// instruction memory
 	imem = new DoubleBuffer(CMA_IMEM_SIZE, CMA_IWORD_MASK);
+
+	// const regs
 	const_reg = new ConstRegCtrl(CMA_CONST_SIZE, pearray);
 
-	ctrl_reg = new ControlReg();
-
+	// Data manipulator
 	ld_unit = new LDUnit(CMA_PE_ARRAY_WIDTH, &dbank, pearray);
 	ld_tbl = new DManuTableCtrl(CMA_LD_TABLE_SIZE, ld_unit);
 	st_unit = new STUnit(CMA_PE_ARRAY_WIDTH, &dbank, pearray);
 	st_tbl = new DManuTableCtrl(CMA_ST_TABLE_SIZE, st_unit);
 
+	// configuration
 	rmc_alu = new RMCALUConfigCtrl(pearray);
 	rmc_se = new RMCSEConfigCtrl(pearray);
 	pe_config = new PEConfigCtrl(pearray);
 	preg_config = new PREGConfigCtrl(pearray);
 
+	// control register
+	ctrl_reg = new ControlReg();
+
+	// Microcontroller
 	mc = new MicroController(imem, ld_unit, st_unit, &mc_done);
 
-	node = node_ID;
 }
 
 CMA::~CMA()
@@ -51,7 +57,6 @@ CMA::~CMA()
 
 void CMA::setup()
 {
-	//confCtrl = new ConfigController(localBus, pearray);
 	localBus->map_at_local_address(dmem_front, CMA_DBANK0_ADDR);
 	localBus->map_at_local_address(dmem_back, CMA_DBANK1_ADDR);
 	localBus->map_at_local_address(imem, CMA_IMEM_ADDR);
@@ -65,17 +70,6 @@ void CMA::setup()
 	localBus->map_at_local_address(rmc_se, CMA_SE_RMC_ADDR);
 	localBus->map_at_local_address(pe_config, CMA_PE_CONF_ADDR);
 	localBus->map_at_local_address(preg_config, CMA_PREG_CONF_ADDR);
-
-	// localBus->store_word(CMA_CONST_ADDR, (uint32)(-1));
-	// localBus->store_word(CMA_DBANK0_ADDR, 0x1234);
-	// dmem_front->buf_switch();
-	// ld_unit->test();
-	// dmem_front->buf_switch();
-	// localBus->store_word(CMA_DBANK1_ADDR, 0x5678);
-	// dmem_back->buf_switch();
-	// dbank = &dmem_back;
-	// ld_unit->test();
-	// dmem_back->buf_switch();
 }
 
 void CMA::core_reset()
@@ -88,7 +82,6 @@ void CMA::core_step()
 {
 	if (ctrl_reg->getRun()) {
 		if (!mc_working) {
-			fprintf(stderr, "Kick CMA\n");
 			// kick microcontroller
 			imem->buf_switch();
 			if (ctrl_reg->getBankSel() == 0) {
@@ -109,7 +102,6 @@ void CMA::core_step()
 			pearray->exec();
 			st_unit->step();
 		} else if (!done_notif) {
-			fprintf(stderr, "nortif Done\n");
 			// finish exeution
 			if (ctrl_reg->getBankSel() == 0) {
 				dmem_front->buf_switch();
