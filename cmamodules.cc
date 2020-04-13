@@ -419,15 +419,6 @@ void PEArray::analyze_dataflow()
 		}
 	} while (in_degrees.size() < prev_size);
 
-	// launch_regs[0]->store(0x0f0f0f);
-	// launch_regs[1]->store(0x0f0f0f);
-	// for (auto i = tsorted_list.begin(); i != tsorted_list.end(); i++) {
-	// 	PENodeBase *p = *i;
-	// 	fprintf(stderr, "%s\n", debug_str[p].c_str());
-	// 	//p->exec();
-	// }
-
-	//exit(1);
 	config_changed = false;
 }
 

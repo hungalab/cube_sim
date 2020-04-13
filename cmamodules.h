@@ -101,15 +101,6 @@
 #define CMA_MC_FUNC_DELAY		0xF
 
 
-struct result_stat_t {
-	int result_addr;
-	bool bank0;
-	unsigned int *result;
-	int wait;
-	int len;
-};
-
-
 class LocalMapper;
 
 namespace CMAComponents {
@@ -370,7 +361,7 @@ namespace CMAComponents {
 
 	class MemStoreUnit : public PENodeBase {
 		public:
-			MemStoreUnit() { obuf.push(0); obuf.push(0); };
+			MemStoreUnit() { obuf.push(0); };
 			void exec();
 			uint32 load();
 			bool isUse(CMAComponents::PENodeBase* pred) { return true; };
