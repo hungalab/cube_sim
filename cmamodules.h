@@ -331,7 +331,7 @@ namespace CMAComponents {
 			uint32 latch = 0;
 		public:
 			void exec();
-			bool isUse(CMAComponents::PENodeBase* pred) { return true; };
+			bool isUse(CMAComponents::PENodeBase* pred);
 			void activate() { activated = true; };
 			void deactivate() { activated = false; };
 			virtual bool isTerminal() { return activated; };
@@ -372,12 +372,13 @@ namespace CMAComponents {
 		protected:
 			int height, width;
 			int se_count, se_channels;
-			bool preg_enabled;
+			int preg_channels;
+
 			CMAComponents::ALU ***alus;
 			CMAComponents::MUX ****alu_sels;
 			CMAComponents::MUX *****channels;
 			CMAComponents::ConstReg **cregs;
-			CMAComponents::PREG **pregs;
+			CMAComponents::PREG ****pregs;
 			CMAComponents::MemLoadUnit **launch_regs;
 			CMAComponents::MemStoreUnit **gather_regs;
 
@@ -406,7 +407,7 @@ namespace CMAComponents {
 									uint32& se_west);
 
 		public:
-			PEArray(int height_, int width_, bool preg_en,
+			PEArray(int height_, int width_, int preg_channels_,
 					 int se_count_ = 1, int se_channels_ = 4);
 			~PEArray();
 
@@ -466,7 +467,7 @@ namespace CMAComponents {
 				CCSOTB2_PEArray(int height_, int width_,
 								 int se_count = 1, int se_channels = 4)
 								 : PEArray(height_, width_,
-								 		true, se_count, se_channels) {
+								 		2, se_count, se_channels) {
 					make_connection();
 				};
 		};

@@ -125,15 +125,15 @@ uint32 ControlReg::fetch_word(uint32 offset, int mode, DeviceExc *client)
 }
 
 
-PEArray::PEArray(int height_, int width_, bool preg_en,
+PEArray::PEArray(int height_, int width_, int preg_channels_,
 					int se_count_, int se_channels_) :
-	height(height_), width(width_), preg_enabled(preg_en),
+	height(height_), width(width_), preg_channels(preg_channels_),
 	se_count(se_count_), se_channels(se_channels_)
 {
 	make_ALUs();
 	make_SEs();
 	make_const_regs();
-	if (preg_enabled) {
+	if (preg_channels > 0) {
 		make_pregs();
 	}
 	make_memports();
@@ -226,11 +226,18 @@ void PEArray::make_const_regs()
 
 void PEArray::make_pregs()
 {
-	pregs = new PREG*[height - 1];
-	for (int i = 0; i < height - 1; i++) {
-		pregs[i] = new PREG();
-		//Debug
-		debug_str[pregs[i]] = std::string("PREG_") + std::to_string(i);
+	pregs = new PREG***[width];
+	for (int x = 0; x < width; x++) {
+		pregs[x] = new PREG**[height - 1];
+		for (int y = 0; y < height - 1; y++) {
+			pregs[x][y] = new PREG*[preg_channels];
+			for (int i = 0; i < preg_channels; i++) {
+				pregs[x][y][i] = new PREG();
+				//Debug
+				debug_str[pregs[x][y][i]] = std::string("PREG_") + std::to_string(x) + "_" + std::to_string(y) + "_" +
+				std::to_string(i);
+			}
+		}
 	}
 }
 
@@ -268,11 +275,19 @@ void PEArray::store_const(uint32 addr, uint32 data)
 void PEArray::config_PREG(uint32 data)
 {
 	bool flag;
-	for (int i = 0; i < (height - 1); i++) {
-		if (((data >> i) & 0x1) != 0) {
-			pregs[i]->activate();
+	for (int y = 0; y < (height - 1); y++) {
+		if (((data >> y) & 0x1) != 0) {
+			for (int x = 0; x < width; x++) {
+				for (int i = 0; i < preg_channels; i++) {
+					pregs[x][y][i]->activate();
+				}
+			}
 		} else {
-			pregs[i]->deactivate();
+			for (int x = 0; x < width; x++) {
+				for (int i = 0; i < preg_channels; i++) {
+					pregs[x][y][i]->deactivate();
+				}
+			}
 		}
 	}
 	config_changed = true;
@@ -384,9 +399,14 @@ void PEArray::analyze_dataflow()
 		in_degrees[cregs[y]] = cregs[y]->in_degree();
 		in_degrees[cregs[y+height]] = cregs[y+height]->in_degree();
 	}
-	if (preg_enabled) {
-		for (int y = 0; y < height - 1; y++) {
-			in_degrees[pregs[y]] = pregs[y]->in_degree();
+	if (preg_channels > 0) {
+		for (int x = 0; x < width; x++) {
+			for (int y = 0; y < height - 1; y++) {
+				for (int i = 0; i < preg_channels; i++) {
+					in_degrees[pregs[x][y][i]] 
+						= pregs[x][y][i]->in_degree();
+				}
+			}
 		}
 	}
 
@@ -685,8 +705,14 @@ void CCSOTB2::CCSOTB2_PEArray::make_connection()
 				int pred_y = CONNECT_COORD[ch][1] + y;
 				if ((pred_x >= 0 && pred_x < width) &&
 					(pred_y >= 0 && pred_y < height)) {
-					alu_sels[x][y][0]->connect(channels[pred_x][pred_y][0][OPPOSITE_CHANNEL[ch]]);
-					alu_sels[x][y][1]->connect(channels[pred_x][pred_y][0][OPPOSITE_CHANNEL[ch]]);
+					if (ch == IN_SE_SOUTH) {
+						// from preg
+						node_ptr = pregs[pred_x][pred_y][1];
+					} else {
+						node_ptr = channels[pred_x][pred_y][0][OPPOSITE_CHANNEL[ch]];
+					}
+					alu_sels[x][y][0]->connect(node_ptr);
+					alu_sels[x][y][1]->connect(node_ptr);
 				} else if (pred_y == -1) {
 					alu_sels[x][y][0]->connect(launch_regs[x]);
 					alu_sels[x][y][1]->connect(launch_regs[x]);
@@ -696,13 +722,18 @@ void CCSOTB2::CCSOTB2_PEArray::make_connection()
 				}
 			}
 			//ALU to ALU (Direct Link)
+			//   ALU -> PREG
+			if (y < height - 1) {
+				pregs[x][y][0]->connect(alus[x][y]);
+			}
+			//   PREG -> ALU
 			for (int ch = IN_DL_S; ch <= IN_DL_SW; ch++) {
 				int pred_x = CONNECT_COORD[ch][0] + x;
 				int pred_y = CONNECT_COORD[ch][1] + y;
 				if ((pred_x >= 0 && pred_x < width) &&
 					(pred_y >= 0 && pred_y < height)) {
-					alu_sels[x][y][0]->connect(alus[pred_x][pred_y]);
-					alu_sels[x][y][1]->connect(alus[pred_x][pred_y]);
+					alu_sels[x][y][0]->connect(pregs[pred_x][pred_y][0]);
+					alu_sels[x][y][1]->connect(pregs[pred_x][pred_y][0]);
 				} else {
 					alu_sels[x][y][0]->connect(NULL);
 					alu_sels[x][y][1]->connect(NULL);
@@ -721,7 +752,7 @@ void CCSOTB2::CCSOTB2_PEArray::make_connection()
 
 			// from south
 			if (y > 0) {
-				node_ptr = channels[x][y-1][0][OPPOSITE_CHANNEL[IN_SE_SOUTH]];
+				node_ptr = pregs[x][y-1][1];
 			} else {
 				node_ptr = launch_regs[x];
 			}
@@ -759,7 +790,7 @@ void CCSOTB2::CCSOTB2_PEArray::make_connection()
 
 			// from south (DL)
 			if (y > 0) {
-				node_ptr = alus[x][y-1];
+				node_ptr = pregs[x][y-1][0];
 			} else {
 				node_ptr = NULL;
 			}
@@ -769,7 +800,7 @@ void CCSOTB2::CCSOTB2_PEArray::make_connection()
 
 			// from southeast (DL)
 			if (y > 0 && x < width - 1) {
-				node_ptr = alus[x+1][y-1];
+				node_ptr = pregs[x+1][y-1][0];
 			} else {
 				node_ptr = NULL;
 			}
@@ -779,7 +810,7 @@ void CCSOTB2::CCSOTB2_PEArray::make_connection()
 
 			// from southwest (DL)
 			if (y > 0 && x > 0) {
-				node_ptr = alus[x-1][y-1];
+				node_ptr = pregs[x-1][y-1][0];
 			} else {
 				node_ptr = NULL;
 			}
@@ -788,6 +819,11 @@ void CCSOTB2::CCSOTB2_PEArray::make_connection()
 
 			// const to SE
 			channels[x][y][0][OUT_SE_NORTH]->connect(cregs[y]);
+
+			// SE to PREG
+			if (y < height - 1) {
+				pregs[x][y][1]->connect(channels[x][y][0][OUT_SE_NORTH]);
+			}
 		}
 		gather_regs[x]->connect(channels[x][0][0][OUT_SE_SOUTH]);
 	}
@@ -872,6 +908,15 @@ int ALU::in_degree()
 	return 2;
 //	return PE_operand_size[opcode];
 };
+
+bool PREG::isUse(PENodeBase* pred)
+{
+	int used = false;
+	for (auto it = successors.begin(); it != successors.end(); it++) {
+		used |= (*it)->isUse(this);
+	}
+	return used;
+}
 
 void PREG::exec()
 {
