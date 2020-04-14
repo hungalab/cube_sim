@@ -278,6 +278,7 @@ bool Cache::exec_cache_op(uint16 opcode, uint32 addr, DeviceExc* client)
 				break;
 			//setline
 			case DCACHE_OP_SETLINE:
+
 				if (!cache_hit(addr, index, way, offset)) {
 					addr_separete(addr, tag, index, offset);
 					//find free block or oldest block
@@ -292,11 +293,13 @@ bool Cache::exec_cache_op(uint16 opcode, uint32 addr, DeviceExc* client)
 							least_recent_used_way = way;
 						}
 					}
+
 					if (!find) {
+						// block replace
 						way = least_recent_used_way;
-						if (blocks[way][index].dirty) {
-							next_status = CACHE_OP_WB;
-						}
+					}
+					if (blocks[way][index].dirty) {
+						next_status = CACHE_OP_WB;
 					} else {
 						blocks[way][index].valid = true;
 						//overwrite tag
