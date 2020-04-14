@@ -21,8 +21,8 @@
 #define CMA_CONST_SIZE			0x40
 #define CMA_LD_TABLE_SIZE		0x100
 #define CMA_ST_TABLE_SIZE		0x100
-#define CMA_ALU_RMC_SIZE		0x10 //for block trans
-#define CMA_SE_RMC_SIZE			0x10 //for block trans
+#define CMA_ALU_RMC_SIZE		0x100 //for block trans
+#define CMA_SE_RMC_SIZE			0x100 //for block trans
 #define CMA_CTRL_SIZE			0x4  //just one word
 #define CMA_PREG_CONF_SIZE		0x4  //just one word
 #define CMA_PE_CONF_SIZE		0xC000 //PE addr [15:9]
