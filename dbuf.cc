@@ -1,8 +1,10 @@
 #include "dbuf.h"
+#include "vmips.h"
+#include "options.h"
 #include "mmapglue.h"
 #include <cstring>
 
-DoubleBuffer::DoubleBuffer(size_t size, uint32 mask_ = 0xFFFFFFFF, FILE *init_data = NULL)
+DoubleBuffer::DoubleBuffer(size_t size, uint32 mask_, FILE *init_data)
 	: Range (0, size, 0, MEM_READ_WRITE), mask(mask_) {
 	front = new uint32[size / 4]();
 	back = new uint32[size / 4]();
@@ -44,6 +46,12 @@ void DoubleBuffer::buf_switch() {
 
 uint32 DoubleBuffer::fetch_word_from_inner(uint32 offset)
 {
+	if (offset / 4 >= extent) {
+		if (machine->opt->option("dbemsg")->flag) {
+			fprintf(stderr, "Internal access exceeds the mapped range at: 0x%X\n", offset);
+		}
+		return 0;
+	}
 	if (front_connected) {
 		return ((uint32 *)back)[offset / 4];
 	} else {
@@ -53,6 +61,12 @@ uint32 DoubleBuffer::fetch_word_from_inner(uint32 offset)
 }
 void DoubleBuffer::store_word_from_inner(uint32 offset, uint32 data)
 {
+	if (offset / 4 >= extent) {
+		if (machine->opt->option("dbemsg")->flag) {
+			fprintf(stderr, "Internal access exceeds the mapped range at: 0x%X\n", offset);
+		}
+		return ;
+	}
 	uint32 *werd;
 	/* calculate address */
 	if (front_connected) {
@@ -63,4 +77,5 @@ void DoubleBuffer::store_word_from_inner(uint32 offset, uint32 data)
 
 	/* store word */
 	*werd = data & mask;
+
 }

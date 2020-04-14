@@ -13,7 +13,7 @@ private:
 	uint32 *back;
 	bool front_connected;
 public:
-	DoubleBuffer(size_t size, uint32 mask, FILE *init_data);
+	DoubleBuffer(size_t size, uint32 mask = 0xFFFFFFFF, FILE *init_data  = NULL);
 	~DoubleBuffer();
 
 	void store_word(uint32 offset, uint32 data, DeviceExc *client);

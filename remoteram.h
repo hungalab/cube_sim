@@ -17,6 +17,8 @@ public:
 	~RemoteRam();
 
 	void setup();
+	void core_step() {};
+	void core_reset() {};
 
 	const char *accelerator_name() { return "RemoteRam"; }
 };

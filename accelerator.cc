@@ -157,7 +157,6 @@ CubeAccelerator::CubeAccelerator(uint32 node_ID_, Router* upperRouter, uint32 co
 	localRouter = new Router(rtTx, rtRx, upperRouter, node_ID);
 	//make localbus
 	localBus = new LocalMapper();
-	core_module = NULL;
 
 	//setup network interface
 	nif_state = nif_next_state = CNIF_IDLE;
@@ -165,8 +164,6 @@ CubeAccelerator::CubeAccelerator(uint32 node_ID_, Router* upperRouter, uint32 co
 	mem_bandwidth = machine->opt->option("mem_bandwidth")->num;
 	nif_config = new NetworkInterfaceConfig(config_addr_base);
 	localBus->map_at_local_address(nif_config, config_addr_base);
-
-	done_signal_ptr = std::bind(&CubeAccelerator::done_signal, this, std::placeholders::_1);
 
 }
 
@@ -339,9 +336,7 @@ void CubeAccelerator::step()
 
 	nif_step();
 
-	if (core_module != NULL) {
-		core_module->step();
-	}
+	core_step();
 
 }
 
@@ -350,9 +345,9 @@ void CubeAccelerator::reset() {
 		iready[i] = false;
 	}
 	localRouter->reset();
-	if (core_module != NULL) {
-		core_module->reset();
-	}
+
+	core_reset();
+
 	nif_state = nif_next_state = CNIF_IDLE;
 
 	nif_config->clearReg();
