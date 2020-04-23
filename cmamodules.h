@@ -1,6 +1,7 @@
 #ifndef _CMACORE_H_
 #define _CMACORE_H_
 
+#include "range.h"
 #include "cmaAddressMap.h"
 #include "accelerator.h"
 #include "acceleratorcore.h"
