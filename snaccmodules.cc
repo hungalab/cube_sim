@@ -150,7 +150,6 @@ bool WbufArb::isAcquired(int core_id, int arb_mode, int access_mode)
 {
 	bool load_acquire = (counter & 0x1);
 	bool core_acquire;
-
 	if (arb_mode == SNACC_WBUF_ARB_1CORE) {
 		return true; //always enabled
 	} else {

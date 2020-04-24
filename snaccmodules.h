@@ -183,7 +183,7 @@ uint32_t SignedClipMostSignificant4Bits(uint32_t before);
 			// -> Drop last 1 bit because LUT elements are <16bit fixed> x 1024
 			int lut_index =
 			static_cast<int>((SignedClipMostSignificant4Bits(num_) >> 22) << 1);
-			assert(0 <= lut_index && lut_index + 1 < 2 * 1024);
+			//assert(0 <= lut_index && lut_index + 1 < 2 * 1024);
 			return lut_index;
 		}
 

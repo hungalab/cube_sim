@@ -67,7 +67,8 @@ void SNACCCore::if_stage()
 	} else {
 		fetch_instr = fetch_instr_x2 & 0x0FFFF;
 	}
-	// fprintf(stderr, "\n%08d: PC: %X instr %X\n", machine->num_cycles, pc, fetch_instr);
+	// if (core_id == 0)
+	// 	fprintf(stderr, "\n%08d: PC: %X instr %X\n", machine->num_cycles, pc, fetch_instr);
 }
 
 void SNACCCore::id_stage()
