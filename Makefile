@@ -247,7 +247,8 @@ cmamodules.o: cmamodules.h cmamodules.cc cmaAddressMap.h range.h \
 
 snacc.o: snacc.h snacc.cc dbuf.h snaccAddressMap.h snaccmodules.h
 
-snacccore.o: snacccore.h snacccore.cc vmips.h options.h snaccmodules.h
+snacccore.o: snacccore.h snacccore.cc vmips.h options.h snaccmodules.h \
+              snaccAddressMap.h
 
 snaccmodules.o: snaccmodules.h snaccmodules.cc snaccAddressMap.h \
                   accesstypes.h

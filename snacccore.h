@@ -2,6 +2,8 @@
 #define _SNACCCORE_H_
 
 #include "dbuf.h"
+#include "snaccmodules.h"
+#include "snaccAddressMap.h"
 
 #define SNACC_OPCODE_MASK	0xF000
 #define SNACC_OPCODE_LSB	12
@@ -23,8 +25,16 @@
 #define SNACC_RFILE_SIZE	16
 #define SNACC_CTRLREG_SIZE	16
 
-#define SNACC_CORE_OPCODE_BNEQ	4
-#define SNACC_CORE_OPCODE_JUMP	5
+//Opcode
+#define SNACC_CORE_OPCODE_RTYPE1	1
+#define SNACC_CORE_OPCODE_BNEQ		4
+#define SNACC_CORE_OPCODE_JUMP		5
+
+//func
+#define SNACC_CORE_FUNC_LW			1
+#define SNACC_CORE_FUNC_SW			2
+#define SNACC_CORE_FUNC_LH			3
+#define SNACC_CORE_FUNC_SH			4
 
 #define SNACC_REG_PC_INDEX			15
 #define SNACC_CREG_ID_INDEX			0
@@ -38,18 +48,31 @@
 #define SNACC_CREG_ACCESSMODE_LSB	0x4
 #define SNACC_CREG_ACCESSMODE_MASK	0xF0
 
+//Internal address map
+#define SNACC_IMEM_INTERNAL_ADDR	0x00000000
+#define SNACC_DMEM_INTERNAL_ADDR	0x01000000
+#define SNACC_RBUF_INTERNAL_ADDR	0x05000000
+#define SNACC_LUT_INTERNAL_ADDR		0x07000000
+#define SNACC_WBUF_INTERNAL_ADDR	0x09000000
+
+#define SNACC_CORE_NO_STALL				0x0
+#define SNACC_CORE_WBUF_STALL				0x1
+#define SNACC_CORE_MAD_STALL			0x2
+#define SNACC_CORE_DBCHANGE_STALL		0x3
+#define SNACC_CORE_DMA_REQ_STALL		0x4
+#define SNACC_CORE_DMA_EX_STALL			0x5
+
 
 class SNACCCore {
 	using MemberFuncPtr = void (SNACCCore::*)();
 	private:
 		int core_id;
+		bool dbg_msg;
 
 		//reg files
 		uint32 regs[SNACC_RFILE_SIZE];
 
 		// status
-		int status;
-		bool stall;
 		uint32 pc;
 		bool halt_issued;
 		bool done;
@@ -73,8 +96,19 @@ class SNACCCore {
 		//write back
 		void wb_stage();
 
+		//stall management
+		bool isStall();
+		void stall_handle();
+		int status;
+		int stall_cause;
+
 		// SRAM modules
+		uint32 access_address;
+		DoubleBuffer *access_mem;
 		DoubleBuffer *dmem_u, *dmem_l, *rbuf_u, *rbuf_l, *lut, *imem, *wbuf;
+
+		//Wbuf arbiter
+		SNACCComponents::WbufArb *wbuf_arb;
 
 		// op decoder
 		static uint8 opcode(const uint16 i) {
@@ -94,7 +128,7 @@ class SNACCCore {
 		}
 
 		//control regs
-		uint8 mad_mode, access_mode, wbuf_arb, simd_mask,
+		uint8 mad_mode, access_mode, wbuf_arb_mode, simd_mask,
 				dmem_step, rbuf_step, fp_pos;
 
 		// Jump tables for instruction functions.
@@ -111,7 +145,8 @@ class SNACCCore {
 					DoubleBuffer *rbuf_l_,
 					DoubleBuffer *lut_,
 					DoubleBuffer *imem_,
-					DoubleBuffer *wbuf_);
+					DoubleBuffer *wbuf_,
+					SNACCComponents::WbufArb *wbuf_arb_);
 
 		void step();
 		void reset();

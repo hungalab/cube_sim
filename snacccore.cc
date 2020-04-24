@@ -4,6 +4,8 @@
 #include "vmips.h"
 #include "options.h"
 
+using namespace SNACCComponents;
+
 SNACCCore::SNACCCore(int core_id_,
 					DoubleBuffer *dmem_u_,
 					DoubleBuffer *dmem_l_,
@@ -11,17 +13,19 @@ SNACCCore::SNACCCore(int core_id_,
 					DoubleBuffer *rbuf_l_,
 					DoubleBuffer *lut_,
 					DoubleBuffer *imem_,
-					DoubleBuffer *wbuf_) : core_id(core_id_),
+					DoubleBuffer *wbuf_,
+					WbufArb *wbuf_arb_) : core_id(core_id_),
 	dmem_u(dmem_u_), dmem_l(dmem_l_), rbuf_u(rbuf_u_),
-	rbuf_l(rbuf_l_), lut(lut_), imem(imem_), wbuf(wbuf_)
+	rbuf_l(rbuf_l_), lut(lut_), imem(imem_), wbuf(wbuf_),
+	wbuf_arb(wbuf_arb_)
 {
-
+	dbg_msg = machine->opt->option("excmsg")->flag;
 }
 
 void SNACCCore::step()
 {
 
-	if (!stall) {
+	if (!isStall()) {
 		switch (status) {
 			case SNACC_CORE_STAT_IF:
 				if_stage();
@@ -40,12 +44,19 @@ void SNACCCore::step()
 				status = SNACC_CORE_STAT_IF;
 				if (halt_issued) {
 					done = true;
-					stall = true;
+					halt_issued = false;
 				}
 				break;
 		}
+	} else {
+		stall_handle();
 	}
 
+}
+
+bool SNACCCore::isStall()
+{
+	return done || (stall_cause != SNACC_CORE_NO_STALL);
 }
 
 void SNACCCore::if_stage()
@@ -56,7 +67,7 @@ void SNACCCore::if_stage()
 	} else {
 		fetch_instr = fetch_instr_x2 & 0x0FFFF;
 	}
-	fprintf(stderr, "\n%08d: PC: %X instr %X\n", machine->num_cycles, pc, fetch_instr);
+	// fprintf(stderr, "\n%08d: PC: %X instr %X\n", machine->num_cycles, pc, fetch_instr);
 }
 
 void SNACCCore::id_stage()
@@ -78,7 +89,98 @@ void SNACCCore::id_stage()
 			break;
 	}
 
+	//address calc for mem access
+	if (dec_opcode == SNACC_CORE_OPCODE_RTYPE1) {
+		switch (dec_func) {
+			case SNACC_CORE_FUNC_LW:
+			case SNACC_CORE_FUNC_SW:
+			case SNACC_CORE_FUNC_LH:
+			case SNACC_CORE_FUNC_SH:
+				int addr = regs[dec_rs];
+				if (addr >= SNACC_IMEM_INTERNAL_ADDR
+				  & addr < SNACC_IMEM_INTERNAL_ADDR + SNACC_IMEM_SIZE) {
+					access_address = addr - SNACC_IMEM_INTERNAL_ADDR;
+					access_mem = imem;
+				} else if (addr >= SNACC_DMEM_INTERNAL_ADDR
+				  & addr < SNACC_DMEM_INTERNAL_ADDR + SNACC_DMEM_SIZE * 2) {
+					access_address = addr - SNACC_DMEM_INTERNAL_ADDR;
+					access_address = ((access_address >> 3) << 2)
+										+ (access_address & 0x3);
+					if ((addr & 0x4) == 0) {
+						access_mem = dmem_l;
+					} else {
+						access_mem = dmem_u;
+					}
+				} else if (addr >= SNACC_RBUF_INTERNAL_ADDR
+				  & addr < SNACC_RBUF_INTERNAL_ADDR + SNACC_RBUF_SIZE * 2) {
+					access_address = addr - SNACC_RBUF_INTERNAL_ADDR;
+					access_address = ((access_address >> 3) << 2)
+										+ (access_address & 0x3);
+					if ((addr & 0x4) == 0) {
+						access_mem = rbuf_l;
+					} else {
+						access_mem = rbuf_u;
+					}
+				} else if (addr >= SNACC_LUT_INTERNAL_ADDR
+				  & addr < SNACC_LUT_INTERNAL_ADDR + SNACC_LUT_SIZE) {
+					access_address = addr - SNACC_LUT_INTERNAL_ADDR;
+					access_mem = lut;
+				} else if (addr >= SNACC_WBUF_INTERNAL_ADDR
+				  & addr < SNACC_WBUF_INTERNAL_ADDR + SNACC_WBUF_SIZE) {
+					access_address = addr - SNACC_WBUF_INTERNAL_ADDR;
+					access_mem = wbuf;
+					//set stall speculatively
+					stall_cause = SNACC_CORE_WBUF_STALL;
+				} else {
+					if (dbg_msg) {
+						fprintf(stderr, "Internal mem access exceed"
+								" mapped region (0x%08X)\n", addr);
+					}
+					access_mem = NULL;
+				}
+			break;
+		}
+	} else {
+		access_mem = NULL;
+	}
+
+	stall_handle();
 	//fprintf(stderr, "opcode %d reg write %d\n", dec_opcode, reg_write);
+}
+
+void SNACCCore::stall_handle()
+{
+	//stall check
+	switch (stall_cause) {
+		case SNACC_CORE_NO_STALL:
+			break;
+		case SNACC_CORE_WBUF_STALL:
+			switch (dec_func) {
+				case SNACC_CORE_FUNC_LW:
+				case SNACC_CORE_FUNC_LH:
+					if (access_mem == wbuf && !wbuf_arb->isAcquired(core_id,
+						 wbuf_arb_mode, SNACC_WBUF_LOAD)) {
+						stall_cause = SNACC_CORE_WBUF_STALL;
+					} else {
+						stall_cause = SNACC_CORE_NO_STALL;
+					}
+					break;
+				case SNACC_CORE_FUNC_SW:
+				case SNACC_CORE_FUNC_SH:
+					if (access_mem == wbuf && !wbuf_arb->isAcquired(core_id,
+						 wbuf_arb_mode, SNACC_WBUF_STORE)) {
+						stall_cause = SNACC_CORE_WBUF_STALL;
+					} else {
+						stall_cause = SNACC_CORE_NO_STALL;
+					}
+					break;
+				default:
+					stall_cause = SNACC_CORE_NO_STALL;
+			}
+			break;
+		default:
+			stall_cause = SNACC_CORE_NO_STALL;
+	}
 }
 
 void SNACCCore::ex_stage()
@@ -90,7 +192,7 @@ void SNACCCore::wb_stage()
 {
 	if (reg_write & (dec_rd != SNACC_REG_PC_INDEX)) {
 		regs[dec_rd] = reg_write_data;
-		fprintf(stderr, "regs[%d] <= %X\n", dec_rd, reg_write_data);
+		//fprintf(stderr, "regs[%d] <= %X\n", dec_rd, reg_write_data);
 	}
 
 	if (reg_write & (dec_rd == SNACC_REG_PC_INDEX)) {
@@ -115,8 +217,8 @@ void SNACCCore::reset()
 	}
 	done = false;
 	status = SNACC_CORE_STAT_IF;
-	reg_write = isBranch = stall = halt_issued = false;
-	mad_mode = access_mode = wbuf_arb = 
+	reg_write = isBranch = halt_issued = false;
+	mad_mode = access_mode = wbuf_arb_mode = 
 	dmem_step = rbuf_step = 0;
 	fp_pos = 4;
 	simd_mask = 0xFF;
@@ -165,7 +267,8 @@ const SNACCCore::MemberFuncPtr SNACCCore::kRTypeSimdTable[16] = {
 		&SNACCCore::Unknown, &SNACCCore::Unknown };
 
 void SNACCCore::Unknown() {
-	if (machine->opt->option("excmsg")->flag) {
+	
+	if (dbg_msg) {
   		fprintf(stderr, 
 			"SNACCCore::Execute(): Unknown Instruction: "
 			"opcode = %d rd = %d rs = %d funct = %d\n",
@@ -201,10 +304,6 @@ void SNACCCore::Bneq() {
 void SNACCCore::Jump() {
 	isBranch = true;
 }
-
-const int kLutOff  = 0;
-const int kLutOn   = 1;
-const int kMaxPool = 2;
 
 // void SNACCCore::DoMad(Fixed32* tr0, Fixed32* tr1) {
 //   assert((imm_ == kLutOff || imm_ == kLutOn || imm_ == kMaxPool) &&
@@ -322,7 +421,7 @@ void SNACCCore::Setcr() {
 			fp_pos = dec_imm;
 			break;
 		case SNACC_CREG_WBUFARB_INDEX:
-			wbuf_arb = dec_imm;
+			wbuf_arb_mode = dec_imm;
 			break;
 		case SNACC_CREG_MODES_INDEX:
 			mad_mode = dec_imm & SNACC_CREG_MADMODE_MASK;
@@ -407,28 +506,38 @@ void SNACCCore::Halt() {
 }
 
 void SNACCCore::Loadw() {
+	if (access_mem != NULL) {
+		reg_write_data = access_mem->fetch_word_from_inner(access_address);
+	}
 	//regs[rd_] = ReadMemory32(regs[rs_]);
 	reg_write = true;
 }
 
 void SNACCCore::Storew() {
-	//WriteMemory32(regs[rs_], regs[rd_]);
+	if (access_mem != NULL) {
+		access_mem->store_word_from_inner(access_address, regs[dec_rd]);
+	}
 }
 
 void SNACCCore::Loadh() {
-	if (access_mode == 0) {
-		// Upper mode
-		// regs[rd_] =
-		// static_cast<uint32_t>(ReadMemory16(regs[rs_])) << 16;
-	} else {
-		// Lower mode
-		// regs[rd_] =
-		// static_cast<uint32_t>(ReadMemory16(regs[rs_]));
+	if (access_mem != NULL) {
+		if (access_mode == 0) {
+			// Upper mode
+
+		} else {
+			// Lower mode
+			// regs[rd_] =
+			// static_cast<uint32_t>(ReadMemory16(regs[rs_]));
+		}
 	}
+	
 	reg_write = true;
 }
 
 void SNACCCore::Storeh() {
+	if (access_mem != NULL) {
+		
+	}
 	// // fprintf(stderr, "Storeh [%x] = %x\n", regs[rs_], regs[rd_]);
 	// if (access_mode == 0) {
 	// // Upper mode
@@ -457,7 +566,7 @@ void SNACCCore::Readcr() {
 			reg_write_data = fp_pos;
 			break;
 		case SNACC_CREG_WBUFARB_INDEX:
-			reg_write_data = wbuf_arb;
+			reg_write_data = wbuf_arb_mode;
 			break;
 		case SNACC_CREG_MODES_INDEX:
 			reg_write_data =  mad_mode +
@@ -484,49 +593,3 @@ void SNACCCore::Loadv() {
 //   rbuf_address_ = regs[rs_];
 }
 
-// uint8_t SNACCCore::ReadMemory8(uint32_t address) {
-	// if (address < kInstBase + inst_size_) {
-	// return inst_[address - kInstBase];
-	// }
-	// if (kDataBase <= address && address < kDataBase + data_size_) {
-	// return data_[address - kDataBase];
-	// }
-	// if (kRbufBase <= address && address < kRbufBase + rbuf_size_) {
-	// return rbuf_[address - kRbufBase];
-	// }
-	// if (kLutBase <= address && address < kLutBase + lut_size_) {
-	// return lut_[address - kLutBase];
-	// }
-	// if (kWbufBase <= address && address < kWbufBase + wbuf_size_) {
-	// return wbuf_[address - kWbufBase];
-	// }
-	// fprintf(stderr, "Read invalid address %x\n", address);
-	// assert(false && "Invalid address");
-	// return 0;
-// }
-
-// void SNACCCore::WriteMemory8(uint32_t address, uint8_t value) {
-	// if (address < kInstBase + inst_size_) {
-	// assert(false && "Write to instruction memory is unlikely to happen");
-	// inst_[address - kInstBase] = value;
-	// return;
-	// }
-	// if (kDataBase <= address && address < kDataBase + data_size_) {
-	// data_[address - kDataBase] = value;
-	// return;
-	// }
-	// if (kRbufBase <= address && address < kRbufBase + rbuf_size_) {
-	// rbuf_[address - kRbufBase] = value;
-	// return;
-	// }
-	// if (kLutBase <= address && address < kLutBase + lut_size_) {
-	// lut_[address - kLutBase] = value;
-	// return;
-	// }
-	// if (kWbufBase <= address && address < kWbufBase + wbuf_size_) {
-	// wbuf_[address - kWbufBase] = value;
-	// return;
-	// }
-	// fprintf(stderr, "Write invalid address [%x] = %x\n", address, value);
-	// assert(false && "Invalid address");
-// }

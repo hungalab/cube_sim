@@ -79,3 +79,75 @@ void DoubleBuffer::store_word_from_inner(uint32 offset, uint32 data)
 	*werd = data & mask;
 
 }
+
+uint16 DoubleBuffer::fetch_half_from_inner(uint32 offset)
+{
+	if (offset / 4 >= extent) {
+		if (machine->opt->option("dbemsg")->flag) {
+			fprintf(stderr, "Internal access exceeds the mapped range at: 0x%X\n", offset);
+		}
+		return 0;
+	}
+	if (front_connected) {
+		return ((uint16 *)back)[offset / 2];
+	} else {
+		return ((uint16 *)front)[offset / 2];
+	}
+
+}
+void DoubleBuffer::store_half_from_inner(uint32 offset, uint16 data)
+{
+	if (offset / 4 >= extent) {
+		if (machine->opt->option("dbemsg")->flag) {
+			fprintf(stderr, "Internal access exceeds the mapped range at: 0x%X\n", offset);
+		}
+		return ;
+	}
+	uint16 *werd;
+	/* calculate address */
+	if (front_connected) {
+		werd = ((uint16 *) back) + (offset / 2);
+	} else {
+		werd = ((uint16 *) front) + (offset / 2);
+	}
+
+	/* store word */
+	*werd = data & mask;
+
+}
+
+uint8 DoubleBuffer::fetch_byte_from_inner(uint32 offset)
+{
+	if (offset / 4 >= extent) {
+		if (machine->opt->option("dbemsg")->flag) {
+			fprintf(stderr, "Internal access exceeds the mapped range at: 0x%X\n", offset);
+		}
+		return 0;
+	}
+	if (front_connected) {
+		return ((uint8 *)back)[offset];
+	} else {
+		return ((uint8 *)front)[offset];
+	}
+
+}
+void DoubleBuffer::store_byte_from_inner(uint32 offset, uint8 data)
+{
+	if (offset / 4 >= extent) {
+		if (machine->opt->option("dbemsg")->flag) {
+			fprintf(stderr, "Internal access exceeds the mapped range at: 0x%X\n", offset);
+		}
+		return ;
+	}
+	uint8 *werd;
+	/* calculate address */
+	if (front_connected) {
+		werd = ((uint8 *) back) + offset;
+	} else {
+		werd = ((uint8 *) front) + offset;
+	}
+
+	/* store word */
+	*werd = data & mask;
+
+}

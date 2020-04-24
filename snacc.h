@@ -18,13 +18,20 @@ class SNACC : public CubeAccelerator{
 		SNACCCore **cores;
 		bool *cleared;
 
-		//dmem
+		//mem
 		DoubleBuffer **dmem_upper, **dmem_lower;
 		DoubleBuffer **rbuf_upper, **rbuf_lower;
 		DoubleBuffer **imem; // back mem ignored
 		DoubleBuffer **lut;  // back mem ignored
 		DoubleBuffer *wbuf; // shared for all cores
 
+		//wrapper for broadcast
+		SNACCComponents::BCastRange *bcast_dmem_upper, *bcast_dmem_lower,
+					*bcast_rbuf_upper, *bcast_rbuf_lower,
+					*bcast_imem, *bcast_lut;
+
+		// wbuf arbiter
+		SNACCComponents::WbufArb *wbuf_arb;
 		// Conf Regs
 		SNACCComponents::ConfRegCtrl *confReg;
 

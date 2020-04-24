@@ -7,7 +7,27 @@
 
 #include <vector>
 
+#define SNACC_WBUF_ARB_4CORE	0
+#define SNACC_WBUF_ARB_2CORE	2
+#define SNACC_WBUF_ARB_1CORE	1
+#define SNACC_WBUF_LOAD			0
+#define SNACC_WBUF_STORE		1
+
+
 namespace SNACCComponents {
+	class BCastRange : public Range {
+		private:
+			int core_count;
+			DoubleBuffer **buf_list; //for each core
+		public:
+			BCastRange(size_t size, int core_count_,
+							DoubleBuffer **buf_list_);
+			uint32 fetch_word(uint32 offset, int mode,
+							DeviceExc *client);
+			void store_word(uint32 offset, uint32 data,
+							DeviceExc *client);
+	};
+
 	class ConfRegCtrl : public Range {
 		struct dmainfo_t {
 			uint32 upper;
@@ -67,6 +87,16 @@ namespace SNACCComponents {
 				return getFlag(done_clear, core_idx);
 			}
 			void setDone(int core_idx) { assertFlag(&done, core_idx); };
+	};
+
+	class WbufArb {
+		private:
+			int core_size;
+			uint8 counter;
+		public:
+			WbufArb(int core_size);
+			bool isAcquired(int core_id, int arb_mode, int access_mode);
+			void step() { counter += 1; }
 	};
 
 	class Fixed32;

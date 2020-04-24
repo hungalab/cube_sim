@@ -3,6 +3,24 @@
 
 using namespace SNACCComponents;
 
+BCastRange::BCastRange(size_t size, int core_count_, DoubleBuffer **buf_list_)
+	: Range (0, size, 0, MEM_READ_WRITE),
+	buf_list(buf_list_), core_count(core_count_) {
+}
+
+uint32 BCastRange::fetch_word(uint32 offset, int mode, DeviceExc *client)
+{
+	return 0;
+}
+
+void BCastRange::store_word(uint32 offset, uint32 data, DeviceExc *client)
+{
+	for (int i = 0; i < core_count; i++) {
+		buf_list[i]->store_word(offset, data, client);
+	}
+}
+
+
 ConfRegCtrl::ConfRegCtrl(int core_count_,
 						DoubleBuffer **dmem_u_,
 						DoubleBuffer **dmem_l_,
@@ -120,6 +138,36 @@ void ConfRegCtrl::store_word(uint32 offset, uint32 data, DeviceExc *client)
 		case SNACC_CONF_REG_DMA_REQ_OFFSET:
 		default:
 			break;
+	}
+}
+
+WbufArb::WbufArb(int core_size_) : core_size(core_size_)
+{
+	counter = 0;
+}
+
+bool WbufArb::isAcquired(int core_id, int arb_mode, int access_mode)
+{
+	bool load_acquire = (counter & 0x1);
+	bool core_acquire;
+
+	if (arb_mode == SNACC_WBUF_ARB_1CORE) {
+		return true; //always enabled
+	} else {
+		if (arb_mode == SNACC_WBUF_ARB_4CORE) {
+			core_acquire = core_id == ((counter >> 1) & 0x3);
+		} else if (arb_mode == SNACC_WBUF_ARB_2CORE) {
+			core_acquire = core_id == ((counter >> 1) & 0x1);
+		} else {
+			core_acquire = false;
+		}
+		if (access_mode == SNACC_WBUF_LOAD) {
+			return core_acquire & load_acquire;
+		} else if (access_mode == SNACC_WBUF_STORE) {
+			return core_acquire;
+		} else {
+			return false;
+		}
 	}
 }
 
