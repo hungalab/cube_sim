@@ -225,7 +225,6 @@ void SNACCCore::reset()
 	simd_mask = 0xFF;
 }
 
-
 const SNACCCore::MemberFuncPtr SNACCCore::kOpcodeTable[16] = {
 		&SNACCCore::RTypeArithmetic, &SNACCCore::RTypeMemory,
 		&SNACCCore::RTypeSimd, &SNACCCore::Loadi,
@@ -510,7 +509,6 @@ void SNACCCore::Loadw() {
 	if (access_mem != NULL) {
 		reg_write_data = access_mem->fetch_word_from_inner(access_address);
 	}
-	//regs[rd_] = ReadMemory32(regs[rs_]);
 	reg_write = true;
 }
 
@@ -521,32 +519,34 @@ void SNACCCore::Storew() {
 }
 
 void SNACCCore::Loadh() {
+	uint16 half_data;
 	if (access_mem != NULL) {
+		//load like Big Endian
+		half_data = access_mem->fetch_half_from_inner(access_address ^ 0x2);
 		if (access_mode == 0) {
 			// Upper mode
-
+			reg_write_data = (uint32)half_data << 16;
 		} else {
 			// Lower mode
-			// regs[rd_] =
-			// static_cast<uint32_t>(ReadMemory16(regs[rs_]));
+			reg_write_data = (uint32)half_data;
 		}
 	}
-	
 	reg_write = true;
 }
 
 void SNACCCore::Storeh() {
 	if (access_mem != NULL) {
-		
+		//Store like Big Endian
+		uint16 half_data;
+		if (access_mode == 0) {
+			// Upper mode
+			half_data = (uint16)((regs[dec_rd] >> 16) & 0xFFFF);
+		} else {
+			// Lower mode
+			half_data = (uint16)(regs[dec_rd] & 0xFFFF);
+		}
+		access_mem->store_half_from_inner(access_address ^ 0x2, half_data);
 	}
-	// // fprintf(stderr, "Storeh [%x] = %x\n", regs[rs_], regs[rd_]);
-	// if (access_mode == 0) {
-	// // Upper mode
-	// WriteMemory16(regs[rs_], (regs[rd_] & 0xFFFF0000) >> 16);
-	// } else {
-	// // Lower mode
-	// WriteMemory16(regs[rs_], regs[rd_] & 0xFFFF);
-	// }
 }
 
 void SNACCCore::Readcr() {
