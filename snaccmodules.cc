@@ -181,12 +181,12 @@ void ConfRegCtrl::dbuf_switch(DoubleBuffer **dbuf, int bitmap)
 
 const Fixed32 Fixed16::ToFixed32() const {
 	// Shift to left 12 bits with sign extenstion.
-	return Fixed32((static_cast<int32_t>(num_) << 16) >> 4);
+	return Fixed32((static_cast<int32>(num_) << 16) >> 4);
 }
 
 const Fixed32 SNACCComponents::operator*(const Fixed16 lhs, const Fixed16 rhs) {
-	auto result = Fixed32(static_cast<int32_t>(lhs.num_) *
-							static_cast<int32_t>(rhs.num_));
+	auto result = Fixed32(static_cast<int32>(lhs.num_) *
+							static_cast<int32>(rhs.num_));
 
 	// Overflow checks.
 	if (lhs.num_ > 0 && rhs.num_ > 0 && result.num_ < 0) {
@@ -219,4 +219,80 @@ const bool SNACCComponents::operator<(const Fixed16 lhs, const Fixed16 rhs) {
 
 const bool SNACCComponents::operator<(const Fixed32 lhs, const Fixed32 rhs) {
   return lhs.num_ < rhs.num_;
+}
+
+uint32 SNACCComponents::SignedClipMostSignificant4Bits(uint32 before) {
+
+	if ((before & 0xF8000000) == 0 ||
+			(before & 0xF8000000) == 0xF8000000) {
+		// No need to clip.
+		return before << 4;
+	} else {
+		// Value must be clipped if and only if
+		// significant 5 bits are neither 11111 nor 00000.
+
+		if (before & 0x80000000) {
+			// Negative
+			return 0x80000000;
+		} else {
+			// Positive
+			return 0x7FFFFFFF;
+		}
+	}
+}
+
+MadUnit::MadUnit(uint32 sram_latency_, DoubleBuffer *dmem_u_,
+				DoubleBuffer *dmem_l_, DoubleBuffer *rbuf_u_,
+				DoubleBuffer *rbuf_l_, DoubleBuffer *lut_,
+				uint32 *TR0_, uint32 *TR1_, uint32 *FR0_, uint32 *FR1_) :
+	sram_latency(sram_latency_),
+	dmem_u(dmem_u_), dmem_l(dmem_l_),
+	rbuf_u(rbuf_u_), rbuf_l(rbuf_l_), lut(lut_),
+	TR0(TR0_), TR1(TR1_), FR0(FR0_), FR1(FR1_)
+{
+
+}
+
+void MadUnit::reset()
+{
+	state = next_state = SNACC_MAD_STAT_IDLE;
+}
+
+void MadUnit::start(uint8 mode_, bool *mask, uint32 d_step_,
+						uint32 r_step_, uint32 loop_count_)
+{
+	
+	mode = mode_;
+	loop_count = loop_count_;
+	debug_count = 3;
+	next_state = SNACC_MAD_STAT_EX;
+
+	// if (loop_count == 0) {
+	// 	if (sram_latency <= 2) {
+
+	// 	} else {
+
+	// 	}
+
+}
+
+void MadUnit::step()
+{
+	switch (state) {
+		case SNACC_MAD_STAT_EX:
+			if (debug_count-- == 0) {
+				next_state = SNACC_MAD_STAT_IDLE;
+			}
+			break;
+		default:
+			break;
+	}
+	state = next_state;
+}
+
+bool MadUnit::running()
+{
+	return (state != SNACC_MAD_STAT_IDLE) ||
+			(state == SNACC_MAD_STAT_IDLE
+				&& next_state != SNACC_MAD_STAT_IDLE);
 }

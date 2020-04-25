@@ -36,6 +36,10 @@
 #define SNACC_CORE_FUNC_LH			3
 #define SNACC_CORE_FUNC_SH			4
 
+#define SNACC_REG_FR0_INDEX			11
+#define SNACC_REG_FR1_INDEX			12
+#define SNACC_REG_TR0_INDEX			13
+#define SNACC_REG_TR1_INDEX			14
 #define SNACC_REG_PC_INDEX			15
 #define SNACC_CREG_ID_INDEX			0
 #define SNACC_CREG_MASK_INDEX		1
@@ -56,7 +60,7 @@
 #define SNACC_WBUF_INTERNAL_ADDR	0x09000000
 
 #define SNACC_CORE_NO_STALL				0x0
-#define SNACC_CORE_WBUF_STALL				0x1
+#define SNACC_CORE_WBUF_STALL			0x1
 #define SNACC_CORE_MAD_STALL			0x2
 #define SNACC_CORE_DBCHANGE_STALL		0x3
 #define SNACC_CORE_DMA_REQ_STALL		0x4
@@ -110,6 +114,9 @@ class SNACCCore {
 		//Wbuf arbiter
 		SNACCComponents::WbufArb *wbuf_arb;
 
+		// mad unit
+		SNACCComponents::MadUnit *mad_unit;
+
 		// op decoder
 		static uint8 opcode(const uint16 i) {
 			return (i & SNACC_OPCODE_MASK) >> SNACC_OPCODE_LSB;
@@ -128,8 +135,9 @@ class SNACCCore {
 		}
 
 		//control regs
-		uint8 mad_mode, access_mode, wbuf_arb_mode, simd_mask,
+		uint8 mad_mode, access_mode, wbuf_arb_mode, 
 				dmem_step, rbuf_step, fp_pos;
+		bool simd_mask[SNACC_SIMD_LANE_SIZE];
 
 		// Jump tables for instruction functions.
 		static const MemberFuncPtr kOpcodeTable[16];

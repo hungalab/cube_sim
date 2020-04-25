@@ -13,6 +13,22 @@
 #define SNACC_WBUF_LOAD			0
 #define SNACC_WBUF_STORE		1
 
+//for mad unit
+#define SNACC_MAD_STAT_IDLE		0
+#define SNACC_MAD_STAT_EXLOOP	1
+#define SNACC_MAD_STAT_EX		2
+#define SNACC_MAD_STAT_WB		3
+#define SNACC_MAD_STAT_LUT		4
+#define SNACC_MAD_STAT_LUT2ND	5
+#define SNACC_MAD_STAT_EX_STALL	6 //original
+
+#define SNACC_MAD_MODE_NOLUT	0
+#define SNACC_MAD_MODE_LUT		1
+#define SNACC_MAD_MODE_POOL		2
+#define SNACC_MAD_MODE_AVGPOOL	3 //original
+
+#define SNACC_SIMD_LANE_SIZE	8
+
 
 namespace SNACCComponents {
 	class BCastRange : public Range {
@@ -152,10 +168,10 @@ namespace SNACCComponents {
 		friend const bool operator<(const Fixed16 lhs, const Fixed16 rhs);
 
 		private:
-			int16_t num_;
+			int16 num_;
 	};
 
-uint32_t SignedClipMostSignificant4Bits(uint32_t before);
+uint32 SignedClipMostSignificant4Bits(uint32 before);
 
 // <8.24> bits signed fixed point decimal number, which is
 // internal representation of multiply-and-add unit.
@@ -165,13 +181,13 @@ uint32_t SignedClipMostSignificant4Bits(uint32_t before);
 
 			// Convert from <4.28> bits signed fixed point decimal number,
 			// which is representation of TRs and FRs.
-			static Fixed32 FromRegisterFormat(uint32_t prev) {
-				return Fixed32(static_cast<int32_t>(prev) >> 4);
+			static Fixed32 FromRegisterFormat(uint32 prev) {
+				return Fixed32(static_cast<int32>(prev) >> 4);
 			}
 
 			// Convert to <4.28> bits signed fixed point decimal number,
 			// which is representation of TRs and FRs.
-			uint32_t ToRegisterFormat() const {
+			uint32 ToRegisterFormat() const {
 			return SignedClipMostSignificant4Bits(num_);
 			}
 
@@ -193,12 +209,49 @@ uint32_t SignedClipMostSignificant4Bits(uint32_t before);
 		friend const Fixed32 Fixed16::ToFixed32() const;
 
 		private:
-			explicit Fixed32(int32_t num)
-				: num_(static_cast<int32_t>(num)) {}
+			explicit Fixed32(int32 num)
+				: num_(static_cast<int32>(num)) {}
 
-			int32_t num_;
+			int32 num_;
 	};
 
+	class MadUnit {
+		private:
+			int state;
+			int next_state;
+			int mode;
+			int loop_count;
+			uint32 sram_latency;
+			uint32 wait_data_cycle;
+			int debug_count;
+
+			//Sram Modules
+			uint32 data_addr, rbuf_addr;
+			DoubleBuffer *dmem_u, *dmem_l, *rbuf_u, *rbuf_l, *lut;
+
+			//reg file
+			uint32 *TR0, *TR1, *FR0, *FR1;
+
+		public:
+			MadUnit(uint32 sram_latency_,
+					DoubleBuffer *dmem_u_,
+					DoubleBuffer *dmem_l_,
+					DoubleBuffer *rbuf_u_,
+					DoubleBuffer *rbuf_l_,
+					DoubleBuffer *lut_, 
+					uint32 *TR0_, uint32 *TR1_,
+					uint32 *FR0_, uint32 *FR1_);
+			void start(uint8 mode, bool *mask, uint32 d_step_,
+						uint32 r_step_, uint32 loop_count_ = 0);
+			void set_addr(uint32 data_addr_, uint32 rbuf_addr_)
+			{
+				data_addr = data_addr_;
+				rbuf_addr = rbuf_addr_;
+			};
+			void step();
+			void reset();
+			bool running();
+	};
 
 }
 

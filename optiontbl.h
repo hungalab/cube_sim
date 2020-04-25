@@ -390,6 +390,9 @@ static Option nametable[] = {
     { "accelerator1", STR },
     { "accelerator2", STR },
 
+    // SNACC options
+    { "snacc_sram_latency", NUM },
+
     { NULL, 0 }
 };
 
@@ -412,6 +415,7 @@ static const char *defaults_table[] = {
     "icachebnum=64", "dcachebnum=64", "mem_bandwidth=1",
     "mem_access_latency=8", "vcbufsize=24", "noroutermsg",
     "accelerator0=none", "accelerator1=none", "accelerator2=none",
+    "snacc_sram_latency=2",
     NULL
 };
 

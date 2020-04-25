@@ -20,11 +20,16 @@ SNACCCore::SNACCCore(int core_id_,
 	wbuf_arb(wbuf_arb_)
 {
 	dbg_msg = machine->opt->option("excmsg")->flag;
+	mad_unit = new MadUnit(machine->opt->option("snacc_sram_latency")->num,
+							dmem_u, dmem_l, rbuf_u, rbuf_l, lut,
+							&regs[SNACC_REG_TR0_INDEX],
+							&regs[SNACC_REG_TR1_INDEX],
+							&regs[SNACC_REG_FR0_INDEX],
+							&regs[SNACC_REG_FR1_INDEX]);
 }
 
 void SNACCCore::step()
 {
-
 	if (!isStall()) {
 		switch (status) {
 			case SNACC_CORE_STAT_IF:
@@ -51,6 +56,8 @@ void SNACCCore::step()
 	} else {
 		stall_handle();
 	}
+
+	mad_unit->step();
 
 }
 
@@ -179,6 +186,11 @@ void SNACCCore::stall_handle()
 					stall_cause = SNACC_CORE_NO_STALL;
 			}
 			break;
+		case SNACC_CORE_MAD_STALL:
+			if (!mad_unit->running()) {
+				stall_cause = SNACC_CORE_NO_STALL;
+			}
+			break;
 		default:
 			stall_cause = SNACC_CORE_NO_STALL;
 	}
@@ -222,7 +234,11 @@ void SNACCCore::reset()
 	mad_mode = access_mode = wbuf_arb_mode = 
 	dmem_step = rbuf_step = 0;
 	fp_pos = 4;
-	simd_mask = 0xFF;
+	for (int i = 0; i < SNACC_SIMD_LANE_SIZE; i++) {
+		simd_mask[i] = true;
+	}
+
+	mad_unit->reset();
 }
 
 const SNACCCore::MemberFuncPtr SNACCCore::kOpcodeTable[16] = {
@@ -286,8 +302,7 @@ void SNACCCore::RTypeArithmetic() {
 }
 
 void SNACCCore::RTypeSimd() {
-	// (this->*kRTypeSimdTable[funct_])();
-	fprintf(stderr, "RTypeSimd not impl\n");
+	(this->*kRTypeSimdTable[dec_func])();
 }
 
 void SNACCCore::Loadi() {
@@ -305,111 +320,22 @@ void SNACCCore::Jump() {
 	isBranch = true;
 }
 
-// void SNACCCore::DoMad(Fixed32* tr0, Fixed32* tr1) {
-//   assert((imm_ == kLutOff || imm_ == kLutOn || imm_ == kMaxPool) &&
-//          "Invalid MAD imm parameter!");
-
-//   for (int i = 0; i < 4; ++i) {
-//     // This element is masked.
-//     const int mask = ctrl_regs[1];
-//     if ((mask & (1 << i)) == 0) {
-//       continue;
-//     }
-
-//     Fixed16 data_value0;
-//     Fixed16 rbuf_value0;
-//     Fixed16 data_value1;
-//     Fixed16 rbuf_value1;
-
-//     const bool wide_mode = (ctrl_regs[6] & 0x0F) == 0;
-//     if (wide_mode) {
-//       data_value0 = Fixed16(ReadMemory16(data_address_ + 2 * i));
-//       rbuf_value0 = Fixed16(ReadMemory16(rbuf_address_ + 2 * i));
-//     } else {
-//       data_value0 = Fixed16(ReadMemory8(data_address_ + i));
-//       rbuf_value0 = Fixed16(ReadMemory8(rbuf_address_ + i));
-//       data_value1 = Fixed16(ReadMemory8(data_address_ + i + 4));
-//       rbuf_value1 = Fixed16(ReadMemory8(rbuf_address_ + i + 4));
-//     }
-
-//     if (imm_ == kLutOff || imm_ == kLutOn) {
-//       *tr0 = *tr0 + data_value0 * rbuf_value0;
-//       *tr1 = *tr1 + data_value1 * rbuf_value1;
-//     } else if (imm_ == kMaxPool) {
-//       *tr0 = std::max(*tr0, data_value0.ToFixed32());
-//       *tr1 = std::max(*tr1, data_value1.ToFixed32());
-//     }
-//   }
-// }
-
-// void SNACCCore::DoMadApplyToRegisters(const Fixed32& tr0, const Fixed32& tr1) {
-//   assert((imm_ == kLutOff || imm_ == kLutOn || imm_ == kMaxPool) &&
-//          "Invalid MAD imm parameter!");
-
-//   const bool wide_mode = (ctrl_regs[6] & 0x0F) == 0;
-
-//   regs[13] = tr0.ToRegisterFormat();
-//   if (!wide_mode) {
-//     regs[14] = tr1.ToRegisterFormat();
-//   }
-
-//   if (imm_ == kLutOn) {
-//     Fixed16 fr0(ReadMemory16(tr0.ToLutIndex() + 0x07000000));
-//     Fixed16 fr1(ReadMemory16(tr1.ToLutIndex() + 0x07000000));
-//     regs[11] = fr0.ToRegisterFormat();
-//     if (!wide_mode) {
-//       regs[12] = fr1.ToRegisterFormat();
-//     }
-//   }
-// }
-
 void SNACCCore::Mad() {
-  // rd_ is ignored for this instruction.
-
-  // FRs are TRs that are applied LUT.
-  // TR0 = r13, TR1 = r14, FR0 = r11, FR1 = r12
-
-  // For MADLP with imm_ == kLutOff and kLutOn, iterative results are
-  // accumulated.
-  // For imm_ == kMaxPool, Max pooling is performed with existing TR values.
-
-  // They are the signed fixed point decimals but decimal point location varies.
-  // This problem is dealt inside Fixed16 and Fixed32 classes.
-
-//   Fixed32 tr0 = Fixed32::FromRegisterFormat(regs[13]);
-//   Fixed32 tr1 = Fixed32::FromRegisterFormat(regs[14]);
-//   DoMad(&tr0, &tr1);
-//   DoMadApplyToRegisters(tr0, tr1);
+	mad_unit->start(dec_imm, simd_mask, dmem_step, rbuf_step);
+	stall_cause = SNACC_CORE_MAD_STALL;
 }
 
-// void SNACCCore::DoMadLoop() {
-//   if (mad_loop_remaining_ > 0) {
-//     DoMad(&tr0_loop_, &tr1_loop_);
-
-//     data_address_ += ctrl_regs[2];
-//     rbuf_address_ += ctrl_regs[3];
-
-//     --mad_loop_remaining_;
-//     if (mad_loop_remaining_ == 0) {
-//       DoMadApplyToRegisters(tr0_loop_, tr1_loop_);
-//     }
-//   }
-// }
-
 void SNACCCore::Madlp() {
-  // Do one internal loop per one Execute() call rather than running all
-//   // at one call.
-//   mad_loop_remaining_ = regs[rd_];
-//   tr0_loop_ = Fixed32::FromRegisterFormat(regs[13]);
-//   tr1_loop_ = Fixed32::FromRegisterFormat(regs[14]);
-
-//   DoMadLoop();
+	mad_unit->start(dec_imm, simd_mask, dmem_step, rbuf_step, regs[dec_rd]);
+	stall_cause = SNACC_CORE_MAD_STALL;
 }
 
 void SNACCCore::Setcr() {
 	switch (dec_rd) {
 		case SNACC_CREG_MASK_INDEX:
-			simd_mask = dec_imm;
+			for (int i = 0; i < SNACC_SIMD_LANE_SIZE; i++) {
+				simd_mask[i] = (dec_imm & (0x1 << i)) != 0;
+			}
 			break;
 		case SNACC_CREG_DSTEP_INDEX:
 			dmem_step = dec_imm;
@@ -555,7 +481,12 @@ void SNACCCore::Readcr() {
 			reg_write_data = core_id;
 			break;
 		case SNACC_CREG_MASK_INDEX:
-			reg_write_data = simd_mask;
+			reg_write_data = 0;
+			for (int i = 0; i < SNACC_SIMD_LANE_SIZE; i++) {
+				if (simd_mask[i]) {
+					reg_write_data += (0x1 << i);
+				}
+			}
 			break;
 		case SNACC_CREG_DSTEP_INDEX:
 			reg_write_data = dmem_step;
@@ -588,9 +519,6 @@ void SNACCCore::Dma() {
 }
 
 void SNACCCore::Loadv() {
-  // Contrary to its name, the instruction just copies
-  // rd and rs to data_address and rbuf_address, respectively.
-//   data_address_ = regs[rd_];
-//   rbuf_address_ = regs[rs_];
+	mad_unit->set_addr(regs[dec_rd], regs[dec_rs]);
 }
 
