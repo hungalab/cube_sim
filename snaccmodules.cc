@@ -39,7 +39,10 @@ ConfRegCtrl::ConfRegCtrl(int core_count_,
 	= inst_mux_sel = lut_mux_sel = rbuf_mux_sel = data_query = rbuf_query
 	= data_status = rbuf_status = dma_done_clear = dma_request = 0;
 	dma_info = new dmainfo_t[core_count];
-	pending_clr = new bool[core_count] {false};
+	pending_clr = new bool[core_count];
+	for (int i = 0; i < core_count; i++) {
+		pending_clr[i] = false;
+	}
 	bitmap_mask = (1 << core_count) - 1;
 }
 

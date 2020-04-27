@@ -10,7 +10,7 @@ MAKE = make
 # commands & flags
 #		CPP compile
 CXX = g++
-CPPFLAGS =
+CPPFLAGS = -ffriend-injection
 CXXFLAGS = -g -O2 -std=c++11 -fno-strict-aliasing -I./libopcodes_mips -DSYSCONFDIR=\"$(SYSCONFDIR)\"
 CXXCOMPILE = $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(CPPFLAGS) $(CXXFLAGS)
 #		Linker
