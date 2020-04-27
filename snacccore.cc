@@ -68,14 +68,11 @@ bool SNACCCore::isStall()
 
 void SNACCCore::if_stage()
 {
-	if (pc % 4 == 0) {
-		fetch_instr_x2 = imem->fetch_word_from_inner(pc);
-		fetch_instr = (fetch_instr_x2 >> 16) & 0x0FFFF;
-	} else {
-		fetch_instr = fetch_instr_x2 & 0x0FFFF;
-	}
+
+	fetch_instr = imem->fetch_half_from_inner(pc ^ 0x3);
+
 	// if (core_id == 0)
-	// 	fprintf(stderr, "\n%08d: PC: %X instr %X\n", machine->num_cycles, pc, fetch_instr);
+		// fprintf(stderr, "\n%08d: PC: %X instr %X\n", machine->num_cycles, pc, fetch_instr);
 }
 
 void SNACCCore::id_stage()
@@ -321,27 +318,30 @@ void SNACCCore::Jump() {
 }
 
 void SNACCCore::Mad() {
-	mad_unit->start(dec_imm, simd_mask, dmem_step, rbuf_step);
+	mad_unit->start(dec_imm, simd_mask, dmem_step, rbuf_step,
+						 mad_mode == 0xF);
 	stall_cause = SNACC_CORE_MAD_STALL;
 }
 
 void SNACCCore::Madlp() {
-	mad_unit->start(dec_imm, simd_mask, dmem_step, rbuf_step, regs[dec_rd]);
+	mad_unit->start(dec_imm, simd_mask, dmem_step, rbuf_step,
+					 mad_mode == 0xF, regs[dec_rd]);
 	stall_cause = SNACC_CORE_MAD_STALL;
 }
 
 void SNACCCore::Setcr() {
 	switch (dec_rd) {
 		case SNACC_CREG_MASK_INDEX:
+			fprintf(stderr, "set mask %X\n", dec_imm);
 			for (int i = 0; i < SNACC_SIMD_LANE_SIZE; i++) {
 				simd_mask[i] = (dec_imm & (0x1 << i)) != 0;
 			}
 			break;
 		case SNACC_CREG_DSTEP_INDEX:
-			dmem_step = dec_imm;
+			dmem_step = (int)dec_imm;
 			break;
 		case SNACC_CREG_RSTEP_INDEX:
-			rbuf_step = dec_imm;
+			rbuf_step = (int)dec_imm;
 			break;
 		case SNACC_CREG_FPPOS_INDEX:
 			fp_pos = dec_imm;
@@ -511,11 +511,11 @@ void SNACCCore::Readcr() {
 }
 
 void SNACCCore::Dbchange() {
-	assert(false && "Unimplemented!!");
+	fprintf(stderr, "Dbchange is not implemented\n");
 }
 
 void SNACCCore::Dma() {
-	assert(false && "Unimplemented!!");
+	fprintf(stderr, "Dma is not implemented\n");
 }
 
 void SNACCCore::Loadv() {

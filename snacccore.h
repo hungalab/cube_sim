@@ -135,8 +135,8 @@ class SNACCCore {
 		}
 
 		//control regs
-		uint8 mad_mode, access_mode, wbuf_arb_mode, 
-				dmem_step, rbuf_step, fp_pos;
+		uint8 mad_mode, access_mode, wbuf_arb_mode, fp_pos;
+		int dmem_step, rbuf_step;
 		bool simd_mask[SNACC_SIMD_LANE_SIZE];
 
 		// Jump tables for instruction functions.

@@ -188,14 +188,6 @@ const Fixed32 SNACCComponents::operator*(const Fixed16 lhs, const Fixed16 rhs) {
 	auto result = Fixed32(static_cast<int32>(lhs.num_) *
 							static_cast<int32>(rhs.num_));
 
-	// Overflow checks.
-	if (lhs.num_ > 0 && rhs.num_ > 0 && result.num_ < 0) {
-		result.num_ = 0x7FFFFFFF;
-	}
-	if (lhs.num_ < 0 && rhs.num_ < 0 && result.num_ > 0) {
-		result.num_ = 0x80000000;
-	}
-
 	return result;
 }
 
@@ -258,38 +250,244 @@ void MadUnit::reset()
 	state = next_state = SNACC_MAD_STAT_IDLE;
 }
 
-void MadUnit::start(uint8 mode_, bool *mask, uint32 d_step_,
-						uint32 r_step_, uint32 loop_count_)
+void MadUnit::start(uint8 mode_, bool *mask_, int d_step_,
+						int r_step_, bool eight_bit_mode_,
+						 uint32 loop_count_)
 {
-	
+	if (mode_ >= 4) return;
 	mode = mode_;
+	eight_bit_mode = eight_bit_mode_;
+	mask = mask_;
 	loop_count = loop_count_;
-	debug_count = 3;
-	next_state = SNACC_MAD_STAT_EX;
+	dmem_step = d_step_;
+	rbuf_step = r_step_;
 
-	// if (loop_count == 0) {
-	// 	if (sram_latency <= 2) {
+	for (mask_count = SNACC_SIMD_LANE_SIZE; mask_count > 0; mask_count--) {
+		if (mask[mask_count - 1]) {
+			break;
+		}
+	}
+	if (!eight_bit_mode) {
+		mask_count %= (SNACC_SIMD_LANE_SIZE) / 2;
+		simd_data_width = mask_count * 2;
+	} else {
+		simd_data_width = mask_count;
+	}
 
-	// 	} else {
+	if (wait_data_cycle > 0) {
+		next_state = SNACC_MAD_STAT_DSTALL;
+	} else {
+		//first data is ready
+		if (overDmemBoundary() || overRbufBoundary()) {
+			next_state = SNACC_MAD_STAT_DSTALL;
+			wait_data_cycle = 1;
+		} else {
+			next_state = SNACC_MAD_STAT_EX;
+		}
+	}
 
-	// 	}
+	tr0_fp = Fixed32::FromRegisterFormat(*TR0);
+	tr1_fp = Fixed32::FromRegisterFormat(*TR1);
+	fr0_fp = Fixed32::FromRegisterFormat(*FR0);
+	fr1_fp = Fixed32::FromRegisterFormat(*FR1);
+}
 
+bool MadUnit::overDmemBoundary()
+{
+	//check if twice data fetching is needed due to over word-boundary
+	return ((data_addr % 8) + simd_data_width) > 8;
+}
+
+bool MadUnit::overRbufBoundary()
+{
+	//check if twice data fetching is needed due to over word-boundary
+	return ((rbuf_addr % 8) + simd_data_width) > 8;
+}
+
+void MadUnit::updataAddress()
+{
+	data_addr = uint32((int)data_addr + dmem_step);
+	fprintf(stderr, "updated addr %X\n", data_addr);
+	rbuf_addr = uint32((int)rbuf_addr + rbuf_step);
 }
 
 void MadUnit::step()
 {
 	switch (state) {
-		case SNACC_MAD_STAT_EX:
-			if (debug_count-- == 0) {
-				next_state = SNACC_MAD_STAT_IDLE;
+		case SNACC_MAD_STAT_DSTALL:
+			if (wait_data_cycle == 0) {
+				next_state = SNACC_MAD_STAT_EX;
 			}
+			fprintf(stderr, "data stall\n");
+			break;
+		case SNACC_MAD_STAT_LUTSTALL:
+			if (wait_data_cycle == 0) {
+				next_state = SNACC_MAD_STAT_FU;
+			}
+			fprintf(stderr, "lut stall\n");
+			break;
+		case SNACC_MAD_STAT_EX:
+			(this->*madModePtr[mode])();
+			if (--loop_count > 0) {
+				updataAddress();
+				if (sram_latency > 1) {
+					wait_data_cycle = sram_latency - 1;
+					if (overDmemBoundary() || overRbufBoundary()) {
+						wait_data_cycle++;
+					}
+					next_state = SNACC_MAD_STAT_DSTALL;
+				}
+			} else {
+				if (mode == SNACC_MAD_MODE_LUT) {
+					second_lut_done = false;
+					next_state = SNACC_MAD_STAT_LUTSTALL;
+					wait_data_cycle = sram_latency;
+				} else {
+					next_state = SNACC_MAD_STAT_WB;
+				}
+			}
+			break;
+		case SNACC_MAD_STAT_FU:
+			if (eight_bit_mode && !second_lut_done) {
+				wait_data_cycle = sram_latency - 1;
+				next_state = SNACC_MAD_STAT_LUTSTALL;
+			} else {
+				next_state = SNACC_MAD_STAT_WB;
+			}
+			break;
+		case SNACC_MAD_STAT_WB:
+			next_state = SNACC_MAD_STAT_IDLE;
+			if (eight_bit_mode) {
+				*TR1 = tr1_fp.ToRegisterFormat();
+				*FR1 = fr1_fp.ToRegisterFormat();
+			}
+			*TR0 = tr0_fp.ToRegisterFormat();
+			*FR0 = fr0_fp.ToRegisterFormat();
 			break;
 		default:
 			break;
 	}
+	if (wait_data_cycle > 0) {
+		wait_data_cycle--;
+	}
 	state = next_state;
 }
 
+const MadUnit::MemberFuncPtr MadUnit::madModePtr[4] = {
+	&MadUnit::doMad, &MadUnit::doMad,
+	&MadUnit::doMaxPool, &MadUnit::doAvgPool
+};
+
+void MadUnit::loadWeight(Fixed16 *array)
+{
+	uint32 addr;
+	uint32 access_addr;
+	for (int i = 0, addr = rbuf_addr;
+			i < SNACC_SIMD_LANE_SIZE/2; i++, addr += 2) {
+		access_addr = ((addr >> 3) << 2) + (addr & 0x3);
+		if (((addr / 4) % 2) == 0) {
+			//upper
+			fprintf(stderr, "load addr %X, weifht %X\n", addr,
+					rbuf_u->fetch_half_from_inner(access_addr ^ 0x3));
+			array[i] = Fixed16(rbuf_u->fetch_half_from_inner(access_addr ^ 0x3));
+		} else {
+			//lower
+			fprintf(stderr, "load addr %X, weifht %X\n", addr,
+					rbuf_l->fetch_half_from_inner(access_addr ^ 0x3));
+			array[i] = Fixed16(rbuf_l->fetch_half_from_inner(access_addr ^ 0x3));
+		}
+	}
+}
+
+void MadUnit::loadData(Fixed16 *array)
+{
+	uint32 addr;
+	uint32 access_addr;
+	if (eight_bit_mode) {
+		for (int i = 0, addr = data_addr;
+			i < SNACC_SIMD_LANE_SIZE; i++, addr++) {
+			access_addr = ((addr >> 3) << 2) + (addr & 0x3);
+			if (((addr / 4) % 2) == 0) {
+				//upper
+				array[i] =
+					Fixed16(dmem_u->fetch_byte_from_inner(access_addr));
+			} else {
+				//lower
+				array[i] =
+					Fixed16(dmem_l->fetch_byte_from_inner(access_addr));
+			}
+		}
+	} else {
+		for (int i = 0, addr = data_addr;
+			i < SNACC_SIMD_LANE_SIZE/2; i++, addr += 2) {
+			access_addr = ((addr >> 3) << 2) + (addr & 0x3);
+			if (((addr / 4) % 2) == 0) {
+				//upper
+				fprintf(stderr, "load addr %X, data %X\n", addr,
+					dmem_u->fetch_half_from_inner(access_addr ^0x3));
+				array[i] =
+					Fixed16(dmem_u->fetch_half_from_inner(access_addr ^0x3));
+			} else {
+				//lower
+				array[i] =
+					Fixed16(dmem_l->fetch_half_from_inner(access_addr ^0x3));
+				fprintf(stderr, "load addr %X, data %X\n", addr,
+					dmem_l->fetch_half_from_inner(access_addr ^0x3));
+			}
+		}
+	}
+
+}
+
+
+void MadUnit::doMad()
+{
+	for (int i = 0; i < 4; i++) {
+		fprintf(stderr, "%d ", mask[3-i]);
+	}
+	fprintf(stderr, "\n");
+
+	Fixed16 weight[SNACC_SIMD_LANE_SIZE/2];
+	//load weight
+	loadWeight(weight);
+	if (eight_bit_mode) {
+		Fixed16 data[SNACC_SIMD_LANE_SIZE];
+		loadData(data);
+		for (int i = 0; i < SNACC_SIMD_LANE_SIZE/2; i++) {
+			if (mask[i]) {
+				tr0_fp = tr0_fp + weight[i] * data[i];
+			}
+		}
+		for (int i = SNACC_SIMD_LANE_SIZE/2;
+				i < SNACC_SIMD_LANE_SIZE; i++) {
+			if (mask[i]) {
+				tr1_fp = tr1_fp + weight[i] * data[i];
+			}
+		}
+	} else {
+		Fixed16 data[SNACC_SIMD_LANE_SIZE/2];
+		loadData(data);
+		for (int i = 0; i < SNACC_SIMD_LANE_SIZE/2; i++) {
+			if (mask[i]) {
+				fprintf(stderr, "%d: %X + %X * %X = ", i,
+								tr0_fp.getD(), weight[i].getD(),
+								data[i].getD());
+				tr0_fp = tr0_fp + weight[i] * data[i];
+				fprintf(stderr, "%X\n", tr0_fp.getD());
+			}
+		}
+		fprintf(stderr, "\n");
+	}
+}
+
+void MadUnit::doMaxPool()
+{
+
+}
+void MadUnit::doAvgPool()
+{
+
+}
 bool MadUnit::running()
 {
 	return (state != SNACC_MAD_STAT_IDLE) ||
