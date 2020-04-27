@@ -56,7 +56,6 @@ namespace SNACCComponents {
 			int start;
 			int done;
 			int donemask;
-			int done_clear;
 			int data_db_sel;
 			int wbuf_db_sel;
 			int inst_mux_sel;
@@ -68,6 +67,7 @@ namespace SNACCComponents {
 			int rbuf_status;
 			int dma_done_clear;
 			int dma_request;
+			bool *pending_clr;
 			dmainfo_t *dma_info;
 
 			DoubleBuffer **dmem_u;
@@ -101,7 +101,10 @@ namespace SNACCComponents {
 
 			bool isStart(int core_idx) { return getFlag(start, core_idx); };
 			bool isDoneClr(int core_idx) {
-				return getFlag(done_clear, core_idx);
+				return pending_clr[core_idx];
+			}
+			void negateDoneClr(int core_idx) { 
+				pending_clr[core_idx] = false;
 			}
 			void setDone(int core_idx) { assertFlag(&done, core_idx); };
 	};
@@ -157,8 +160,6 @@ namespace SNACCComponents {
 			return static_cast<float>(num_) / (1 << 12);
 		}
 
-		int16 getD() { return num_; }
-
 		friend const Fixed32 operator*(const Fixed16 lhs, const Fixed16 rhs);
 		friend const Fixed32 operator+(const Fixed32 lhs, const Fixed32 rhs);
 		friend const bool operator<(const Fixed16 lhs, const Fixed16 rhs);
@@ -174,8 +175,6 @@ uint32 SignedClipMostSignificant4Bits(uint32 before);
 	struct Fixed32 {
 		public:
 			Fixed32() : num_(0) {}
-
-			int32 getD() { return num_; }
 
 			// Convert from <4.28> bits signed fixed point decimal number,
 			// which is representation of TRs and FRs.
@@ -249,6 +248,8 @@ uint32 SignedClipMostSignificant4Bits(uint32 before);
 			void doMadLut();
 			void doMaxPool();
 			void doAvgPool();
+
+			Fixed32 applyFU(Fixed32 input);
 
 			static const MemberFuncPtr madModePtr[4];
 		public:

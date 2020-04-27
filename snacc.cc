@@ -43,8 +43,6 @@ SNACC::SNACC(uint32 node_ID, Router* upperRouter, int core_count_)
 	confReg = new ConfRegCtrl(core_count, dmem_upper, dmem_lower,
 								rbuf_upper, rbuf_lower, imem, lut, wbuf);
 
-	cleared = new bool[core_count] {false} ;
-
 }
 
 SNACC::~SNACC()
@@ -105,14 +103,15 @@ void SNACC::core_step()
 				confReg->setDone(i);
 				if (!dbg2[i]) {
 					fprintf(stderr, "%d done core %d\n", machine->num_cycles, i);
-				dbg2[i] = true;
+					dbg2[i] = true;
+				}
 			}
-			}
-		} else if (confReg->isDoneClr(i) & cleared[i]) {
+		} else if (confReg->isDoneClr(i)) {
 			cores[i]->reset();
-			cleared[i] = true;
-		} else if (!confReg->isDoneClr(i) & cleared[i]) {
-			cleared[i] = false;
+			confReg->negateDoneClr(i);
+			fprintf(stderr, "%d clear core %d\n", machine->num_cycles, i);
+			dbg[i] = false;
+			dbg2[i] = false;
 		}
 	}
 

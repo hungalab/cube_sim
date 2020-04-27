@@ -35,10 +35,11 @@ ConfRegCtrl::ConfRegCtrl(int core_count_,
 			dmem_u(dmem_u_), dmem_l(dmem_l_), rbuf_u(rbuf_u_),
 			rbuf_l(rbuf_l_), lut(lut_), imem(imem_), wbuf(wbuf_)
 {
-	start = done = donemask = done_clear = data_db_sel = wbuf_db_sel
+	start = done = donemask =  data_db_sel = wbuf_db_sel
 	= inst_mux_sel = lut_mux_sel = rbuf_mux_sel = data_query = rbuf_query
 	= data_status = rbuf_status = dma_done_clear = dma_request = 0;
 	dma_info = new dmainfo_t[core_count];
+	pending_clr = new bool[core_count] {false};
 	bitmap_mask = (1 << core_count) - 1;
 }
 
@@ -52,7 +53,7 @@ uint32 ConfRegCtrl::fetch_word(uint32 offset, int mode, DeviceExc *client)
 		case SNACC_CONF_REG_DONEMASK_OFFSET:
 			return donemask;
 		case SNACC_CONF_REG_DONECLR_OFFSET:
-			return done_clear;
+			return 0;
 		case SNACC_CONF_REG_DDBSEL_OFFSET:
 			return data_db_sel;
 		case SNACC_CONF_REG_WDBSEL_OFFSET:
@@ -106,7 +107,9 @@ void ConfRegCtrl::store_word(uint32 offset, uint32 data, DeviceExc *client)
 		case SNACC_CONF_REG_DONEMASK_OFFSET:
 			donemask = wdata; break;
 		case SNACC_CONF_REG_DONECLR_OFFSET:
-			done_clear = wdata; break;
+			for (int i = 0; i < core_count; i++) {
+				pending_clr[i] = getFlag(wdata, i);
+			}
 		case SNACC_CONF_REG_DDBSEL_OFFSET:
 			dbuf_switch(dmem_u, data_db_sel ^ wdata);
 			dbuf_switch(dmem_l, data_db_sel ^ wdata);
@@ -307,7 +310,6 @@ bool MadUnit::overRbufBoundary()
 void MadUnit::updataAddress()
 {
 	data_addr = uint32((int)data_addr + dmem_step);
-	fprintf(stderr, "updated addr %X\n", data_addr);
 	rbuf_addr = uint32((int)rbuf_addr + rbuf_step);
 }
 
@@ -318,7 +320,6 @@ void MadUnit::step()
 			if (wait_data_cycle == 0) {
 				next_state = SNACC_MAD_STAT_EX;
 			}
-			fprintf(stderr, "data stall\n");
 			break;
 		case SNACC_MAD_STAT_LUTSTALL:
 			if (wait_data_cycle == 0) {
@@ -351,7 +352,14 @@ void MadUnit::step()
 			if (eight_bit_mode && !second_lut_done) {
 				wait_data_cycle = sram_latency - 1;
 				next_state = SNACC_MAD_STAT_LUTSTALL;
+				second_lut_done = true;
+				fr0_fp = applyFU(tr0_fp);
 			} else {
+				if (eight_bit_mode) {
+					fr1_fp = applyFU(tr1_fp);
+				} else {
+					fr0_fp = applyFU(tr0_fp);
+				}
 				next_state = SNACC_MAD_STAT_WB;
 			}
 			break;
@@ -373,6 +381,13 @@ void MadUnit::step()
 	state = next_state;
 }
 
+Fixed32 MadUnit::applyFU(Fixed32 input)
+{
+	uint32 lut_addr = input.ToLutIndex();
+	Fixed16 lut_val = Fixed16(lut->fetch_half_from_inner(lut_addr ^ 0x3));
+	return lut_val.ToFixed32();
+}
+
 const MadUnit::MemberFuncPtr MadUnit::madModePtr[4] = {
 	&MadUnit::doMad, &MadUnit::doMad,
 	&MadUnit::doMaxPool, &MadUnit::doAvgPool
@@ -384,17 +399,13 @@ void MadUnit::loadWeight(Fixed16 *array)
 	uint32 access_addr;
 	for (int i = 0, addr = rbuf_addr;
 			i < SNACC_SIMD_LANE_SIZE/2; i++, addr += 2) {
-		access_addr = ((addr >> 3) << 2) + (addr & 0x3);
+		access_addr = (((addr >> 3) << 2) + (addr & 0x3)) ^ 0x3;
 		if (((addr / 4) % 2) == 0) {
 			//upper
-			fprintf(stderr, "load addr %X, weifht %X\n", addr,
-					rbuf_u->fetch_half_from_inner(access_addr ^ 0x3));
-			array[i] = Fixed16(rbuf_u->fetch_half_from_inner(access_addr ^ 0x3));
+			array[i] = Fixed16(rbuf_u->fetch_half_from_inner(access_addr));
 		} else {
 			//lower
-			fprintf(stderr, "load addr %X, weifht %X\n", addr,
-					rbuf_l->fetch_half_from_inner(access_addr ^ 0x3));
-			array[i] = Fixed16(rbuf_l->fetch_half_from_inner(access_addr ^ 0x3));
+			array[i] = Fixed16(rbuf_l->fetch_half_from_inner(access_addr));
 		}
 	}
 }
@@ -406,7 +417,7 @@ void MadUnit::loadData(Fixed16 *array)
 	if (eight_bit_mode) {
 		for (int i = 0, addr = data_addr;
 			i < SNACC_SIMD_LANE_SIZE; i++, addr++) {
-			access_addr = ((addr >> 3) << 2) + (addr & 0x3);
+			access_addr = (((addr >> 3) << 2) + (addr & 0x3)) ^ 0x3;
 			if (((addr / 4) % 2) == 0) {
 				//upper
 				array[i] =
@@ -420,19 +431,15 @@ void MadUnit::loadData(Fixed16 *array)
 	} else {
 		for (int i = 0, addr = data_addr;
 			i < SNACC_SIMD_LANE_SIZE/2; i++, addr += 2) {
-			access_addr = ((addr >> 3) << 2) + (addr & 0x3);
+			access_addr = (((addr >> 3) << 2) + (addr & 0x3)) ^ 0x3;
 			if (((addr / 4) % 2) == 0) {
 				//upper
-				fprintf(stderr, "load addr %X, data %X\n", addr,
-					dmem_u->fetch_half_from_inner(access_addr ^0x3));
 				array[i] =
-					Fixed16(dmem_u->fetch_half_from_inner(access_addr ^0x3));
+					Fixed16(dmem_u->fetch_half_from_inner(access_addr));
 			} else {
 				//lower
 				array[i] =
-					Fixed16(dmem_l->fetch_half_from_inner(access_addr ^0x3));
-				fprintf(stderr, "load addr %X, data %X\n", addr,
-					dmem_l->fetch_half_from_inner(access_addr ^0x3));
+					Fixed16(dmem_l->fetch_half_from_inner(access_addr));
 			}
 		}
 	}
@@ -442,11 +449,6 @@ void MadUnit::loadData(Fixed16 *array)
 
 void MadUnit::doMad()
 {
-	for (int i = 0; i < 4; i++) {
-		fprintf(stderr, "%d ", mask[3-i]);
-	}
-	fprintf(stderr, "\n");
-
 	Fixed16 weight[SNACC_SIMD_LANE_SIZE/2];
 	//load weight
 	loadWeight(weight);
@@ -469,14 +471,9 @@ void MadUnit::doMad()
 		loadData(data);
 		for (int i = 0; i < SNACC_SIMD_LANE_SIZE/2; i++) {
 			if (mask[i]) {
-				fprintf(stderr, "%d: %X + %X * %X = ", i,
-								tr0_fp.getD(), weight[i].getD(),
-								data[i].getD());
 				tr0_fp = tr0_fp + weight[i] * data[i];
-				fprintf(stderr, "%X\n", tr0_fp.getD());
 			}
 		}
-		fprintf(stderr, "\n");
 	}
 }
 

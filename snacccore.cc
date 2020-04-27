@@ -332,7 +332,6 @@ void SNACCCore::Madlp() {
 void SNACCCore::Setcr() {
 	switch (dec_rd) {
 		case SNACC_CREG_MASK_INDEX:
-			fprintf(stderr, "set mask %X\n", dec_imm);
 			for (int i = 0; i < SNACC_SIMD_LANE_SIZE; i++) {
 				simd_mask[i] = (dec_imm & (0x1 << i)) != 0;
 			}
