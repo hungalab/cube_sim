@@ -89,29 +89,15 @@ void SNACC::setup()
 
 void SNACC::core_step()
 {
-	static bool dbg[4] = {false};
-	static bool dbg2[4] = {false};
-	static int dbg_counter = 0;
 	for (int i = 0; i < core_count; i++) {
 		if (confReg->isStart(i)) {
-			if (!dbg[i]) {
-				fprintf(stderr, "%d run core %d\n", machine->num_cycles, i);
-				dbg[i] = true;
-			}
 			cores[i]->step();
 			if (cores[i]->isDone()) {
 				confReg->setDone(i);
-				if (!dbg2[i]) {
-					fprintf(stderr, "%d done core %d\n", machine->num_cycles, i);
-					dbg2[i] = true;
-				}
 			}
 		} else if (confReg->isDoneClr(i)) {
 			cores[i]->reset();
 			confReg->negateDoneClr(i);
-			fprintf(stderr, "%d clear core %d\n", machine->num_cycles, i);
-			dbg[i] = false;
-			dbg2[i] = false;
 		}
 	}
 

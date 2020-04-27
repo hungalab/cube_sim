@@ -325,7 +325,6 @@ void MadUnit::step()
 			if (wait_data_cycle == 0) {
 				next_state = SNACC_MAD_STAT_FU;
 			}
-			fprintf(stderr, "lut stall\n");
 			break;
 		case SNACC_MAD_STAT_EX:
 			(this->*madModePtr[mode])();
@@ -479,11 +478,37 @@ void MadUnit::doMad()
 
 void MadUnit::doMaxPool()
 {
-
+	if (eight_bit_mode) {
+		Fixed16 data[SNACC_SIMD_LANE_SIZE];
+		loadData(data);
+		for (int i = 0; i < SNACC_SIMD_LANE_SIZE/2; i++) {
+			if (mask[i]) {
+				tr0_fp = tr0_fp < data[i].ToFixed32() ? data[i].ToFixed32()
+								: tr0_fp;
+			}
+		}
+		for (int i = SNACC_SIMD_LANE_SIZE/2;
+				i < SNACC_SIMD_LANE_SIZE; i++) {
+			if (mask[i]) {
+				tr1_fp = tr1_fp < data[i].ToFixed32() ? data[i].ToFixed32()
+								: tr1_fp;
+			}
+		}
+	} else {
+		Fixed16 data[SNACC_SIMD_LANE_SIZE/2];
+		loadData(data);
+		for (int i = 0; i < SNACC_SIMD_LANE_SIZE/2; i++) {
+			if (mask[i]) {
+				tr0_fp = tr0_fp < data[i].ToFixed32() ? data[i].ToFixed32()
+								: tr0_fp;
+			}
+		}
+	}
 }
+
 void MadUnit::doAvgPool()
 {
-
+	fprintf(stderr, "Avg pooling is not implemented\n");
 }
 bool MadUnit::running()
 {
