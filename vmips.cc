@@ -59,6 +59,7 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 #include "accelerator.h"
 #include "remoteram.h"
 #include "cma.h"
+#include "snacc.h"
 
 vmips *machine;
 
@@ -559,8 +560,7 @@ vmips::setup_cube()
 	if (ac0_name == std::string("CMA")) {
 		ac0 = new CMA(1, rtif->getRouter());
 	} else if (ac0_name == std::string("SNACC")) {
-		fprintf(stderr, "SNACC is under developping\n");
-		return false;
+		ac0 = new SNACC(1, rtif->getRouter(), 4);
 	} else if (ac0_name == std::string("RemoteRam")) {
 		ac0 = new RemoteRam(1, rtif->getRouter(), 0x2048); //2KB
 	} else if (ac0_name != std::string("none")) {
@@ -573,26 +573,20 @@ vmips::setup_cube()
 	}
 
 	//setup accelerator1
-	if (ac1_name == std::string("CMA")) {
-		if (ac0 != NULL) {
-			ac1 = new CMA(2, ac0->getRouter());
-		} else {
+	if (ac1_name != std::string("none")) {
+		if (ac0 == NULL){
 			fprintf(stderr, "Upper module (accelerator0) is not built\n");
 			return false;
-		}
-	} else if (ac1_name == std::string("SNACC")) {
-		fprintf(stderr, "SNACC is under developping\n");
-		return false;
-	} else if (ac1_name == std::string("RemoteRam")) {
-		if (ac0 != NULL) {
+		} if (ac1_name == std::string("CMA")) {
+			ac1 = new CMA(2, ac0->getRouter());
+		} else if (ac1_name == std::string("SNACC")) {
+			ac1 = new SNACC(2, ac0->getRouter(), 4);
+		} else if (ac1_name == std::string("RemoteRam")) {
 			ac1 = new RemoteRam(2, ac0->getRouter(), 0x2048); //2KB
 		} else {
-			fprintf(stderr, "Upper module (accelerator0) is not built\n");
+			fprintf(stderr, "Unknown accelerator: %s\n", ac1_name.c_str());
 			return false;
 		}
-	} else if (ac1_name != std::string("none")) {
-		fprintf(stderr, "Unknown accelerator: %s\n", ac1_name.c_str());
-		return false;
 	}
 
 	if (ac1 != NULL) {
@@ -600,26 +594,20 @@ vmips::setup_cube()
 	}
 
 	//setup accelerator2
-	if (ac2_name == std::string("CMA")) {
-		if (ac1 != NULL) {
-			ac2 = new CMA(3, ac1->getRouter());
-		} else {
+	if (ac2_name != std::string("none")) {
+		if (ac1 == NULL){
 			fprintf(stderr, "Upper module (accelerator1) is not built\n");
 			return false;
-		}
-	} else if (ac2_name == std::string("SNACC")) {
-		fprintf(stderr, "SNACC is under developping\n");
-		return false;
-	} else if (ac2_name == std::string("RemoteRam")) {
-		if (ac1 != NULL) {
+		} if (ac1_name == std::string("CMA")) {
+			ac2 = new CMA(3, ac1->getRouter());
+		} else if (ac1_name == std::string("SNACC")) {
+			ac2 = new SNACC(3, ac1->getRouter(), 4);
+		} else if (ac1_name == std::string("RemoteRam")) {
 			ac2 = new RemoteRam(3, ac1->getRouter(), 0x2048); //2KB
 		} else {
-			fprintf(stderr, "Upper module (accelerator1) is not built\n");
+			fprintf(stderr, "Unknown accelerator: %s\n", ac1_name.c_str());
 			return false;
 		}
-	} else if (ac2_name != std::string("none")) {
-		fprintf(stderr, "Unknown accelerator: %s\n", ac2_name.c_str());
-		return false;
 	}
 
 	if (ac2 != NULL) {
