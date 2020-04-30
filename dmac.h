@@ -20,7 +20,7 @@
 
 //BITMAP
 #define DMAC_ENABLED_BIT	0x1
-#define DMAC_INTEN_BIT	0x1
+#define DMAC_INTEN_BIT		0x1
 #define DMAC_START_BIT		0x1
 #define DMAC_ABORT_BIT		0x2
 #define DMAC_BUSY_BIT		0x1
@@ -31,7 +31,25 @@
 #define DMAC_BURST_BIT		0x1
 #define DMAC_ZERO_BIT		0x2
 
+//State machine
+#define DMAC_STAT_IDLE			0x0
+#define DMAC_STAT_READING		0x1
+#define DMAC_STAT_READ_REQ		0x2
+#define DMAC_STAT_WRITING		0x3
+#define DMAC_STAT_WRITE_REQ		0x4
+#define DMAC_STAT_READ_DONE		0x5
+#define DMAC_STAT_WRITE_DONE	0x6
+#define DMAC_STAT_EXIT			0x7
+
 class Mapper;
+
+struct DMA_query_t {
+	uint32 src;
+	uint32 dst;
+	uint32 len;
+	bool zero_write;
+	bool burst;
+};
 
 class DMACConfig : public Range {
 	private:
@@ -56,9 +74,9 @@ class DMACConfig : public Range {
 		uint32 dma_len, dma_src, dma_dst;
 		uint32 success_len;
 
-
 	public:
 		DMACConfig();
+		void reset();
 		uint32 fetch_word(uint32 offset, int mode,
 							DeviceExc *client);
 		uint16 fetch_halfword(uint32 offset, DeviceExc *client);
@@ -69,6 +87,16 @@ class DMACConfig : public Range {
 							DeviceExc *client);
 		void store_byte(uint32 offset, uint8 data,
 							DeviceExc *client);
+
+		bool isKicked() { return kicked; }
+		void negateKicked() { kicked = false; }
+		bool isEnabled() { return enabled; }
+		void asertBusy() { busy = true; }
+		void negateBusy() { busy = false; }
+		void asertDone() { done = true; }
+		void set_success_len(uint32 len) { success_len = len; }
+		void setIsLastWrite(bool flag) { end_stat = flag; }
+		DMA_query_t getQuery();
 };
 
 
@@ -76,6 +104,14 @@ class DMAC : public DeviceExc {
 	private:
 		Mapper *bus;
 		DMACConfig *config;
+		uint32 *buffer;
+		int status;
+		int next_status;
+
+		int block_words;
+		DMA_query_t query;
+		int counter;
+		int word_counter;
 	public:
 		//Constructor
 		DMAC(Mapper &m);
