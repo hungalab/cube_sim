@@ -25,8 +25,8 @@
 #define DMAC_ABORT_BIT		0x2
 #define DMAC_BUSY_BIT		0x1
 #define DMAC_DONE_BIT		0x2
-#define DMAC_ADRERR_BIT		0x4
-#define DMAC_BUSERR_BIT		0x8
+#define DMAC_BUSERR_BIT		0x4
+#define DMAC_ADRERR_BIT		0x8
 #define DMAC_ESTATE_BIT		0x10
 #define DMAC_BURST_BIT		0x1
 #define DMAC_ZERO_BIT		0x2
@@ -89,11 +89,14 @@ class DMACConfig : public Range {
 							DeviceExc *client);
 
 		bool isKicked() { return kicked; }
-		void negateKicked() { kicked = false; }
 		bool isEnabled() { return enabled; }
+		bool isAbort() { return abort; }
+		void negateKicked() { kicked = false; }
 		void asertBusy() { busy = true; }
 		void negateBusy() { busy = false; }
 		void asertDone() { done = true; }
+		void asertAddrErr() { addr_err = true; }
+		void asertBusErr() { bus_err = true; }
 		void set_success_len(uint32 len) { success_len = len; }
 		void setIsLastWrite(bool flag) { end_stat = flag; }
 		DMA_query_t getQuery();
@@ -112,6 +115,8 @@ class DMAC : public DeviceExc {
 		DMA_query_t query;
 		int counter;
 		int word_counter;
+
+		bool address_valid(uint32 addr);
 	public:
 		//Constructor
 		DMAC(Mapper &m);

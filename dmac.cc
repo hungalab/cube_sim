@@ -2,6 +2,7 @@
 #include "accesstypes.h"
 #include "vmips.h"
 #include "options.h"
+#include "excnames.h"
 
 DMAC::DMAC(Mapper &m) : bus(&m)
 {
@@ -13,6 +14,16 @@ DMAC::DMAC(Mapper &m) : bus(&m)
 
 void DMAC::exception(uint16 excCode, int mode, int coprocno)
 {
+	if (excCode == DBE) {
+		exception_pending = true;
+	}
+}
+
+bool DMAC::address_valid(uint32 addr)
+{
+	uint32 align = query.burst ? block_words * 4 : 4;
+
+	return (addr % align) == 0;
 
 }
 
@@ -30,9 +41,19 @@ void DMAC::step()
 					counter = 0;
 					word_counter = 0;
 					if (query.zero_write) {
-						next_status = DMAC_STAT_WRITE_REQ;
+						if (address_valid(query.src)) {
+							next_status = DMAC_STAT_WRITE_REQ;
+						} else {
+							next_status = DMAC_STAT_EXIT;
+							config->asertAddrErr();
+						}
 					} else {
-						next_status = DMAC_STAT_READ_REQ;
+						if (address_valid(query.src)) {
+							next_status = DMAC_STAT_READ_REQ;
+						} else {
+							next_status = DMAC_STAT_EXIT;
+							config->asertAddrErr();
+						}
 					}
 				}
 				break;
@@ -71,8 +92,16 @@ void DMAC::step()
 				break;
 			case DMAC_STAT_READ_DONE:
 				bus->release_bus(this);
-				next_status = DMAC_STAT_WRITE_REQ;
-				config->setIsLastWrite(false);
+				if (address_valid(query.dst)) {
+					config->setIsLastWrite(false);
+					next_status = DMAC_STAT_WRITE_REQ;
+				} else if (config->isAbort()) {
+					next_status = DMAC_STAT_EXIT;
+				} else {
+					config->setIsLastWrite(true);
+					next_status = DMAC_STAT_EXIT;
+					config->asertAddrErr();
+				}
 				break;
 			case DMAC_STAT_WRITE_REQ:
 				if (bus->acquire_bus(this)) {
@@ -115,6 +144,8 @@ void DMAC::step()
 			case DMAC_STAT_WRITE_DONE:
 				if (++counter == query.len) {
 					next_status = DMAC_STAT_EXIT;
+				} else if (config->isAbort()) {
+					next_status = DMAC_STAT_EXIT;
 				} else {
 					if (query.zero_write) {
 						next_status = DMAC_STAT_WRITE_REQ;
@@ -131,6 +162,11 @@ void DMAC::step()
 				config->set_success_len(counter);
 				break;
 		}
+		if (exception_pending) {
+			config->asertBusErr();
+			next_status = DMAC_STAT_EXIT;
+			exception_pending = false;
+		}
 		status = next_status;
 	}
 }
@@ -139,6 +175,7 @@ void DMAC::reset()
 {
 	config->reset();
 	status = DMAC_STAT_IDLE;
+	exception_pending = false;
 }
 
 DMACConfig::DMACConfig()
