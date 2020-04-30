@@ -9,7 +9,7 @@ endif
 
 TEST_BENCH = test-adpcm test-aes test-bf test-cp_test test-gsm\
 			 test-jpeg test-mpeg2 test-printf test-sha test-sum_asm test-router\
-			 test-snacc-mad test-snacc-core test-cma
+			 test-snacc-mad test-snacc-core test-cma test-dmac
 
 all: $(TEST_BENCH)
 
@@ -41,3 +41,5 @@ test-snacc-mad: snacc_test.bin
 	$(SIM) -o accelerator0=SNACC  $<
 test-cma: cma_gray.bin
 	$(SIM) -o accelerator0=CMA  $<
+test-dmac: dmac.bin
+	$(SIM) $<

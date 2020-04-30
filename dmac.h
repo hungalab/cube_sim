@@ -4,6 +4,7 @@
 #include "deviceexc.h"
 #include "mapper.h"
 #include "range.h"
+#include "deviceint.h"
 
 //Address map
 #define DMAC_ADDR_BASE		0xBD030000
@@ -58,7 +59,7 @@ class DMACConfig : public Range {
 		//activate
 		bool enabled;
 		//interrupt enabled
-		bool int_en;
+		bool irq_en;
 		//ctrl
 		bool abort;
 		//status
@@ -91,19 +92,21 @@ class DMACConfig : public Range {
 		bool isKicked() { return kicked; }
 		bool isEnabled() { return enabled; }
 		bool isAbort() { return abort; }
+		bool isDone() { return done; }
+		bool isIRQEn() { return irq_en; }
 		void negateKicked() { kicked = false; }
-		void asertBusy() { busy = true; }
+		void assertBusy() { busy = true; }
 		void negateBusy() { busy = false; }
-		void asertDone() { done = true; }
-		void asertAddrErr() { addr_err = true; }
-		void asertBusErr() { bus_err = true; }
+		void assertDone() { done = true; }
+		void assertAddrErr() { addr_err = true; }
+		void assertBusErr() { bus_err = true; }
 		void set_success_len(uint32 len) { success_len = len; }
 		void setIsLastWrite(bool flag) { end_stat = flag; }
 		DMA_query_t getQuery();
 };
 
 
-class DMAC : public DeviceExc {
+class DMAC : public DeviceExc, public DeviceInt  {
 	private:
 		Mapper *bus;
 		DMACConfig *config;
@@ -126,6 +129,9 @@ class DMAC : public DeviceExc {
 		// Control-flow methods.
 		void step ();
 		void reset ();
+
+		//for device int
+		const char *descriptor_str() const;
 };
 
 

@@ -548,8 +548,8 @@ vmips::setup_router()
 	}
 
 	//connect IRQ line
-	intc->connectLine(IRQ5, rtif);
-	boot_msg( "Connected IRQ5 to the %s\n", rtif->descriptor_str());
+	intc->connectLine(IRQ7, rtif);
+	boot_msg( "Connected IRQ7 to the %s\n", rtif->descriptor_str());
 	return true;
 
 }
@@ -558,6 +558,9 @@ bool vmips::setup_dmac()
 {
 	if (opt->option("dmac")->flag) {
 		dmac = new DMAC(*physmem);
+		intc->connectLine(IRQ5, dmac);
+		boot_msg( "Connected IRQ5 to the %s\n",
+			dmac->descriptor_str());
 	}
 	return true;
 }

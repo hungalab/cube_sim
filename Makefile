@@ -226,7 +226,7 @@ cache.o: cache.cc cache.h \
   excnames.h cacheinstr.h
 
 dmac.o: dmac.cc dmac.h deviceexc.h mapper.h range.h \
-          accesstypes.h
+          accesstypes.h deviceint.h
 
 busarbiter.o: busarbiter.cc busarbiter.h
 

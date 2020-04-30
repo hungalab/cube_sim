@@ -35,7 +35,7 @@ void DMAC::step()
 		switch (status) {
 			case DMAC_STAT_IDLE:
 				if (config->isKicked()) {
-					config->asertBusy();
+					config->assertBusy();
 					config->negateKicked();
 					query = config->getQuery();
 					counter = 0;
@@ -45,14 +45,14 @@ void DMAC::step()
 							next_status = DMAC_STAT_WRITE_REQ;
 						} else {
 							next_status = DMAC_STAT_EXIT;
-							config->asertAddrErr();
+							config->assertAddrErr();
 						}
 					} else {
 						if (address_valid(query.src)) {
 							next_status = DMAC_STAT_READ_REQ;
 						} else {
 							next_status = DMAC_STAT_EXIT;
-							config->asertAddrErr();
+							config->assertAddrErr();
 						}
 					}
 				}
@@ -100,7 +100,7 @@ void DMAC::step()
 				} else {
 					config->setIsLastWrite(true);
 					next_status = DMAC_STAT_EXIT;
-					config->asertAddrErr();
+					config->assertAddrErr();
 				}
 				break;
 			case DMAC_STAT_WRITE_REQ:
@@ -157,17 +157,23 @@ void DMAC::step()
 				break;
 			case DMAC_STAT_EXIT:
 				bus->release_bus(this);
-				config->asertDone();
+				config->assertDone();
 				config->negateBusy();
 				config->set_success_len(counter);
+				next_status = DMAC_STAT_IDLE;
 				break;
 		}
 		if (exception_pending) {
-			config->asertBusErr();
+			config->assertBusErr();
 			next_status = DMAC_STAT_EXIT;
 			exception_pending = false;
 		}
 		status = next_status;
+	}
+	if (config->isDone() && config->isIRQEn()) {
+		assertInt(IRQ5);
+	} else {
+		deassertInt(IRQ5);
 	}
 }
 
@@ -176,6 +182,12 @@ void DMAC::reset()
 	config->reset();
 	status = DMAC_STAT_IDLE;
 	exception_pending = false;
+}
+
+//to override DeviceInt
+const char *DMAC::descriptor_str() const
+{
+	return "DMA Controller";
 }
 
 DMACConfig::DMACConfig()
@@ -189,7 +201,7 @@ DMACConfig::DMACConfig()
 
 void DMACConfig::reset()
 {
-	kicked = enabled = int_en = abort = busy = done = addr_err
+	kicked = enabled = irq_en = abort = busy = done = addr_err
 	= bus_err = end_stat = zero_write = burst = false;
 	dma_len = dma_src = dma_dst = success_len = 0;
 }
@@ -203,7 +215,7 @@ uint32 DMACConfig::fetch_word(uint32 offset, int mode,
 			ret_data = enabled ? 1 : 0;
 			break;
 		case DMAC_INTEN_OFFSET:
-			ret_data = int_en ? 1 : 0;
+			ret_data = irq_en ? 1 : 0;
 			break;
 		case DMAC_CTRL_OFFSET:
 			ret_data = abort ? DMAC_ABORT_BIT : 0;
@@ -288,10 +300,12 @@ void DMACConfig::store_word(uint32 offset, uint32 data,
 			enabled = (data & DMAC_ENABLED_BIT) != 0;
 			break;
 		case DMAC_INTEN_OFFSET:
-			int_en = (data & DMAC_INTEN_BIT) != 0;
+			irq_en = (data & DMAC_INTEN_BIT) != 0;
 			break;
 		case DMAC_CTRL_OFFSET:
-			kicked = (data & DMAC_START_BIT) != 0;
+			if (!busy) {
+				kicked = (data & DMAC_START_BIT) != 0;
+			}
 			abort = (data & DMAC_ABORT_BIT) != 0;
 			break;
 		case DMAC_STATUS_OFFSET:

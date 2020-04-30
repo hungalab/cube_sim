@@ -331,9 +331,9 @@ void RouterInterface::step() {
 
 	//check intrrupt signal
 	if (checkHWint()) {
-		assertInt(IRQ5);
+		assertInt(IRQ7);
 	} else {
-		deassertInt(IRQ5);
+		deassertInt(IRQ7);
 	}
 
 	//update status
