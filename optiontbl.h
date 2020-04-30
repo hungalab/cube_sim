@@ -366,6 +366,9 @@ static Option nametable[] = {
 	this device on as necessary; you should not normally need
 	to enable it. **/
 
+    { "dmac", FLAG },
+    /** Enable cube DMAC */
+
     { "cacheprof", FLAG },
     /** Report cache profiling results after emulation **/
 
@@ -411,7 +414,7 @@ static const char *defaults_table[] = {
     "spimconsole", "notracing", "tracesize=100000", "nobigendian",
     "tracestartpc=0", "traceendpc=0",
     "execname=none", "nofpu", "notestdev", "nocacheprof",
-    "icacheway=2", "dcacheway=2", "icachebsize=64", "dcachebsize=64",
+    "dmac", "icacheway=2", "dcacheway=2", "icachebsize=64", "dcachebsize=64",
     "icachebnum=64", "dcachebnum=64", "mem_bandwidth=1",
     "mem_access_latency=8", "vcbufsize=24", "noroutermsg",
     "accelerator0=none", "accelerator1=none", "accelerator2=none",

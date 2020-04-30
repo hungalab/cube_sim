@@ -60,6 +60,7 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 #include "remoteram.h"
 #include "cma.h"
 #include "snacc.h"
+#include "dmac.h"
 
 vmips *machine;
 
@@ -107,6 +108,8 @@ vmips::refresh_options(void)
 	mem_bandwidth = opt->option("mem_bandwidth")->num;
 	mem_access_latency = opt->option("mem_access_latency")->num;
 	vcbufsize = opt->option("vcbufsize")->num;
+
+
 }
 
 /* Set up some machine globals, and process command line arguments,
@@ -134,6 +137,7 @@ vmips::~vmips()
 	if (ac0) delete ac0;
 	if (ac1) delete ac1;
 	if (ac2) delete ac2;
+	if (dmac) delete dmac;
 }
 
 void
@@ -393,6 +397,7 @@ vmips::step(void)
 {
 	/* Process instructions. */
 	cpu->step();
+	if (dmac != NULL) dmac->step();
 	rtif->step();
 
 	if (ac0 != NULL) ac0->step();
@@ -549,6 +554,14 @@ vmips::setup_router()
 
 }
 
+bool vmips::setup_dmac()
+{
+	if (opt->option("dmac")->flag) {
+		dmac = new DMAC(*physmem);
+	}
+	return true;
+}
+
 bool
 vmips::setup_cube()
 {
@@ -701,6 +714,9 @@ vmips::run()
 	if (!setup_cube())
 	  return 1;
 
+	if (!setup_dmac())
+		return 1;
+
 	signal (SIGQUIT, halt_machine_by_signal);
 
 	boot_msg( "Hit Ctrl-\\ to halt machine, Ctrl-_ for a debug prompt.\n" );
@@ -725,6 +741,11 @@ vmips::run()
 	if (ac2 != NULL) {
 		boot_msg("Resetting %s_2\n", ac2->accelerator_name());
 		ac2->reset();
+	}
+
+	if (dmac != NULL) {
+		boot_msg("Resetting DMAC\n");
+		dmac->reset();
 	}
 
 	fprintf(stderr, "\n");

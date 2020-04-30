@@ -37,7 +37,8 @@ SOURCES = cpu.cc cpzero.cc devicemap.cc \
   haltreg.h wipe.h stub-dis.h decrtc.h decrtcreg.h deccsr.h deccsrreg.h \
   decstat.h decserial.h decserialreg.h rommodule.h gccattr.h mmapglue.h \
   types.h endiantest.h fileutils.h fpu.h interactor.h testdev.h \
-  rs232c.h cache.h busarbiter.h routerinterface.cc routerinterface.h router.cc router.h \
+  dmac.h dmac.cc  rs232c.h cache.h busarbiter.h \
+  routerinterface.cc routerinterface.h router.cc router.h \
   accelerator.h accelerator.cc acceleratorcore.h acceleratorcore.cc \
   remoteram.h remoteram.cc cma.h cma.cc cmamodules.cc cmamodules.h \
   cmaAddressMap.h dbuf.h dbuf.cc snacc.cc snacc.h snacccore.c snacccore.h \
@@ -52,7 +53,8 @@ OBJECTS = cpu.$(OBJEXT) cpzero.$(OBJEXT) devicemap.$(OBJEXT) \
 	decrtc.$(OBJEXT) deccsr.$(OBJEXT) decstat.$(OBJEXT) \
 	decserial.$(OBJEXT) rommodule.$(OBJEXT) fileutils.$(OBJEXT) \
 	exeloader.$(OBJEXT) fpu.$(OBJEXT) interactor.$(OBJEXT) \
-	testdev.$(OBJEXT) rs232c.$(OBJEXT) cache.$(OBJEXT) busarbiter.$(OBJEXT) \
+	testdev.$(OBJEXT) rs232c.$(OBJEXT) cache.$(OBJEXT) \
+  dmac.$(OBJEXT) busarbiter.$(OBJEXT) \
   routerinterface.${OBJEXT} router.${OBJEXT} \
   remoteram.${OBJEXT} accelerator.${OBJEXT} \
   cma.${OBJEXT} cmamodules.${OBJEXT} dbuf.${OBJEXT} \
@@ -142,7 +144,7 @@ vmips.o: vmips.cc clock.h task.h types.h config.h \
   testdev.h stub-dis.h libopcodes_mips/bfd.h libopcodes_mips/ansidecl.h \
   libopcodes_mips/symcat.h libopcodes_mips/dis-asm.h rommodule.h \
   interactor.h rs232c.h routerinterface.h remoteram.h accelerator.h \
-  cma.h snacc.h
+  cma.h snacc.h dmac.h
 
 deviceint.o: deviceint.cc deviceint.h intctrl.h types.h config.h \
   vmips.h
@@ -207,48 +209,50 @@ fpu.o: fpu.cc fpu.h types.h config.h cpu.h deviceexc.h accesstypes.h \
   excnames.h stub-dis.h libopcodes_mips/bfd.h libopcodes_mips/ansidecl.h \
   libopcodes_mips/symcat.h libopcodes_mips/dis-asm.h
 
-interactor.o: interactor.cc \
-  interactor.h cpu.h deviceexc.h accesstypes.h types.h config.h state.h \
-  vmips.h mapper.h range.h
+interactor.o: interactor.cc interactor.h cpu.h deviceexc.h \
+    accesstypes.h types.h config.h state.h \
+    vmips.h mapper.h range.h
 
-testdev.o: testdev.cc cpu.h deviceexc.h accesstypes.h types.h config.h \
-  vmips.h mapper.h range.h \
-  testdev.h devicemap.h
+testdev.o: testdev.cc cpu.h deviceexc.h accesstypes.h \
+    types.h config.h vmips.h mapper.h range.h \
+    testdev.h devicemap.h
 
-rs232c.o: rs232c.cc rs232c.h deviceint.h intctrl.h types.h config.h \
-  devicemap.h range.h accesstypes.h \
-  mapper.h
+rs232c.o: rs232c.cc rs232c.h deviceint.h intctrl.h types.h \
+    config.h devicemap.h range.h accesstypes.h mapper.h
 
 cache.o: cache.cc cache.h \
   types.h config.h deviceexc.h accesstypes.h state.h vmips.h \
   mapper.h range.h \
   excnames.h cacheinstr.h
 
+dmac.o: dmac.cc dmac.h deviceexc.h mapper.h range.h \
+          accesstypes.h
+
 busarbiter.o: busarbiter.cc busarbiter.h
 
-routerinterface.o: routerinterface.cc routerinterface.h devicemap.h \
-                    deviceexc.h router.h accelerator.h deviceint.h \
-                    accelerator.h excnames.h options.h accesstypes.h
+routerinterface.o: routerinterface.cc routerinterface.h\
+    devicemap.h deviceexc.h router.h accelerator.h deviceint.h \
+    accelerator.h excnames.h options.h accesstypes.h
 
 router.o: router.cc router.h vmips.h options.h
 
-accelerator.o: accelerator.h accelerator.cc acceleratorcore.h range.h\
-               router.h error.h options.h vmips.h
+accelerator.o: accelerator.h accelerator.cc acceleratorcore.h \
+    range.h router.h error.h options.h vmips.h
 
 remoteram.o: remoteram.cc remoteram.h accelerator.h memorymodule.h
 
 dbuf.o: dbuf.h dbuf.cc range.h types.h fileutils.h vmips.h options.h
 
 cma.o: cma.cc cma.h accelerator.h dbuf.h accesstypes.h\
-         types.h cmamodules.h cmaAddressMap.h 
+    types.h cmamodules.h cmaAddressMap.h 
 
 cmamodules.o: cmamodules.h cmamodules.cc cmaAddressMap.h range.h \
-            dbuf.h accelerator.h acceleratorcore.h
+    dbuf.h accelerator.h acceleratorcore.h
 
 snacc.o: snacc.h snacc.cc dbuf.h snaccAddressMap.h snaccmodules.h
 
-snacccore.o: snacccore.h snacccore.cc vmips.h options.h snaccmodules.h \
-              snaccAddressMap.h
+snacccore.o: snacccore.h snacccore.cc vmips.h options.h \
+    snaccmodules.h snaccAddressMap.h
 
 snaccmodules.o: snaccmodules.h snaccmodules.cc snaccAddressMap.h \
-                  accesstypes.h
+    accesstypes.h
