@@ -82,8 +82,8 @@ namespace SNACCComponents {
 			{ return ((data >> idx) & 0x1) != 0; };
 			inline void assertFlag(int *data, int idx)
 			{ *data = *data | (0x1 << idx); };
-			inline void negateFlag(int data, int idx)
-			{ data = data & ~(0x1 << idx); }
+			inline void negateFlag(int *data, int idx)
+			{ *data = *data & ~(0x1 << idx); }
 
 			void dbuf_switch(DoubleBuffer **dbuf, int bitmap);
 		public:
@@ -105,6 +105,7 @@ namespace SNACCComponents {
 			}
 			void negateDoneClr(int core_idx) { 
 				pending_clr[core_idx] = false;
+				negateFlag(&done, core_idx);
 			}
 			void setDone(int core_idx) { assertFlag(&done, core_idx); };
 	};

@@ -32,9 +32,14 @@ public:
     MemoryModule(size_t size, FILE *init_data = NULL) : Range (0, size, 0, MEM_READ_WRITE) {
         myaddr = new uint32[size / 4]();
         if (init_data != NULL) {
-        	std::memcpy((void*)myaddr,
+            if (get_file_size(init_data) > size) {
+                static char msg[] = "Initial memory data size exceeds the memory size";
+                throw msg;
+            } else {
+            	std::memcpy((void*)myaddr,
         				mmap(0, extent, PROT_READ, MAP_PRIVATE, fileno (init_data), ftell (init_data)),
         				get_file_size (init_data));
+            }
         }
         address = static_cast<void *> (myaddr);
     }

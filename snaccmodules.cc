@@ -113,6 +113,7 @@ void ConfRegCtrl::store_word(uint32 offset, uint32 data, DeviceExc *client)
 			for (int i = 0; i < core_count; i++) {
 				pending_clr[i] = getFlag(wdata, i);
 			}
+			break;
 		case SNACC_CONF_REG_DDBSEL_OFFSET:
 			dbuf_switch(dmem_u, data_db_sel ^ wdata);
 			dbuf_switch(dmem_l, data_db_sel ^ wdata);

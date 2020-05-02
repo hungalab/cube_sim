@@ -68,11 +68,12 @@ bool SNACCCore::isStall()
 
 void SNACCCore::if_stage()
 {
-
 	fetch_instr = imem->fetch_half_from_inner(pc ^ 0x3);
 
-	// if (core_id == 0)
-		// fprintf(stderr, "\n%08d: PC: %X instr %X\n", machine->num_cycles, pc, fetch_instr);
+	// if (core_id == 0) {
+	// 	fprintf(stderr, "\n%08d: PC: %X instr %X\n", machine->num_cycles, pc, fetch_instr);
+	// 	fprintf(stderr, "outsize %X\n", imem->fetch_word(pc, DATALOAD, NULL));
+	// }
 }
 
 void SNACCCore::id_stage()
@@ -283,9 +284,9 @@ void SNACCCore::Unknown() {
 	
 	if (dbg_msg) {
   		fprintf(stderr, 
-			"SNACCCore::Execute(): Unknown Instruction: "
-			"opcode = %d rd = %d rs = %d funct = %d\n",
-			dec_opcode, dec_rd, dec_rs, dec_func);
+			"SNACCCore[%d]::Execute(): Unknown Instruction: "
+			"opcode = %d rd = %d rs = %d funct = %d pc = 0x%X\n",
+			core_id, dec_opcode, dec_rd, dec_rs, dec_func, pc);
 	}
 }
 

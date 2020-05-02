@@ -442,6 +442,9 @@ vmips::setup_prog ()
   } catch (int errcode) {
     error ("mmap failed for %s: %s", opt_image, strerror (errcode));
     return false;
+  } catch (char *err_msg) {
+	error("Program binary: %s\n", err_msg);
+	return false;
   }
   // Map the prog image to the virtual physical memory.
   physmem->map_at_physical_address (mem_prog, opt_loadaddr);

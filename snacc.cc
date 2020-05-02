@@ -41,7 +41,7 @@ SNACC::SNACC(uint32 node_ID, Router* upperRouter, int core_count_)
 
 
 	confReg = new ConfRegCtrl(core_count, dmem_upper, dmem_lower,
-								rbuf_upper, rbuf_lower, imem, lut, wbuf);
+								rbuf_upper, rbuf_lower, lut, imem, wbuf);
 
 }
 
@@ -77,7 +77,7 @@ void SNACC::setup()
 									SNACC_GLB_DMEM_UPPER_OFFSET);
 	localBus->map_at_local_address(bcast_rbuf_lower, SNACC_GLB_BCASE_OFFSET +
 									SNACC_GLB_RBUF_LOWER_OFFSET);
-	localBus->map_at_local_address(bcast_rbuf_lower, SNACC_GLB_BCASE_OFFSET +
+	localBus->map_at_local_address(bcast_rbuf_upper, SNACC_GLB_BCASE_OFFSET +
 									SNACC_GLB_RBUF_UPPER_OFFSET);
 	localBus->map_at_local_address(bcast_imem, SNACC_GLB_BCASE_OFFSET +
 									SNACC_GLB_IMEM_OFFSET);
