@@ -39,7 +39,7 @@ SOURCES = cpu.cc cpzero.cc devicemap.cc \
   types.h endiantest.h fileutils.h fpu.h interactor.h testdev.h \
   dmac.h dmac.cc  rs232c.h cache.h busarbiter.h \
   routerinterface.cc routerinterface.h router.cc router.h \
-  accelerator.h accelerator.cc acceleratorcore.h acceleratorcore.cc \
+  accelerator.h accelerator.cc  \
   remoteram.h remoteram.cc cma.h cma.cc cmamodules.cc cmamodules.h \
   cmaAddressMap.h dbuf.h dbuf.cc snacc.cc snacc.h snacccore.c snacccore.h \
   snaccAddressMap.h snaccmodules.c snaccmodules.h
@@ -236,7 +236,7 @@ routerinterface.o: routerinterface.cc routerinterface.h\
 
 router.o: router.cc router.h vmips.h options.h
 
-accelerator.o: accelerator.h accelerator.cc acceleratorcore.h \
+accelerator.o: accelerator.h accelerator.cc  \
     range.h router.h error.h options.h vmips.h
 
 remoteram.o: remoteram.cc remoteram.h accelerator.h memorymodule.h
@@ -247,7 +247,7 @@ cma.o: cma.cc cma.h accelerator.h dbuf.h accesstypes.h\
     types.h cmamodules.h cmaAddressMap.h 
 
 cmamodules.o: cmamodules.h cmamodules.cc cmaAddressMap.h range.h \
-    dbuf.h accelerator.h acceleratorcore.h
+    dbuf.h accelerator.h 
 
 snacc.o: snacc.h snacc.cc dbuf.h snaccAddressMap.h snaccmodules.h
 

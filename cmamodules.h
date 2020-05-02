@@ -4,7 +4,6 @@
 #include "range.h"
 #include "cmaAddressMap.h"
 #include "accelerator.h"
-#include "acceleratorcore.h"
 #include "dbuf.h"
 
 #include <vector>
