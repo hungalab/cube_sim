@@ -106,9 +106,9 @@ vmips::refresh_options(void)
 	opt_spimconsole = opt->option("spimconsole")->flag;
 	opt_testdev = opt->option("testdev")->flag;
 	mem_bandwidth = opt->option("mem_bandwidth")->num;
-	mem_access_latency = opt->option("mem_access_latency")->num;
+	bus_latency = opt->option("bus_latency")->num;
 	vcbufsize = opt->option("vcbufsize")->num;
-
+	exmem_latency = opt->option("exmem_latency")->num;
 
 }
 
@@ -438,7 +438,7 @@ vmips::setup_prog ()
   // Translate loadaddr to physical address.
 
   try {
-    mem_prog = new MemoryModule(opt_progmemsize, bin_file);
+    mem_prog = new MemoryModule(opt_progmemsize, exmem_latency, bin_file);
   } catch (int errcode) {
     error ("mmap failed for %s: %s", opt_image, strerror (errcode));
     return false;
@@ -467,7 +467,7 @@ vmips::setup_bootrom ()
   // Translate loadaddr to physical address.
   ROMModule *rm;
   try {
-    rm = new ROMModule (rom);
+    rm = new ROMModule (rom, exmem_latency);
   } catch (int errcode) {
     error ("mmap failed for %s: %s", opt_boot, strerror (errcode));
     return false;
@@ -488,7 +488,7 @@ bool
 vmips::setup_ram ()
 {
   // Make a new RAM module and install it at base physical address 0.
-  memmod = new MemoryModule(opt_memsize);
+  memmod = new MemoryModule(opt_memsize, exmem_latency);
   physmem->map_at_physical_address(memmod, 0);
 
   // memmod2 = new MemoryModule(0x100000);

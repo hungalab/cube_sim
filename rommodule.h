@@ -24,11 +24,13 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 #include <cstdio>
 
 class ROMModule : public Range {
+private:
+  int latency;
 public:
   uint32* data;
-  ROMModule (FILE *f);
+  ROMModule (FILE *f, int latency_);
   virtual ~ROMModule ();
-
+  virtual int extra_latency() { return latency; };
 };
 
 #endif // ROMMODULE_H

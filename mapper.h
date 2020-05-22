@@ -58,7 +58,7 @@ public:
 	bool byteswapped;
 
 private:
-	uint32 mem_access_latency;
+	uint32 bus_latency;
 
 	std::unordered_map<RequestsKey, uint32, RequestsHash, RequestsKeyEqual> access_requests_time;
 	BusArbiter *bus_arbiter;

@@ -23,7 +23,8 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 #include <cerrno>
 #include <cstring>
 
-ROMModule::ROMModule (FILE *fp) : Range (0, 0, 0, MEM_READ_WRITE) {
+ROMModule::ROMModule (FILE *fp, int latency_) : Range (0, 0, 0, MEM_READ_WRITE),
+  latency(latency_) {
   extent = get_file_size (fp);
   // Try to map the file into memory. We use PROT_READ to indicate
   // read-only access. -> enable to write (edit!)

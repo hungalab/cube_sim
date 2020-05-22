@@ -60,6 +60,7 @@ public:
 		DeviceExc *client);
 	virtual void store_byte(uint32 offset, uint8 data, DeviceExc *client);
 	virtual bool ready(uint32 offset, int32 mode, DeviceExc *client) { return true; } ;
+	virtual int extra_latency() { return 0; };
 };
 
 

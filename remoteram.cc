@@ -3,7 +3,7 @@
 RemoteRam::RemoteRam(uint32 node_ID, Router* upperRouter, int mem_size)
 	: CubeAccelerator(node_ID, upperRouter)
 {
-	mem = new MemoryModule(mem_size);
+	mem = new MemoryModule(mem_size, 0);
 }
 
 RemoteRam::~RemoteRam()

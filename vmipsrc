@@ -57,6 +57,9 @@ icachebnum=64
 dcachebnum=64
 icachebsize=64
 dcachebsize=64
+## bus config
+exmem_latency=3
+bus_latency=8
 ##
 ## The following options have defaults set by `configure':
 ##
