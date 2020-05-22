@@ -112,3 +112,17 @@ void SNACC::core_reset()
 	}
 }
 
+
+void SNACC::send_commnad(uint32 cmd, uint32 arg) {
+
+}
+
+bool SNACC::isTriggered()
+{
+	return false;
+}
+
+uint32 SNACC::get_dbg_data()
+{
+	return 0;
+}

@@ -41,9 +41,15 @@ public:
 	void setup();
 	void core_step();
 	void core_reset();
+
 	const char *accelerator_name() { return "CMA"; }
 
 	CMAComponents::ControlReg *ctrl_reg;
+
+	//for debuger
+	virtual void send_commnad(uint32 cmd, uint32 arg);
+	virtual bool isTriggered();
+	virtual uint32 get_dbg_data();
 };
 
 

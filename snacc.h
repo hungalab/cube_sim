@@ -43,6 +43,11 @@ class SNACC : public CubeAccelerator{
 		const char *accelerator_name() { return "SNACC"; }
 		void core_step();
 		void core_reset();
+
+		//for debuger
+		virtual void send_commnad(uint32 cmd, uint32 arg);
+		virtual bool isTriggered();
+		virtual uint32 get_dbg_data();
 };
 
 

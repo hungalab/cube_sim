@@ -41,8 +41,9 @@ SOURCES = cpu.cc cpzero.cc devicemap.cc \
   routerinterface.cc routerinterface.h router.cc router.h \
   accelerator.h accelerator.cc  \
   remoteram.h remoteram.cc cma.h cma.cc cmamodules.cc cmamodules.h \
-  cmaAddressMap.h dbuf.h dbuf.cc snacc.cc snacc.h snacccore.c snacccore.h \
-  snaccAddressMap.h snaccmodules.c snaccmodules.h
+  cmaAddressMap.h dbuf.h dbuf.cc snacc.cc snacc.h snacccore.cc snacccore.h \
+  snaccAddressMap.h snaccmodules.cc snaccmodules.h \
+  debugutils.cc debugutils.h
 
 OBJECTS = cpu.$(OBJEXT) cpzero.$(OBJEXT) devicemap.$(OBJEXT) \
 	mapper.$(OBJEXT) options.$(OBJEXT) range.$(OBJEXT) \
@@ -237,7 +238,7 @@ routerinterface.o: routerinterface.cc routerinterface.h\
 router.o: router.cc router.h vmips.h options.h
 
 accelerator.o: accelerator.h accelerator.cc  \
-    range.h router.h error.h options.h vmips.h
+    range.h router.h error.h options.h vmips.h debugutils.h
 
 remoteram.o: remoteram.cc remoteram.h accelerator.h memorymodule.h
 
@@ -256,3 +257,5 @@ snacccore.o: snacccore.h snacccore.cc vmips.h options.h \
 
 snaccmodules.o: snaccmodules.h snaccmodules.cc snaccAddressMap.h \
     accesstypes.h
+
+debugutils.o: debugutils.cc debugutils.h devicemap.h

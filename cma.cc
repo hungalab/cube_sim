@@ -118,3 +118,17 @@ void CMA::core_step()
 		mc->reset();
 	}
 }
+
+void CMA::send_commnad(uint32 cmd, uint32 arg) {
+
+}
+
+bool CMA::isTriggered()
+{
+	return false;
+}
+
+uint32 CMA::get_dbg_data()
+{
+	return 0;
+}

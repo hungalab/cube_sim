@@ -21,6 +21,11 @@ public:
 	void core_reset() {};
 
 	const char *accelerator_name() { return "RemoteRam"; }
+
+	virtual void send_commnad(uint32 cmd, uint32 arg) {};
+	virtual bool isTriggered() { return false; };
+	virtual uint32 get_dbg_data() { return 0; };
+
 };
 
 
