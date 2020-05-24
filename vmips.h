@@ -106,6 +106,8 @@ public:
 	bool		opt_spimconsole;
 	bool		opt_testdev;
 	bool		opt_cache_prof;
+	bool		opt_exmem_prof;
+	bool		opt_router_prof;
 	uint32		opt_clockspeed;
 	uint32		clock_nanos;
 	uint32		opt_clockintr;

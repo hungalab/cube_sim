@@ -374,6 +374,10 @@ static Option nametable[] = {
 
     { "cacheprof", FLAG },
     /** Report cache profiling results after emulation **/
+    { "routerprof", FLAG },
+    /** Report router profiling results after emulation **/
+    { "exmemprof", FLAG },
+    /** Report externam memory profiling results after emulation **/
 
     { "icacheway", NUM },
     { "icachebsize", NUM },
@@ -419,6 +423,7 @@ static const char *defaults_table[] = {
     "spimconsole", "notracing", "tracesize=100000", "nobigendian",
     "tracestartpc=0", "traceendpc=0",
     "execname=none", "nofpu", "notestdev", "nocacheprof",
+    "norouterprof", "noexmemprof",
     "dmac", "icacheway=2", "dcacheway=2", "icachebsize=64", "dcachebsize=64",
     "icachebnum=64", "dcachebnum=64", "mem_bandwidth=1",
     "bus_latency=8", "exmem_latency=3", "vcbufsize=24", "noroutermsg",

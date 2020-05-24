@@ -81,6 +81,8 @@ vmips::refresh_options(void)
 	opt_memdump = opt->option("memdump")->flag;
 	opt_realtime = opt->option("realtime")->flag;
 	opt_cache_prof = opt->option("cacheprof")->flag;
+	opt_router_prof = opt->option("routerprof")->flag;
+	opt_exmem_prof = opt->option("exmemprof")->flag;
  
 	opt_clockspeed = opt->option("clockspeed")->num;
 	clock_nanos = 1000000000/opt_clockspeed;
@@ -836,6 +838,25 @@ vmips::run()
 		cpu->icache->report_prof();
 		fprintf(stderr, "Data Cache Profile\n");
 		cpu->dcache->report_prof();
+		fprintf(stderr, "\n");
+	}
+
+	if (opt_router_prof) {
+		fprintf(stderr, "Router Profile\n");
+		rtif->getRouter()->report_router();
+		if (ac0 != NULL) {
+			ac0->getRouter()->report_router();
+		}
+		if (ac1 != NULL) {
+			ac1->getRouter()->report_router();
+		}
+		if (ac2 != NULL) {
+			ac2->getRouter()->report_router();
+		}
+	}
+
+	if (opt_exmem_prof) {
+
 	}
 
 	/* We're done. */

@@ -132,6 +132,8 @@ private:
 	bool ackFormer() { return machine->num_cycles % 2 == 0; }
 	void ackSend();
 
+	// for report
+	int send_flit_count;
 public:
 	OutputChannel(RouterPortMaster *oport_, bool ackEnabled_ = true);
 	~OutputChannel() {};
@@ -142,6 +144,7 @@ public:
 	void pushAck(FLIT_t *flit);
 	void ackIncrement(uint32 vch);
 	bool ocReady(uint32 vch);
+	int get_send_flit_count() { return send_flit_count; };
 
 };
 
@@ -255,6 +258,8 @@ public:
 	RouterPortMaster *toLocal, *toLower, *toUpper;
 
 	void setID(int id) { myid = id; };
+
+	void report_router();
 };
 
 
