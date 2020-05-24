@@ -49,6 +49,7 @@ reportirq
 # tracestartpc=0
 # ttydev2=off
 # ttydev=/dev/tty
+exmemprof
 ## cache config
 cacheprof
 icacheway=2

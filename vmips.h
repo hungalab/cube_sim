@@ -30,6 +30,7 @@ class CPU;
 class IntCtrl;
 class Options;
 class MemoryModule;
+class ROMModule;
 class Debug;
 class Clock;
 class ClockDevice;
@@ -64,6 +65,7 @@ public:
 	Options		*opt;
 	MemoryModule	*memmod;
 	MemoryModule	*mem_prog;
+	ROMModule *rm;
 	Debug	*dbgr;
 	Disassembler	*disasm;
 	bool		host_bigendian;

@@ -469,7 +469,6 @@ vmips::setup_bootrom ()
     return false;
   }
   // Translate loadaddr to physical address.
-  ROMModule *rm;
   try {
     rm = new ROMModule (rom, exmem_latency);
   } catch (int errcode) {
@@ -856,7 +855,13 @@ vmips::run()
 	}
 
 	if (opt_exmem_prof) {
-
+		fprintf(stderr, "Memory profile\n");
+		fprintf(stderr, "  Main memory\n");
+		((Range*)(memmod))->report_profile();
+		fprintf(stderr, "  Program memory\n");
+		((Range*)(mem_prog))->report_profile();
+		fprintf(stderr, "  Boot rom\n");
+		((Range*)(rm))->report_profile();
 	}
 
 	/* We're done. */
