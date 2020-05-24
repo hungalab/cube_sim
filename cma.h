@@ -8,6 +8,7 @@
 #include "cmaAddressMap.h"
 #include "dbuf.h"
 
+
 class DeviceExc;
 class CubeAccelerator;
 class MemoryModule;
@@ -33,6 +34,14 @@ private:
 	bool mc_done;
 	bool mc_working;
 	bool done_notif;
+
+	//for debug
+	uint8 trgr_cnd, trgr_mod, trgr_offset;
+	uint8 debug_op;
+	uint32 trgr_arg;
+	uint32 resp_data;
+	uint32 debug_fetch(uint8 mod, uint8 offset);
+	void debug_store(uint8 mod, uint8 offset, uint32 data);
 
 public:
 	CMA(uint32 node_ID, Router* upperRouter);

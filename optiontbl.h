@@ -252,6 +252,9 @@ static Option nametable[] = {
     /** If debugport is set to something nonzero, then the gdb remote
         serial protocol backend will use the specified TCP port. **/
 
+    { "debuggeraddr", NUM }, 
+    // accelerator debug address
+
     { "realtime", FLAG },
     /** If @option{realtime} is set, then the clock device will cause simulated
         time to run at some fraction of real time, determined by the
@@ -409,7 +412,8 @@ static const char *defaults_table[] = {
 	"loadaddr=0x81000000", "noinstcounts", "progmemsize=0x2000000",
     "memsize=0x100000", "nomemdump", "memdumpfile=memdump.bin",
     "noreportirq", "ttydev=/dev/tty", "ttydev2=off",
-    "nodebug", "debugport=0", "norealtime", "timeratio=1", "clockspeed=250000",
+    "nodebug", "debugport=0", "debuggeraddr=0xBC000000",
+     "norealtime", "timeratio=1", "clockspeed=250000",
     "clockintr=200000000", "clockdeviceirq=7", "clockdevice",
     "nodbemsg", "nodecrtc", "nodeccsr", "nodecstat", "nodecserial",
     "spimconsole", "notracing", "tracesize=100000", "nobigendian",

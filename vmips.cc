@@ -61,6 +61,7 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 #include "cma.h"
 #include "snacc.h"
 #include "dmac.h"
+#include "debugutils.h"
 
 vmips *machine;
 
@@ -88,6 +89,7 @@ vmips::refresh_options(void)
 	opt_clockdeviceirq = opt->option("clockdeviceirq")->num;
 	opt_loadaddr = opt->option("loadaddr")->num;
 	opt_bootaddr = opt->option("bootaddr")->num;
+	opt_debuggeraddr = opt->option("debuggeraddr")->num;
 	opt_memsize = opt->option("memsize")->num;
 	opt_progmemsize = opt->option("progmemsize")->num;
 	opt_timeratio = opt->option("timeratio")->num;
@@ -589,6 +591,11 @@ vmips::setup_cube()
 
 	if (ac0 != NULL) {
 		ac0->setup();
+		if (opt_debug) {
+			ac0_dbg = new AcceleratorDebugger(ac0);
+			physmem->map_at_physical_address(ac0_dbg, opt_debuggeraddr);
+			dbgr->register_ac_debbuger(ac0_dbg);
+		}
 	}
 
 	//setup accelerator1
@@ -610,6 +617,12 @@ vmips::setup_cube()
 
 	if (ac1 != NULL) {
 		ac1->setup();
+		if (opt_debug) {
+			ac1_dbg = new AcceleratorDebugger(ac1);
+			physmem->map_at_physical_address(ac1_dbg, opt_debuggeraddr + 
+											ACDBGR_SIZE);
+			dbgr->register_ac_debbuger(ac1_dbg);
+		}
 	}
 
 	//setup accelerator2
@@ -631,6 +644,12 @@ vmips::setup_cube()
 
 	if (ac2 != NULL) {
 		ac2->setup();
+		if (opt_debug) {
+			ac2_dbg = new AcceleratorDebugger(ac2);
+			physmem->map_at_physical_address(ac2_dbg, opt_debuggeraddr + 
+											ACDBGR_SIZE * 2);
+			dbgr->register_ac_debbuger(ac2_dbg);
+		}
 	}
 
 	return true;

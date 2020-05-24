@@ -357,6 +357,10 @@ Mapper::fetch_byte(uint32 addr, DeviceExc *client)
 	uint32 result, oaddr = addr;
 
 	l = find_mapping_range(addr);
+	if (l == NULL) {
+		bus_error (client, DATALOAD, addr);
+		return 0xff;
+	}
 
 	offset = oaddr - l->getBase();
 	if (!l->canRead(offset)) {
@@ -482,6 +486,10 @@ Mapper::store_byte(uint32 addr, uint8 data, DeviceExc *client)
 	uint32 offset;
 
 	l = find_mapping_range(addr);
+	if (l == NULL) {
+		bus_error (client, DATASTORE, addr);
+		return;
+	}
 
 	offset = addr - l->getBase();
 	if (!l->canWrite(offset)) {

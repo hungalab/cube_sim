@@ -48,6 +48,7 @@ class RouterRange;
 class RouterIOReg;
 class CubeAccelerator;
 class DMAC;
+class AcceleratorDebugger;
 
 long timediff(struct timeval *after, struct timeval *before);
 
@@ -83,6 +84,7 @@ public:
 	RouterIOReg *rtIO;
 	RouterRange *rtrange_kseg0, *rtrange_kseg1;
 	CubeAccelerator *ac0, *ac1, *ac2;
+	AcceleratorDebugger *ac0_dbg, *ac1_dbg, *ac2_dbg;
 	DMAC *dmac;
 
 	/* Cached versions of options: */
@@ -110,6 +112,7 @@ public:
 	uint32		opt_clockdeviceirq;
 	uint32		opt_loadaddr;
 	uint32		opt_bootaddr;
+	uint32		opt_debuggeraddr;
 	uint32		opt_memsize;
 	uint32		opt_progmemsize;
 	uint32		opt_timeratio;

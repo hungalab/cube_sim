@@ -477,6 +477,70 @@ ArrayData PEArray::gather()
 	return output_data;
 }
 
+uint32 PEArray::debug_fetch_launch(uint32 col)
+{
+	return (col < width) ? launch_regs[col]->getData() : 0;
+}
+
+void PEArray::debug_store_launch(uint32 col, uint32 data)
+{
+	if (col < width) {
+		launch_regs[col]->debug_push_data(data & CMA_DWORD_MASK);
+	}
+}
+
+uint32 PEArray::debug_fetch_gather(uint32 col)
+{
+	return  (col < width) ? gather_regs[col]->getData() : 0;
+}
+
+void PEArray::debug_store_gather(uint32 col, uint32 data)
+{
+	if (col < width) {
+		gather_regs[col]->debug_push_data(data & CMA_DWORD_MASK);
+	}
+}
+
+uint32 PEArray::debug_fetch_ALU(uint8 pe_addr, uint8 type)
+{
+	int x = pe_addr % width;
+	int y = pe_addr / width;
+
+	if (y >= height) return 0;
+
+	switch (type) {
+		case CMA_DEBUG_MOD_ALU_L:
+			return alu_sels[x][y][0]->getData();
+		case CMA_DEBUG_MOD_ALU_R:
+			return alu_sels[x][y][1]->getData();
+		case CMA_DEBUG_MOD_ALU_O:
+			return alus[x][y]->getData();
+		default:
+			return 0;
+	}
+}
+
+void PEArray::debug_store_ALU(uint8 pe_addr, uint8 type, uint32 data)
+{
+	int x = pe_addr % width;
+	int y = pe_addr / width;
+
+	if (y >= height) return;
+
+	switch (type) {
+		case CMA_DEBUG_MOD_ALU_L:
+			alu_sels[x][y][0]->debug_push_data(data & CMA_DWORD_MASK);
+			break;
+		case CMA_DEBUG_MOD_ALU_R:
+			alu_sels[x][y][1]->debug_push_data(data  & CMA_DWORD_MASK);
+			break;
+		case CMA_DEBUG_MOD_ALU_O:
+			alus[x][y]->debug_push_data(data  & CMA_DWORD_MASK);
+			break;
+	}
+	return;
+}
+
 DataManipulator::DataManipulator(int interleave_size_,
 								DoubleBuffer*** dbank_,
 								PEArray *pearray_) :
@@ -692,6 +756,18 @@ void MicroController::step()
 	pc = next_pc;
 }
 
+uint32 MicroController::debug_fetch_regfile(uint32 sel)
+{
+	return (sel < CMA_MC_REG_SIZE) ? (uint32)regfile[sel] : 0;
+}
+
+void MicroController::debug_store_regfile(uint32 sel, uint32 data)
+{
+	if (sel < CMA_MC_REG_SIZE) {
+		regfile[sel] = (uint16)data;
+	}
+}
+
 
 void CCSOTB2::CCSOTB2_PEArray::make_connection()
 {
@@ -864,6 +940,19 @@ void PENodeBase::connect(PENodeBase* pred)
 		pred->successors.push_back(this);
 	}
 }
+
+void PENodeBase::debug_push_data(uint32 data)
+{
+	std::queue<uint32> tmp;
+	tmp.push(data);
+	obuf.pop(); //discard first data
+	while (!obuf.empty()) {
+		tmp.push(obuf.front());
+		tmp.pop();
+	}
+	std::swap(tmp, obuf);
+}
+
 
 void MUX::exec()
 {
