@@ -257,7 +257,7 @@ void PEArray::make_memports()
 uint32 PEArray::load_const(uint32 addr)
 {
 	uint32 index = addr >> 2;
-	if (index > height * 2) {
+	if (index >= height * 2) {
 		return 0;
 	} else {
 		return cregs[index]->getData();
@@ -447,6 +447,7 @@ void PEArray::exec()
 	if (config_changed) {
 		analyze_dataflow();
 	}
+
 	for (auto it = tsorted_list.begin(); it != tsorted_list.end(); it++) {
 		PENodeBase *p = *it;
 		p->exec();
@@ -455,10 +456,12 @@ void PEArray::exec()
 	for (int i = 0; i < width; i++) {
 		gather_regs[i]->exec();
 	}
+
 	for (auto it = tsorted_list.begin(); it != tsorted_list.end(); it++) {
 		PENodeBase *p = *it;
 		p->update();
 	}
+
 }
 
 void PEArray::launch(ArrayData input_data)

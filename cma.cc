@@ -18,7 +18,7 @@ CMA::CMA(uint32 node_ID, Router* upperRouter)
 	imem = new DoubleBuffer(CMA_IMEM_SIZE, CMA_IWORD_MASK);
 
 	// const regs
-	const_reg = new ConstRegCtrl(CMA_CONST_SIZE, pearray);
+	const_reg = new ConstRegCtrl(CMA_CONST_SIZE * 2, pearray);
 
 	// Data manipulator
 	ld_unit = new LDUnit(CMA_PE_ARRAY_WIDTH, &dbank, pearray);

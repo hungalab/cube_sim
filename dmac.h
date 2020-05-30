@@ -118,6 +118,7 @@ class DMAC : public DeviceExc, public DeviceInt  {
 		DMA_query_t query;
 		int counter;
 		int word_counter;
+		int mem_bandwidth;
 
 		bool address_valid(uint32 addr);
 	public:

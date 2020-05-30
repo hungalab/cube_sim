@@ -360,6 +360,7 @@ namespace CMAComponents {
 			uint32 getData();
 			void writeData(uint32 data);
 			void exec() {}; //nothing to do
+			void update() {}; //nothing to do
 			bool isUse(CMAComponents::PENodeBase* pred) { return false; };
 	};
 
