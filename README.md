@@ -81,6 +81,7 @@ VMIPSから備わっているオプションに関しては[VMIPSのドキュメ
 * snacc_sram_latency: オンチップSRAMのレイテンシ (数値)
 * snacc_inst_dump: コアで実行した命令をダンプする (文字列: 形式 "(チップID,コアID)")
 * snacc_mad_debug: コアのmadユニットでの計算を表示する (文字列: 形式 "(チップID,コアID)")
+
 ※) snacc_inst_dump, snacc_mad_debugを利用するにはGCC 4.9以上でビルドする必要があります。
 
 ### プロファイルオプション
