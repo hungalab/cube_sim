@@ -40,7 +40,7 @@ extern int remotegdb_backend_error;
 Debug::Debug (CPU &cpu_, Mapper &mem_)
   : cpu (&cpu_), mem (&mem_), listener (-1), threadno_step (-1),
     threadno_gen (-1), rom_baseaddr (0), rom_nwords (0), got_interrupt (false),
-    debug_verbose (false) {
+    debug_verbose (true) {
 	/* Upon connecting to our socket, gdb will ask for the current
 	 * signal; so we set the current signal to the breakpoint signal.
 	 */
@@ -114,6 +114,53 @@ Debug::remove_breakpoint(uint32 addr)
 	if (i != bp_set.end ()) {
 		bp_set.erase (i);
 	}
+}
+
+/* Set a watchpoint given in ADDR. */
+bool
+Debug::declare_watchpoint(uint32 addr)
+{
+	Range* l = mem->find_mapping_range(addr);
+	if (l == NULL) {
+		return false;
+	}
+
+	for (auto i = acdbg_set.begin(); i != acdbg_set.end(); i++) {
+		if (*i == l) {
+			triggered_acdbg[l] = true;
+			return true;
+		}
+	}
+	return false;
+}
+
+/* Unset a watchpoint given in ADDR. */
+bool
+Debug::remove_watchpoint(uint32 addr)
+{
+	Range* l = mem->find_mapping_range(addr);
+	if (triggered_acdbg[l]) {
+		triggered_acdbg[l] = false;
+		return true;
+	}
+	return true;
+}
+
+bool Debug::watchpoint_exists()
+{
+	for (auto i = acdbg_set.begin(); i != acdbg_set.end(); i++) {
+		if (triggered_acdbg[*i]) {
+			if ((*i)->isTriggered()) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+void Debug::register_ac_debbuger(AcceleratorDebugger *dbg)
+{
+	acdbg_set.insert(dbg);
 }
 
 /* True if ADDR is a virtual address within a known ROM block. This is pretty
@@ -569,6 +616,9 @@ Debug::single_step(void)
 	if (breakpoint_exists(cpu->debug_get_pc())) {
 		return Bp; /* Simulate hitting the breakpoint. */
 	}
+	if (watchpoint_exists()) {
+		return Bp;
+	}
 	if (got_interrupt == true) {
 		return Bp; /* interrupt. */
 	}
@@ -678,6 +728,16 @@ Debug::target_set_or_remove_breakpoint(char *pkt, bool setting)
 	case 2: /* write watchpoint */
 	case 3: /* read watchpoint */
 	case 4: /* access watchpoint */
+		// it works only for accelerator debugger
+		if (setting) {
+			if (declare_watchpoint(addr)) {
+				return rawpacket("OK");
+			}
+		} else {
+			if (remove_watchpoint(addr)) {
+				return rawpacket("OK");
+			}
+		}
 	default:
 		return rawpacket(""); /* Not supported. */
 	}

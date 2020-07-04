@@ -247,7 +247,7 @@ MadUnit::MadUnit(uint32 sram_latency_, DoubleBuffer *dmem_u_,
 	sram_latency(sram_latency_),
 	dmem_u(dmem_u_), dmem_l(dmem_l_),
 	rbuf_u(rbuf_u_), rbuf_l(rbuf_l_), lut(lut_),
-	TR0(TR0_), TR1(TR1_), FR0(FR0_), FR1(FR1_)
+	TR0(TR0_), TR1(TR1_), FR0(FR0_), FR1(FR1_), debug_print(false)
 {
 
 }
@@ -453,10 +453,14 @@ void MadUnit::loadData(Fixed16 *array)
 void MadUnit::doMad()
 {
 	Fixed16 weight[SNACC_SIMD_LANE_SIZE/2];
+	Fixed16 data[SNACC_SIMD_LANE_SIZE];
 	//load weight
 	loadWeight(weight);
+	if (debug_print) {
+		fprintf(stderr, "MAD\nbefore TR0 0x%08X, TR1 0x%08X\n",
+			tr0_fp, tr1_fp);
+	}
 	if (eight_bit_mode) {
-		Fixed16 data[SNACC_SIMD_LANE_SIZE];
 		loadData(data);
 		for (int i = 0; i < SNACC_SIMD_LANE_SIZE/2; i++) {
 			if (mask[i]) {
@@ -466,11 +470,11 @@ void MadUnit::doMad()
 		for (int i = SNACC_SIMD_LANE_SIZE/2;
 				i < SNACC_SIMD_LANE_SIZE; i++) {
 			if (mask[i]) {
-				tr1_fp = tr1_fp + weight[i] * data[i];
+				tr1_fp = tr1_fp +
+					weight[i - SNACC_SIMD_LANE_SIZE/2] * data[i];
 			}
 		}
 	} else {
-		Fixed16 data[SNACC_SIMD_LANE_SIZE/2];
 		loadData(data);
 		for (int i = 0; i < SNACC_SIMD_LANE_SIZE/2; i++) {
 			if (mask[i]) {
@@ -478,12 +482,29 @@ void MadUnit::doMad()
 			}
 		}
 	}
+	if (debug_print) {
+		int half_lane = SNACC_SIMD_LANE_SIZE/ 2;
+		int max_lane = eight_bit_mode ? SNACC_SIMD_LANE_SIZE : half_lane;
+		for (int i = 0; i < max_lane; i++) {
+			if (mask[i]) {
+				 fprintf(stderr, "mul%d: 0x%04X * 0x%04X = 0x%04X\n", i,
+							weight[i % half_lane], data[i],
+							weight[i % half_lane] * data[i]);
+			} else {
+				fprintf(stderr, "mul%d: masked\n", i);
+			}
+		}
+		fprintf(stderr, "after TR0 0x%08X, TR1 0x%08X\n",
+			tr0_fp, tr1_fp);
+	}
 }
 
 void MadUnit::doMaxPool()
 {
+	Fixed32 prev_tr0 = tr0_fp;
+	Fixed32 prev_tr1 = tr1_fp;
+	Fixed16 data[SNACC_SIMD_LANE_SIZE];
 	if (eight_bit_mode) {
-		Fixed16 data[SNACC_SIMD_LANE_SIZE];
 		loadData(data);
 		for (int i = 0; i < SNACC_SIMD_LANE_SIZE/2; i++) {
 			if (mask[i]) {
@@ -499,13 +520,35 @@ void MadUnit::doMaxPool()
 			}
 		}
 	} else {
-		Fixed16 data[SNACC_SIMD_LANE_SIZE/2];
 		loadData(data);
 		for (int i = 0; i < SNACC_SIMD_LANE_SIZE/2; i++) {
 			if (mask[i]) {
 				tr0_fp = tr0_fp < data[i].ToFixed32() ? data[i].ToFixed32()
 								: tr0_fp;
 			}
+		}
+	}
+	if (debug_print) {
+		fprintf(stderr, "MAXPOOL\nmax(0x%08X, ", prev_tr0);
+		for (int i = 0; i < SNACC_SIMD_LANE_SIZE/2; i++) {
+			if (mask[i]) {
+				fprintf(stderr, "0x%08X, ", data[i].ToFixed32());
+			} else {
+				fprintf(stderr, "masked, ");
+			}
+		}
+		fprintf(stderr, "\b\b) = 0x%08X\n", tr0_fp);
+		if (eight_bit_mode) {
+			fprintf(stderr, "max(0x%08X, ", prev_tr1);
+			for (int i = SNACC_SIMD_LANE_SIZE/2;
+				i < SNACC_SIMD_LANE_SIZE; i++) {
+				if (mask[i]) {
+					fprintf(stderr, "0x%08X, ", data[i].ToFixed32());
+				} else {
+					fprintf(stderr, "masked, ");
+				}
+			}
+			fprintf(stderr, "\b\b) = 0x%08X\n", tr1_fp);
 		}
 	}
 }

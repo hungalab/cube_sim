@@ -49,6 +49,7 @@ reportirq
 # tracestartpc=0
 # ttydev2=off
 # ttydev=/dev/tty
+exmemprof
 ## cache config
 cacheprof
 icacheway=2
@@ -57,6 +58,9 @@ icachebnum=64
 dcachebnum=64
 icachebsize=64
 dcachebsize=64
+## bus config
+exmem_latency=3
+bus_latency=8
 ##
 ## The following options have defaults set by `configure':
 ##

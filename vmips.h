@@ -30,6 +30,7 @@ class CPU;
 class IntCtrl;
 class Options;
 class MemoryModule;
+class ROMModule;
 class Debug;
 class Clock;
 class ClockDevice;
@@ -48,6 +49,7 @@ class RouterRange;
 class RouterIOReg;
 class CubeAccelerator;
 class DMAC;
+class AcceleratorDebugger;
 
 long timediff(struct timeval *after, struct timeval *before);
 
@@ -63,6 +65,7 @@ public:
 	Options		*opt;
 	MemoryModule	*memmod;
 	MemoryModule	*mem_prog;
+	ROMModule *rm;
 	Debug	*dbgr;
 	Disassembler	*disasm;
 	bool		host_bigendian;
@@ -83,6 +86,7 @@ public:
 	RouterIOReg *rtIO;
 	RouterRange *rtrange_kseg0, *rtrange_kseg1;
 	CubeAccelerator *ac0, *ac1, *ac2;
+	AcceleratorDebugger *ac0_dbg, *ac1_dbg, *ac2_dbg;
 	DMAC *dmac;
 
 	/* Cached versions of options: */
@@ -104,12 +108,15 @@ public:
 	bool		opt_spimconsole;
 	bool		opt_testdev;
 	bool		opt_cache_prof;
+	bool		opt_exmem_prof;
+	bool		opt_router_prof;
 	uint32		opt_clockspeed;
 	uint32		clock_nanos;
 	uint32		opt_clockintr;
 	uint32		opt_clockdeviceirq;
 	uint32		opt_loadaddr;
 	uint32		opt_bootaddr;
+	uint32		opt_debuggeraddr;
 	uint32		opt_memsize;
 	uint32		opt_progmemsize;
 	uint32		opt_timeratio;
@@ -122,7 +129,8 @@ public:
 	uint32		num_cycles;
 	uint32 		stall_count;
 	uint32		mem_bandwidth;
-	uint32		mem_access_latency;
+	uint32		bus_latency;
+	uint32		exmem_latency;
 	uint32		vcbufsize;
 
 private:

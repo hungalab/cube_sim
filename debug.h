@@ -21,7 +21,10 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 #define _DEBUG_H_
 
 #include "deviceexc.h"
+#include "debugutils.h"
 #include <set>
+#include <map>
+
 class CPU;
 class Mapper;
 
@@ -37,6 +40,9 @@ private:
 	uint32 rom_nwords;
 	typedef std::set<uint32> wordset;
 	wordset bp_set;
+	std::set<AcceleratorDebugger*> acdbg_set;
+	std::map<Range*,bool> triggered_acdbg;
+
 	bool opt_bigendian;
 	bool debug_verbose;
 
@@ -54,6 +60,8 @@ public:
 
 	void reset();
 	void step();
+
+	void register_ac_debbuger(AcceleratorDebugger *dbg);
 private:
 	int setup_listener_socket(void);
 	int set_nonblocking(int fd);
@@ -82,6 +90,9 @@ private:
 	bool breakpoint_exists(uint32 addr);
 	void declare_breakpoint(uint32 addr);
 	void remove_breakpoint(uint32 addr);
+	bool declare_watchpoint(uint32 addr);
+	bool remove_watchpoint(uint32 addr);
+	bool watchpoint_exists();
 	bool address_in_rom(uint32 addr);
 	void get_breakpoint_bitmap_entry(uint32 addr, uint8 *&entry, uint8 &bitno);
 	bool is_breakpoint_insn(char *packetptr);

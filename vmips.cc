@@ -61,6 +61,8 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 #include "cma.h"
 #include "snacc.h"
 #include "dmac.h"
+#include "debugutils.h"
+#include <vector>
 
 vmips *machine;
 
@@ -80,6 +82,8 @@ vmips::refresh_options(void)
 	opt_memdump = opt->option("memdump")->flag;
 	opt_realtime = opt->option("realtime")->flag;
 	opt_cache_prof = opt->option("cacheprof")->flag;
+	opt_router_prof = opt->option("routerprof")->flag;
+	opt_exmem_prof = opt->option("exmemprof")->flag;
  
 	opt_clockspeed = opt->option("clockspeed")->num;
 	clock_nanos = 1000000000/opt_clockspeed;
@@ -88,6 +92,7 @@ vmips::refresh_options(void)
 	opt_clockdeviceirq = opt->option("clockdeviceirq")->num;
 	opt_loadaddr = opt->option("loadaddr")->num;
 	opt_bootaddr = opt->option("bootaddr")->num;
+	opt_debuggeraddr = opt->option("debuggeraddr")->num;
 	opt_memsize = opt->option("memsize")->num;
 	opt_progmemsize = opt->option("progmemsize")->num;
 	opt_timeratio = opt->option("timeratio")->num;
@@ -106,9 +111,9 @@ vmips::refresh_options(void)
 	opt_spimconsole = opt->option("spimconsole")->flag;
 	opt_testdev = opt->option("testdev")->flag;
 	mem_bandwidth = opt->option("mem_bandwidth")->num;
-	mem_access_latency = opt->option("mem_access_latency")->num;
+	bus_latency = opt->option("bus_latency")->num;
 	vcbufsize = opt->option("vcbufsize")->num;
-
+	exmem_latency = opt->option("exmem_latency")->num;
 
 }
 
@@ -438,7 +443,7 @@ vmips::setup_prog ()
   // Translate loadaddr to physical address.
 
   try {
-    mem_prog = new MemoryModule(opt_progmemsize, bin_file);
+    mem_prog = new MemoryModule(opt_progmemsize, exmem_latency, bin_file);
   } catch (int errcode) {
     error ("mmap failed for %s: %s", opt_image, strerror (errcode));
     return false;
@@ -465,9 +470,8 @@ vmips::setup_bootrom ()
     return false;
   }
   // Translate loadaddr to physical address.
-  ROMModule *rm;
   try {
-    rm = new ROMModule (rom);
+    rm = new ROMModule (rom, exmem_latency);
   } catch (int errcode) {
     error ("mmap failed for %s: %s", opt_boot, strerror (errcode));
     return false;
@@ -488,7 +492,7 @@ bool
 vmips::setup_ram ()
 {
   // Make a new RAM module and install it at base physical address 0.
-  memmod = new MemoryModule(opt_memsize);
+  memmod = new MemoryModule(opt_memsize, exmem_latency);
   physmem->map_at_physical_address(memmod, 0);
 
   // memmod2 = new MemoryModule(0x100000);
@@ -571,15 +575,38 @@ bool vmips::setup_dmac()
 bool
 vmips::setup_cube()
 {
+	std::vector<int> snacc_inst_dump(2, -1), snacc_mad_debug(2, -1);
+	bool snacc_inst_dump_fail, snacc_mad_debug_fail;
+	snacc_inst_dump_fail = snacc_mad_debug_fail = false;
 	std::string ac0_name = std::string(opt->option("accelerator0")->str);
 	std::string ac1_name = std::string(opt->option("accelerator1")->str);
 	std::string ac2_name = std::string(opt->option("accelerator2")->str);
+
+	//get snacc options
+	std::string opt_str = std::string(opt->option("snacc_inst_dump")->str);
+	if (opt_str != std::string("disabled")) {
+		snacc_inst_dump = opt->get_tuple(opt_str.c_str(), 2);
+		snacc_inst_dump_fail = true;
+	}
+	opt_str = std::string(opt->option("snacc_mad_debug")->str);
+	if (opt_str != std::string("disabled")) {
+		snacc_mad_debug = opt->get_tuple(opt_str.c_str(), 2);
+		snacc_mad_debug_fail = true;
+	}
 
 	//setup accelerator0
 	if (ac0_name == std::string("CMA")) {
 		ac0 = new CMA(1, rtif->getRouter());
 	} else if (ac0_name == std::string("SNACC")) {
 		ac0 = new SNACC(1, rtif->getRouter(), 4);
+		if (snacc_inst_dump[0] == 0) {
+			((SNACC*)(ac0))->enable_inst_dump(snacc_inst_dump[1]);
+			snacc_inst_dump_fail = false;
+		}
+		if (snacc_mad_debug[0] == 0) {
+			((SNACC*)(ac0))->enable_mad_debug(snacc_mad_debug[1]);
+			snacc_mad_debug_fail = false;
+		}
 	} else if (ac0_name == std::string("RemoteRam")) {
 		ac0 = new RemoteRam(1, rtif->getRouter(), 0x2048); //2KB
 	} else if (ac0_name != std::string("none")) {
@@ -589,6 +616,11 @@ vmips::setup_cube()
 
 	if (ac0 != NULL) {
 		ac0->setup();
+		if (opt_debug) {
+			ac0_dbg = new AcceleratorDebugger(ac0);
+			physmem->map_at_physical_address(ac0_dbg, opt_debuggeraddr);
+			dbgr->register_ac_debbuger(ac0_dbg);
+		}
 	}
 
 	//setup accelerator1
@@ -600,6 +632,15 @@ vmips::setup_cube()
 			ac1 = new CMA(2, ac0->getRouter());
 		} else if (ac1_name == std::string("SNACC")) {
 			ac1 = new SNACC(2, ac0->getRouter(), 4);
+			ac0 = new SNACC(1, rtif->getRouter(), 4);
+			if (snacc_inst_dump[0] == 0) {
+				((SNACC*)(ac1))->enable_inst_dump(snacc_inst_dump[1]);
+				snacc_inst_dump_fail = false;
+			}
+			if (snacc_mad_debug[0] == 0) {
+				((SNACC*)(ac1))->enable_mad_debug(snacc_mad_debug[1]);
+				snacc_mad_debug_fail = false;
+			}
 		} else if (ac1_name == std::string("RemoteRam")) {
 			ac1 = new RemoteRam(2, ac0->getRouter(), 0x2048); //2KB
 		} else {
@@ -610,6 +651,12 @@ vmips::setup_cube()
 
 	if (ac1 != NULL) {
 		ac1->setup();
+		if (opt_debug) {
+			ac1_dbg = new AcceleratorDebugger(ac1);
+			physmem->map_at_physical_address(ac1_dbg, opt_debuggeraddr + 
+											ACDBGR_SIZE);
+			dbgr->register_ac_debbuger(ac1_dbg);
+		}
 	}
 
 	//setup accelerator2
@@ -621,6 +668,15 @@ vmips::setup_cube()
 			ac2 = new CMA(3, ac1->getRouter());
 		} else if (ac1_name == std::string("SNACC")) {
 			ac2 = new SNACC(3, ac1->getRouter(), 4);
+			ac0 = new SNACC(1, rtif->getRouter(), 4);
+			if (snacc_inst_dump[0] == 0) {
+				((SNACC*)(ac2))->enable_inst_dump(snacc_inst_dump[1]);
+				snacc_inst_dump_fail = false;
+			}
+			if (snacc_mad_debug[0] == 0) {
+				((SNACC*)(ac2))->enable_mad_debug(snacc_mad_debug[1]);
+				snacc_mad_debug_fail = false;
+			}
 		} else if (ac1_name == std::string("RemoteRam")) {
 			ac2 = new RemoteRam(3, ac1->getRouter(), 0x2048); //2KB
 		} else {
@@ -631,6 +687,21 @@ vmips::setup_cube()
 
 	if (ac2 != NULL) {
 		ac2->setup();
+		if (opt_debug) {
+			ac2_dbg = new AcceleratorDebugger(ac2);
+			physmem->map_at_physical_address(ac2_dbg, opt_debuggeraddr + 
+											ACDBGR_SIZE * 2);
+			dbgr->register_ac_debbuger(ac2_dbg);
+		}
+	}
+
+	if (snacc_inst_dump_fail) {
+		warning("SNACC inst dump option for node %d is ignored\n",
+			snacc_inst_dump[0]);
+	}
+	if (snacc_mad_debug_fail) {
+		warning("SNACC mad debug option for node %d is ignored\n",
+			snacc_mad_debug[0]);
 	}
 
 	return true;
@@ -817,6 +888,31 @@ vmips::run()
 		cpu->icache->report_prof();
 		fprintf(stderr, "Data Cache Profile\n");
 		cpu->dcache->report_prof();
+		fprintf(stderr, "\n");
+	}
+
+	if (opt_router_prof) {
+		fprintf(stderr, "Router Profile\n");
+		rtif->getRouter()->report_router();
+		if (ac0 != NULL) {
+			ac0->getRouter()->report_router();
+		}
+		if (ac1 != NULL) {
+			ac1->getRouter()->report_router();
+		}
+		if (ac2 != NULL) {
+			ac2->getRouter()->report_router();
+		}
+	}
+
+	if (opt_exmem_prof) {
+		fprintf(stderr, "Memory profile\n");
+		fprintf(stderr, "  Main memory\n");
+		((Range*)(memmod))->report_profile();
+		fprintf(stderr, "  Program memory\n");
+		((Range*)(mem_prog))->report_profile();
+		fprintf(stderr, "  Boot rom\n");
+		((Range*)(rm))->report_profile();
 	}
 
 	/* We're done. */

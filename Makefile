@@ -41,8 +41,9 @@ SOURCES = cpu.cc cpzero.cc devicemap.cc \
   routerinterface.cc routerinterface.h router.cc router.h \
   accelerator.h accelerator.cc  \
   remoteram.h remoteram.cc cma.h cma.cc cmamodules.cc cmamodules.h \
-  cmaAddressMap.h dbuf.h dbuf.cc snacc.cc snacc.h snacccore.c snacccore.h \
-  snaccAddressMap.h snaccmodules.c snaccmodules.h
+  cmaAddressMap.h dbuf.h dbuf.cc snacc.cc snacc.h snacccore.cc snacccore.h \
+  snaccAddressMap.h snaccmodules.cc snaccmodules.h \
+  debugutils.cc debugutils.h
 
 OBJECTS = cpu.$(OBJEXT) cpzero.$(OBJEXT) devicemap.$(OBJEXT) \
 	mapper.$(OBJEXT) options.$(OBJEXT) range.$(OBJEXT) \
@@ -58,7 +59,8 @@ OBJECTS = cpu.$(OBJEXT) cpzero.$(OBJEXT) devicemap.$(OBJEXT) \
   routerinterface.${OBJEXT} router.${OBJEXT} \
   remoteram.${OBJEXT} accelerator.${OBJEXT} \
   cma.${OBJEXT} cmamodules.${OBJEXT} dbuf.${OBJEXT} \
-  snacc.${OBJEXT} snacccore.${OBJEXT} snaccmodules.${OBJEXT}
+  snacc.${OBJEXT} snacccore.${OBJEXT} snaccmodules.${OBJEXT} \
+  debugutils.${OBJEXT}
 
 LDADD = libopcodes_mips/libopcodes_mips.a
 
@@ -144,7 +146,7 @@ vmips.o: vmips.cc clock.h task.h types.h config.h \
   testdev.h stub-dis.h libopcodes_mips/bfd.h libopcodes_mips/ansidecl.h \
   libopcodes_mips/symcat.h libopcodes_mips/dis-asm.h rommodule.h \
   interactor.h rs232c.h routerinterface.h remoteram.h accelerator.h \
-  cma.h snacc.h dmac.h
+  cma.h snacc.h dmac.h debugutils.h
 
 deviceint.o: deviceint.cc deviceint.h intctrl.h types.h config.h \
   vmips.h
@@ -152,7 +154,7 @@ deviceint.o: deviceint.cc deviceint.h intctrl.h types.h config.h \
 debug.o: debug.cc debug.h deviceexc.h accesstypes.h types.h config.h \
   remotegdb.h cpu.h \
   vmips.h mapper.h range.h \
-  excnames.h cpzeroreg.h options.h
+  excnames.h cpzeroreg.h options.h debugutils.h
 
 remotegdb.o: remotegdb.cc remotegdb.h types.h config.h
 
@@ -237,22 +239,26 @@ routerinterface.o: routerinterface.cc routerinterface.h\
 router.o: router.cc router.h vmips.h options.h
 
 accelerator.o: accelerator.h accelerator.cc  \
-    range.h router.h error.h options.h vmips.h
+    range.h router.h error.h options.h vmips.h debugutils.h
 
-remoteram.o: remoteram.cc remoteram.h accelerator.h memorymodule.h
+remoteram.o: remoteram.cc remoteram.h accelerator.h \
+                memorymodule.h debugutils.h
 
 dbuf.o: dbuf.h dbuf.cc range.h types.h fileutils.h vmips.h options.h
 
 cma.o: cma.cc cma.h accelerator.h dbuf.h accesstypes.h\
-    types.h cmamodules.h cmaAddressMap.h 
+    types.h cmamodules.h cmaAddressMap.h debugutils.h
 
 cmamodules.o: cmamodules.h cmamodules.cc cmaAddressMap.h range.h \
     dbuf.h accelerator.h 
 
-snacc.o: snacc.h snacc.cc dbuf.h snaccAddressMap.h snaccmodules.h
+snacc.o: snacc.h snacc.cc dbuf.h snaccAddressMap.h snaccmodules.h \
+        debugutils.h
 
 snacccore.o: snacccore.h snacccore.cc vmips.h options.h \
     snaccmodules.h snaccAddressMap.h
 
 snaccmodules.o: snaccmodules.h snaccmodules.cc snaccAddressMap.h \
     accesstypes.h
+
+debugutils.o: debugutils.cc debugutils.h devicemap.h vmips.h mapper.h

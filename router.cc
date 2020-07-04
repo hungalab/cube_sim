@@ -235,6 +235,19 @@ void Router::step()
 
 }
 
+void Router::report_router()
+{
+	int send_to_upper = ocUpper->get_send_flit_count();
+	int send_to_lower = ocLower->get_send_flit_count();
+
+	fprintf(stderr, "\tRouter%d\n", myid);
+	fprintf(stderr, "\t\tTotal %d flits\n",
+		send_to_upper + send_to_lower);
+	fprintf(stderr, "\t\t\tTo Upper %d flits\n", send_to_upper);
+	fprintf(stderr, "\t\t\tTo Lower %d flits\n", send_to_lower);
+
+}
+
 /*******************************  InputChannel  *******************************/
 InputChannel::InputChannel(RouterPortSlave* iport_, Crossbar *cb_, int *xpos_, bool *ordy_)
 	: iport(iport_), xpos(xpos_), cb(cb_), ordy(ordy_)
@@ -291,8 +304,6 @@ void InputChannel::step()
 	int i;
 	bool vc_hold = false;
 	int current_time = machine->num_cycles;
-
-
 
 	for (i = 0; i < VCH_SIZE; i++) {
 		if (!ibuf[i].empty()) {
@@ -401,6 +412,7 @@ void OutputChannel::reset()
 		send_count[i] = 0;
 		ack_count[i] = 0;
 	}
+	send_flit_count = 0;
 }
 
 void OutputChannel::ackSend()
@@ -417,6 +429,7 @@ void OutputChannel::ackSend()
 		if (ackSendEn) {
 			RouterUtils::make_ack_flit(&flit, FTYPE_ACK1, ack_count);
 			oport->send(&flit, ACK_VCH);
+			send_flit_count++;
 			for (int i = 0; i < VCH_SIZE / 2; i++) {
 				if (ack_count[i] > ACK_COUNT_MAX) {
 					ack_count[i] -= ACK_COUNT_MAX;
@@ -435,6 +448,7 @@ void OutputChannel::ackSend()
 		if (ackSendEn) {
 			RouterUtils::make_ack_flit(&flit, FTYPE_ACK2, &ack_count[VCH_SIZE / 2]);
 			oport->send(&flit, ACK_VCH);
+			send_flit_count++;
 			for (int i = VCH_SIZE / 2; i < VCH_SIZE; i++) {
 				if (ack_count[i] > ACK_COUNT_MAX) {
 				} else {
@@ -455,6 +469,7 @@ void OutputChannel::step()
 	if (!obuf.empty()) {
 		entry = obuf.front();
 		oport->send((FLIT_t*)(&entry.flit), entry.vch);
+		send_flit_count++;
 		obuf.pop();
 		if (ackEnabled) {
             send_count[entry.vch]++;

@@ -59,24 +59,28 @@ Range::overlaps(Range *r)
 uint32
 Range::fetch_word(uint32 offset, int mode, DeviceExc *client)
 {
+	read_count++;
 	return ((uint32 *)address)[offset / 4];
 }
 
 uint16
 Range::fetch_halfword(uint32 offset, DeviceExc *client)
 {
+	read_count++;
 	return ((uint16 *)address)[offset / 2];
 }
 
 uint8
 Range::fetch_byte(uint32 offset, DeviceExc *client)
 {
+	read_count++;
 	return ((uint8 *)address)[offset];
 }
 
 void
 Range::store_word(uint32 offset, uint32 data, DeviceExc *client)
 {
+	write_count++;
 	uint32 *werd;
 	/* calculate address */
 	werd = ((uint32 *) address) + (offset / 4);
@@ -87,6 +91,7 @@ Range::store_word(uint32 offset, uint32 data, DeviceExc *client)
 void
 Range::store_halfword(uint32 offset, uint16 data, DeviceExc *client)
 {
+	write_count++;
 	uint16 *halfwerd;
 	/* calculate address */
 	halfwerd = ((uint16 *) address) + (offset / 2);
@@ -97,9 +102,15 @@ Range::store_halfword(uint32 offset, uint16 data, DeviceExc *client)
 void
 Range::store_byte(uint32 offset, uint8 data, DeviceExc *client)
 {
+	write_count++;
 	uint8 *byte;
 	byte = ((uint8 *) address) + offset;
 	/* store halfword */
 	*byte = data;
 }
 
+void Range::report_profile()
+{
+	fprintf(stderr, "\tRead Count:\t%d\n", read_count);
+	fprintf(stderr, "\tWrite Count:\t%d\n", write_count);
+}

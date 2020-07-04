@@ -4,6 +4,7 @@
 #include "router.h"
 #include "types.h"
 #include "range.h"
+#include "debugutils.h"
 
 #define DONE_NOTIF_ADDR 0x00000
 #define DMAC_NOTIF_ADDR 0x00001
@@ -107,7 +108,7 @@ public:
 };
 
 //abstract class for accelerator top module
-class CubeAccelerator {
+class CubeAccelerator : public DebuggerClient {
 private:
 	//data to/from router
 	bool iready[VCH_SIZE];

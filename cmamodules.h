@@ -13,6 +13,14 @@
 
 /*for debug */
 #include <string>
+//For debug info
+#define CMA_DEBUG_MOD_PC		0
+#define CMA_DEBUG_MOD_RF		1 //reg file
+#define CMA_DEBUG_MOD_LR		2 //launch reg
+#define CMA_DEBUG_MOD_GR		3 //gather reg
+#define CMA_DEBUG_MOD_ALU_L		4 //alu input left
+#define CMA_DEBUG_MOD_ALU_R		5 //alu input right
+#define CMA_DEBUG_MOD_ALU_O		6 //alu output
 
 /* word size */
 #define CMA_DWORD_MASK 			0x1FFFFFF	//25bit
@@ -279,6 +287,11 @@ namespace CMAComponents {
 				  ld_unit(ld_unit_), st_unit(st_unit_) {};
 			void step();
 			void reset();
+
+			uint32 debug_fetch_pc() {return pc; };
+			void debug_store_pc(uint32 data) { pc = data; };
+			uint32 debug_fetch_regfile(uint32 sel);
+			void debug_store_regfile(uint32 sel, uint32 data);
 	};
 
 	static std::map <PENodeBase*, std::string> debug_str;
@@ -303,6 +316,8 @@ namespace CMAComponents {
 			virtual void update() { obuf.pop(); };
 
 			virtual NodeList use_successors();
+
+			void debug_push_data(uint32 data);
 	};
 
 	class MUX : public PENodeBase {
@@ -345,6 +360,7 @@ namespace CMAComponents {
 			uint32 getData();
 			void writeData(uint32 data);
 			void exec() {}; //nothing to do
+			void update() {}; //nothing to do
 			bool isUse(CMAComponents::PENodeBase* pred) { return false; };
 	};
 
@@ -425,6 +441,14 @@ namespace CMAComponents {
 
 			void exec();
 			void update();
+
+			//for debugger
+			uint32 debug_fetch_launch(uint32 col);
+			void debug_store_launch(uint32 col, uint32 data);
+			uint32 debug_fetch_gather(uint32 col);
+			void debug_store_gather(uint32 col, uint32 data);
+			uint32 debug_fetch_ALU(uint8 pe_addr, uint8 type);
+			void debug_store_ALU(uint8 pe_addr, uint8 type, uint32 data);
 	};
 
 	namespace CCSOTB2 {

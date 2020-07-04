@@ -10,6 +10,7 @@ DMAC::DMAC(Mapper &m) : bus(&m)
 	bus->map_at_physical_address(config, DMAC_ADDR_BASE);
 	block_words = machine->opt->option("dcachebsize")->num >> 2;
 	buffer = new uint32[block_words];
+	mem_bandwidth = machine->opt->option("mem_bandwidth")->num;
 }
 
 void DMAC::exception(uint16 excCode, int mode, int coprocno)
@@ -75,18 +76,21 @@ void DMAC::step()
 				}
 				break;
 			case DMAC_STAT_READING:
-				if (query.burst) {
-					addr = query.src + block_words * counter * 4 +
-								4 * word_counter;
-				} else {
-					addr = query.src + 4 * counter;
-				}
-				if (bus->ready(addr, DATALOAD, this)) {
-					buffer[word_counter] =
-							bus->fetch_word(addr, DATALOAD, this);
-					if (++word_counter == block_words ||
-							!query.burst) {
-						next_status = DMAC_STAT_READ_DONE;
+				for (int i = 0; i < mem_bandwidth; i++) {
+					if (query.burst) {
+						addr = query.src + block_words * counter * 4 +
+									4 * word_counter;
+					} else {
+						addr = query.src + 4 * counter;
+					}
+					if (bus->ready(addr, DATALOAD, this)) {
+						buffer[word_counter] =
+								bus->fetch_word(addr, DATALOAD, this);
+						if (++word_counter == block_words ||
+								!query.burst) {
+							next_status = DMAC_STAT_READ_DONE;
+							break;
+						}
 					}
 				}
 				break;
@@ -122,22 +126,25 @@ void DMAC::step()
 				break;
 			case DMAC_STAT_WRITING:
 				uint32 data;
-				if (query.zero_write) {
-					data = 0;
-				} else {
-					data = buffer[word_counter];
-				}
-				if (query.burst) {
-					addr = query.dst + block_words * counter * 4 +
-								4 * word_counter;
-				} else {
-					addr = query.dst + 4 * counter;
-				}
-				if (bus->ready(addr, DATASTORE, this)) {
-					bus->store_word(addr, data, this);
-					if (++word_counter == block_words || 
-							!query.burst) {
-						next_status = DMAC_STAT_WRITE_DONE;
+				for (int i = 0; i < mem_bandwidth; i++) {
+					if (query.zero_write) {
+						data = 0;
+					} else {
+						data = buffer[word_counter];
+					}
+					if (query.burst) {
+						addr = query.dst + block_words * counter * 4 +
+									4 * word_counter;
+					} else {
+						addr = query.dst + 4 * counter;
+					}
+					if (bus->ready(addr, DATASTORE, this)) {
+						bus->store_word(addr, data, this);
+						if (++word_counter == block_words || 
+								!query.burst) {
+							next_status = DMAC_STAT_WRITE_DONE;
+							break;
+						}
 					}
 				}
 				break;

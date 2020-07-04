@@ -23,6 +23,8 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 #include "accesstypes.h"
 #include "types.h"
 #include <sys/types.h>
+#include <stdio.h>
+
 class DeviceExc;
 
 /* Base class for managing a range of mapped memory. Memory-mapped
@@ -34,10 +36,14 @@ protected:
 	uint32 extent;      // number of bytes of memory provided
 	void *address;      // host machine pointer to start of memory
 	int perms;          // MEM_READ, MEM_WRITE, ... in accesstypes.h
+	// for profile
+	int read_count;
+	int write_count;
 
 public:
 	Range(uint32 _base, uint32 _extent, caddr_t _address, int _perms) :
-		base(_base), extent(_extent), address(_address), perms(_perms) { }
+		base(_base), extent(_extent), address(_address), perms(_perms),
+		read_count(0), write_count(0) { }
 	virtual ~Range() { }
 	
 	bool incorporates(uint32 addr);
@@ -60,6 +66,9 @@ public:
 		DeviceExc *client);
 	virtual void store_byte(uint32 offset, uint8 data, DeviceExc *client);
 	virtual bool ready(uint32 offset, int32 mode, DeviceExc *client) { return true; } ;
+	virtual int extra_latency() { return 0; };
+
+	void report_profile();
 };
 
 

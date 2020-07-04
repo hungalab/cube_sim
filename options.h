@@ -23,6 +23,7 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 #include "types.h"
 #include <map>
 #include <string>
+#include <vector>
 
 /* This defines the name of the system default configuration file. */
 #define SYSTEM_CONFIG_FILE SYSCONFDIR"/vmipsrc"
@@ -77,6 +78,7 @@ public:
 	virtual ~Options () { }
 	virtual void process_options(int argc, char **argv);
 	union OptionValue *option(const char *name);
+	std::vector<int> get_tuple(const char *option, int len);
 };
 
 #endif /* _OPTIONS_H_ */

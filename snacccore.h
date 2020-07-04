@@ -26,7 +26,9 @@
 #define SNACC_CTRLREG_SIZE	16
 
 //Opcode
+#define SNACC_CORE_OPCODE_RTYPE0	0
 #define SNACC_CORE_OPCODE_RTYPE1	1
+#define SNACC_CORE_OPCODE_RTYPE2	2
 #define SNACC_CORE_OPCODE_BNEQ		4
 #define SNACC_CORE_OPCODE_JUMP		5
 
@@ -106,6 +108,8 @@ class SNACCCore {
 		int status;
 		int stall_cause;
 
+		void disassemble();
+
 		// SRAM modules
 		uint32 access_address;
 		DoubleBuffer *access_mem;
@@ -145,6 +149,9 @@ class SNACCCore {
 		static const MemberFuncPtr kRTypeMemoryTable[16];
 		static const MemberFuncPtr kRTypeSimdTable[16];
 
+		// for debug
+		bool inst_dump;
+
 	public:
 		SNACCCore(int core_id_,
 					DoubleBuffer *dmem_u_,
@@ -159,6 +166,8 @@ class SNACCCore {
 		void step();
 		void reset();
 		bool isDone() { return done; };
+		void enable_inst_dump() { inst_dump = true; };
+		void enable_mad_debug() { mad_unit->enable_debug(); };
 
 	private:
 		void Unknown();
@@ -204,6 +213,35 @@ class SNACCCore {
 
 };
 
+static const char* InstrFormat[16] = {
+		"", "", "", "Loadi r%d, 0x%X",
+		"Bneq r%d, 0x%X", "Jump 0x%X",
+		"Mad r%d, 0x%X", "Madlp r%d, 0x%X",
+		"Setcr r%d, 0x%X", "Addi r%d, 0x%X",
+		"Subi r%d, 0x%X", "Sll r%d, 0x%X",
+		"Srl r%d, 0x%X", "Sra r%d, 0x%X",
+		"Unknown", "Unknown" };
+
+
+static const char* RType0InstrFormat[16] = {
+		"Nop", "Mov r%d, r%d", "Add r%d, r%d", "Sub r%d, r%d",
+		"Mul r%d, r%d", "And r%d, r%d", "Or  r%d, r%d","Xor  r%d, r%d",
+		"Neg r%d, r%d", "Unknown", "Unknown", "Unknown",
+		"Unknown", "Unknown", "Unknown", "Unknown" };
+
+static const char* RType1InstrFormat[16] = {
+		"Halt", "Loadw r%d, r%d", "Storew r%d, r%d", "Loadh r%d, r%d",
+		"Storeh  r%d, r%d", "Unknown", "Unknown", "Readcr",
+		"Unknown", "Unknown",
+		"Dbchange %d, %d", "Dma r%d, r%d",
+		"Unknown", "Unknown",
+		"Unknown", "Unknown" };
+
+static const char* RType2InstrFormat[16] = {
+		"Nop", "Loadv  r%d, r%d", "Unknown", "Unknown",
+		"Unknown", "Unknown", "Unknown", "Unknown",
+		"Unknown", "Unknown", "Unknown", "Unknown",
+		"Unknown", "Unknown", "Unknown", "Unknown" };
 
 
 #endif //_SNACCCORE_H_

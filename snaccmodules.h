@@ -6,6 +6,7 @@
 #include "snaccAddressMap.h"
 
 #include <vector>
+#include <string>
 
 #define SNACC_WBUF_ARB_4CORE	0
 #define SNACC_WBUF_ARB_2CORE	2
@@ -173,7 +174,7 @@ uint32 SignedClipMostSignificant4Bits(uint32 before);
 
 // <8.24> bits signed fixed point decimal number, which is
 // internal representation of multiply-and-add unit.
-	struct Fixed32 {
+	class Fixed32 {
 		public:
 			Fixed32() : num_(0) {}
 
@@ -238,6 +239,9 @@ uint32 SignedClipMostSignificant4Bits(uint32 before);
 
 			Fixed32 tr0_fp, tr1_fp, fr0_fp, fr1_fp;
 
+			// for debug
+			bool debug_print;
+
 			bool overDmemBoundary();
 			bool overRbufBoundary();
 			void updataAddress();
@@ -274,7 +278,7 @@ uint32 SignedClipMostSignificant4Bits(uint32 before);
 			void step();
 			void reset();
 			bool running();
-
+			void enable_debug() { debug_print = true; };
 	};
 
 }

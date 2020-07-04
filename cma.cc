@@ -1,4 +1,5 @@
 #include "cma.h"
+#include "debugutils.h"
 
 using namespace CMAComponents;
 
@@ -17,7 +18,7 @@ CMA::CMA(uint32 node_ID, Router* upperRouter)
 	imem = new DoubleBuffer(CMA_IMEM_SIZE, CMA_IWORD_MASK);
 
 	// const regs
-	const_reg = new ConstRegCtrl(CMA_CONST_SIZE, pearray);
+	const_reg = new ConstRegCtrl(CMA_CONST_SIZE * 2, pearray);
 
 	// Data manipulator
 	ld_unit = new LDUnit(CMA_PE_ARRAY_WIDTH, &dbank, pearray);
@@ -36,6 +37,10 @@ CMA::CMA(uint32 node_ID, Router* upperRouter)
 
 	// Microcontroller
 	mc = new MicroController(imem, ld_unit, st_unit, &mc_done);
+
+	//for debugger
+	debug_op = DBG_CMD_NOP;
+	resp_data = 0;
 
 }
 
@@ -116,5 +121,81 @@ void CMA::core_step()
 		mc_done = false;
 		mc_working = false;
 		mc->reset();
+	}
+}
+
+void CMA::send_commnad(uint32 cmd, uint32 arg) {
+	uint8 func, mod, offset;
+	__cmd_parser(cmd, debug_op, func, mod, offset);
+	switch (debug_op) {
+		case DBG_CMD_SETTRG_OP:
+			trgr_arg = arg;
+			trgr_cnd = func;
+			trgr_mod = mod;
+			trgr_offset = offset;
+			break;
+		case DBG_CMD_WRITE_OP:
+			debug_store(mod, offset, arg);
+			break;
+		case DBG_CMD_READ_OP:
+			resp_data = debug_fetch(mod, offset);
+			break;
+		default:
+			debug_op = DBG_CMD_NOP;
+	}
+}
+
+bool CMA::isTriggered()
+{
+	uint32 mod_val = debug_fetch(trgr_mod, trgr_offset);
+	fprintf(stderr, "mod(%d, %d) %X arg %X\n", trgr_mod, trgr_offset, mod_val, trgr_arg);
+	return __compare(mod_val, trgr_arg, trgr_cnd);
+}
+
+uint32 CMA::get_dbg_data()
+{
+	return resp_data;
+}
+
+uint32 CMA::debug_fetch(uint8 mod, uint8 offset)
+{
+	switch (mod) {
+		case CMA_DEBUG_MOD_PC:
+			return mc->debug_fetch_pc();
+		case CMA_DEBUG_MOD_RF:
+			return mc->debug_fetch_regfile(offset);
+		case CMA_DEBUG_MOD_LR:
+			return pearray->debug_fetch_launch(offset);
+		case CMA_DEBUG_MOD_GR:
+			return pearray->debug_fetch_gather(offset);
+		case CMA_DEBUG_MOD_ALU_L:
+		case CMA_DEBUG_MOD_ALU_R:
+		case CMA_DEBUG_MOD_ALU_O:
+			return pearray->debug_fetch_ALU(offset, mod);
+		default:
+			return 0;
+	}
+}
+
+void CMA::debug_store(uint8 mod, uint8 offset, uint32 data)
+{
+	switch (mod) {
+		case CMA_DEBUG_MOD_PC:
+			mc->debug_store_pc(data);
+			break;
+		case CMA_DEBUG_MOD_RF:
+			mc->debug_store_regfile(offset, data);
+			break;
+		case CMA_DEBUG_MOD_LR:
+			pearray->debug_store_launch(offset, data);
+			break;
+		case CMA_DEBUG_MOD_GR:
+			pearray->debug_store_gather(offset, data);
+			break;
+		case CMA_DEBUG_MOD_ALU_L:
+		case CMA_DEBUG_MOD_ALU_R:
+		case CMA_DEBUG_MOD_ALU_O:
+			return pearray->debug_store_ALU(offset, mod, data);
+			break;
 	}
 }

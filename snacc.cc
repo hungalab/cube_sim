@@ -1,5 +1,8 @@
 #include "snacc.h"
 #include "snaccmodules.h"
+#include "error.h"
+
+#include <string>
 
 using namespace SNACCComponents;
 
@@ -8,6 +11,12 @@ SNACC::SNACC(uint32 node_ID, Router* upperRouter, int core_count_)
 						SNACC_GLB_OUTOFRANGE, false),
 	core_count(core_count_)
 {
+	// check debug option
+	// std::string opt_inst_dump =
+	// 	std::string(opt->option("snacc_inst_dump")->str);
+	// std::string opt_mad_debug =
+	// 	std::string(opt->option("snacc_mad_debug")->str);
+
 	cores = new SNACCCore*[core_count];
 	dmem_upper = new DoubleBuffer*[core_count];
 	dmem_lower = new DoubleBuffer*[core_count];
@@ -112,3 +121,35 @@ void SNACC::core_reset()
 	}
 }
 
+
+void SNACC::send_commnad(uint32 cmd, uint32 arg) {
+
+}
+
+bool SNACC::isTriggered()
+{
+	return false;
+}
+
+uint32 SNACC::get_dbg_data()
+{
+	return 0;
+}
+
+void SNACC::enable_inst_dump(int core_id)
+{
+	if (core_id >= 0 && core_id < core_count) {
+		cores[core_id]->enable_inst_dump();
+	} else {
+		warning("core ID %d for SNACC inst dump exceeds actual core count\n", core_id);
+	}
+}
+
+void SNACC::enable_mad_debug(int core_id)
+{
+	if (core_id >= 0 && core_id < core_count) {
+		cores[core_id]->enable_mad_debug();
+	} else {
+		warning("core ID %d for SNACC mad debug exceeds actual core count\n", core_id);
+	}
+}

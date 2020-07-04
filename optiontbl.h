@@ -252,6 +252,9 @@ static Option nametable[] = {
     /** If debugport is set to something nonzero, then the gdb remote
         serial protocol backend will use the specified TCP port. **/
 
+    { "debuggeraddr", NUM }, 
+    // accelerator debug address
+
     { "realtime", FLAG },
     /** If @option{realtime} is set, then the clock device will cause simulated
         time to run at some fraction of real time, determined by the
@@ -371,6 +374,10 @@ static Option nametable[] = {
 
     { "cacheprof", FLAG },
     /** Report cache profiling results after emulation **/
+    { "routerprof", FLAG },
+    /** Report router profiling results after emulation **/
+    { "exmemprof", FLAG },
+    /** Report externam memory profiling results after emulation **/
 
     { "icacheway", NUM },
     { "icachebsize", NUM },
@@ -382,7 +389,8 @@ static Option nametable[] = {
     /* cache configration*/
 
     { "mem_bandwidth", NUM },
-    { "mem_access_latency", NUM },
+    { "bus_latency", NUM },
+    { "exmem_latency", NUM },
 
     /*Router configs*/
     { "vcbufsize", NUM },
@@ -395,6 +403,9 @@ static Option nametable[] = {
 
     // SNACC options
     { "snacc_sram_latency", NUM },
+    { "snacc_inst_dump", STR },
+    { "snacc_mad_debug", STR },
+
 
     { NULL, 0 }
 };
@@ -408,17 +419,20 @@ static const char *defaults_table[] = {
 	"loadaddr=0x81000000", "noinstcounts", "progmemsize=0x2000000",
     "memsize=0x100000", "nomemdump", "memdumpfile=memdump.bin",
     "noreportirq", "ttydev=/dev/tty", "ttydev2=off",
-    "nodebug", "debugport=0", "norealtime", "timeratio=1", "clockspeed=250000",
+    "nodebug", "debugport=0", "debuggeraddr=0xBC000000",
+     "norealtime", "timeratio=1", "clockspeed=250000",
     "clockintr=200000000", "clockdeviceirq=7", "clockdevice",
     "nodbemsg", "nodecrtc", "nodeccsr", "nodecstat", "nodecserial",
     "spimconsole", "notracing", "tracesize=100000", "nobigendian",
     "tracestartpc=0", "traceendpc=0",
     "execname=none", "nofpu", "notestdev", "nocacheprof",
+    "norouterprof", "noexmemprof",
     "dmac", "icacheway=2", "dcacheway=2", "icachebsize=64", "dcachebsize=64",
     "icachebnum=64", "dcachebnum=64", "mem_bandwidth=1",
-    "mem_access_latency=8", "vcbufsize=24", "noroutermsg",
+    "bus_latency=8", "exmem_latency=3", "vcbufsize=24", "noroutermsg",
     "accelerator0=none", "accelerator1=none", "accelerator2=none",
-    "snacc_sram_latency=1",
+    "snacc_sram_latency=1", "snacc_inst_dump=disabled",
+    "snacc_mad_debug=disabled",
     NULL
 };
 

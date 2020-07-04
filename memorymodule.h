@@ -27,9 +27,12 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 #include <cstring>
 
 class MemoryModule : public Range {
+private:
+    int latency;
 public:
     uint32 *myaddr;
-    MemoryModule(size_t size, FILE *init_data = NULL) : Range (0, size, 0, MEM_READ_WRITE) {
+    MemoryModule(size_t size, int latency_, FILE *init_data = NULL) 
+    : Range (0, size, 0, MEM_READ_WRITE), latency(latency_) {
         myaddr = new uint32[size / 4]();
         if (init_data != NULL) {
             if (get_file_size(init_data) > size) {
@@ -46,6 +49,7 @@ public:
     ~MemoryModule() {
         delete [] myaddr;
     }
+    virtual int extra_latency() { return latency; };
 };
 
 #endif /* _MEMORYMODULE_H_ */

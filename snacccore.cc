@@ -17,7 +17,7 @@ SNACCCore::SNACCCore(int core_id_,
 					WbufArb *wbuf_arb_) : core_id(core_id_),
 	dmem_u(dmem_u_), dmem_l(dmem_l_), rbuf_u(rbuf_u_),
 	rbuf_l(rbuf_l_), lut(lut_), imem(imem_), wbuf(wbuf_),
-	wbuf_arb(wbuf_arb_)
+	wbuf_arb(wbuf_arb_), inst_dump(false)
 {
 	dbg_msg = machine->opt->option("excmsg")->flag;
 	mad_unit = new MadUnit(machine->opt->option("snacc_sram_latency")->num,
@@ -217,6 +217,32 @@ void SNACCCore::wb_stage()
 	//reset status
 	isBranch = false;
 	reg_write = false;
+
+	if (inst_dump) {
+		disassemble();
+	}
+}
+
+void SNACCCore::disassemble()
+{
+	fprintf(stderr, "%d:\tSNACC\t", machine->num_cycles);
+	switch(dec_opcode) {
+		case SNACC_CORE_OPCODE_RTYPE0:
+			fprintf(stderr, RType0InstrFormat[dec_func], dec_rd, dec_rs);
+			break;
+		case SNACC_CORE_OPCODE_RTYPE1:
+			fprintf(stderr, RType1InstrFormat[dec_func], dec_rd, dec_rs);
+			break;
+		case SNACC_CORE_OPCODE_RTYPE2:
+			fprintf(stderr, RType2InstrFormat[dec_func], dec_rd, dec_rs);
+			break;
+		case SNACC_CORE_OPCODE_JUMP:
+			fprintf(stderr, InstrFormat[dec_func], dec_imm);
+			break;
+		default:
+			fprintf(stderr, InstrFormat[dec_opcode], dec_rd, dec_imm);
+	}
+	fprintf(stderr, "\n");
 }
 
 
