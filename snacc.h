@@ -48,6 +48,8 @@ class SNACC : public CubeAccelerator{
 		virtual void send_commnad(uint32 cmd, uint32 arg);
 		virtual bool isTriggered();
 		virtual uint32 get_dbg_data();
+		void enable_inst_dump(int core_id);
+		void enable_mad_debug(int core_id);
 };
 
 

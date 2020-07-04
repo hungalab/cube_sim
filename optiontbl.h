@@ -403,6 +403,9 @@ static Option nametable[] = {
 
     // SNACC options
     { "snacc_sram_latency", NUM },
+    { "snacc_inst_dump", STR },
+    { "snacc_mad_debug", STR },
+
 
     { NULL, 0 }
 };
@@ -428,7 +431,8 @@ static const char *defaults_table[] = {
     "icachebnum=64", "dcachebnum=64", "mem_bandwidth=1",
     "bus_latency=8", "exmem_latency=3", "vcbufsize=24", "noroutermsg",
     "accelerator0=none", "accelerator1=none", "accelerator2=none",
-    "snacc_sram_latency=1",
+    "snacc_sram_latency=1", "snacc_inst_dump=disabled",
+    "snacc_mad_debug=disabled",
     NULL
 };
 

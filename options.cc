@@ -32,6 +32,7 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 #include <string>
 #include <unistd.h>
 #include <vector>
+#include <regex>
 
 #define OPTBUFSIZ 1024
 
@@ -422,6 +423,44 @@ Options::option(const char *name)
 		return &o->value;
     fatal_error ("Attempt to get the value of unknown option '%s'", name);
 	return NULL;
+}
+
+std::vector<int> Options::get_tuple(const char *option, int len)
+{
+	std::vector<int> v;
+	std::string str;
+
+	std::regex format_re;
+	std::regex num_re;
+	std::smatch m;
+
+	// create regex
+	str = "\\(";
+	for (int i = 0; i < len; i++) {
+		str += "\\s*[0-9]+\\s*,";
+	}
+	str.erase(str.size()-1);
+	str += "\\)";
+
+	try {
+		format_re = std::regex(str);
+		num_re = std::regex("[0-9]+");
+	} catch(std::regex_error& e) {
+		fatal_error("regex is not supported\nPlease rebuild with GCC 4.9 or higher\n");
+	}
+
+	str = std::string(option);
+	if (std::regex_match(str, format_re)) {
+		for (int i = 0; i < len; i++) {
+			std::regex_search(str, m, num_re);
+			v.push_back(std::stoi(m[0].str()));
+			str = m.suffix();
+		}
+	} else {
+		fatal_error("Invalid tuple option: %s", option);
+	}
+
+	return v;
 }
 
 void

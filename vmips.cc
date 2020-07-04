@@ -62,6 +62,7 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 #include "snacc.h"
 #include "dmac.h"
 #include "debugutils.h"
+#include <vector>
 
 vmips *machine;
 
@@ -574,15 +575,38 @@ bool vmips::setup_dmac()
 bool
 vmips::setup_cube()
 {
+	std::vector<int> snacc_inst_dump(2, -1), snacc_mad_debug(2, -1);
+	bool snacc_inst_dump_fail, snacc_mad_debug_fail;
+	snacc_inst_dump_fail = snacc_mad_debug_fail = false;
 	std::string ac0_name = std::string(opt->option("accelerator0")->str);
 	std::string ac1_name = std::string(opt->option("accelerator1")->str);
 	std::string ac2_name = std::string(opt->option("accelerator2")->str);
+
+	//get snacc options
+	std::string opt_str = std::string(opt->option("snacc_inst_dump")->str);
+	if (opt_str != std::string("disabled")) {
+		snacc_inst_dump = opt->get_tuple(opt_str.c_str(), 2);
+		snacc_inst_dump_fail = true;
+	}
+	opt_str = std::string(opt->option("snacc_mad_debug")->str);
+	if (opt_str != std::string("disabled")) {
+		snacc_mad_debug = opt->get_tuple(opt_str.c_str(), 2);
+		snacc_mad_debug_fail = true;
+	}
 
 	//setup accelerator0
 	if (ac0_name == std::string("CMA")) {
 		ac0 = new CMA(1, rtif->getRouter());
 	} else if (ac0_name == std::string("SNACC")) {
 		ac0 = new SNACC(1, rtif->getRouter(), 4);
+		if (snacc_inst_dump[0] == 0) {
+			((SNACC*)(ac0))->enable_inst_dump(snacc_inst_dump[1]);
+			snacc_inst_dump_fail = false;
+		}
+		if (snacc_mad_debug[0] == 0) {
+			((SNACC*)(ac0))->enable_mad_debug(snacc_mad_debug[1]);
+			snacc_mad_debug_fail = false;
+		}
 	} else if (ac0_name == std::string("RemoteRam")) {
 		ac0 = new RemoteRam(1, rtif->getRouter(), 0x2048); //2KB
 	} else if (ac0_name != std::string("none")) {
@@ -608,6 +632,15 @@ vmips::setup_cube()
 			ac1 = new CMA(2, ac0->getRouter());
 		} else if (ac1_name == std::string("SNACC")) {
 			ac1 = new SNACC(2, ac0->getRouter(), 4);
+			ac0 = new SNACC(1, rtif->getRouter(), 4);
+			if (snacc_inst_dump[0] == 0) {
+				((SNACC*)(ac1))->enable_inst_dump(snacc_inst_dump[1]);
+				snacc_inst_dump_fail = false;
+			}
+			if (snacc_mad_debug[0] == 0) {
+				((SNACC*)(ac1))->enable_mad_debug(snacc_mad_debug[1]);
+				snacc_mad_debug_fail = false;
+			}
 		} else if (ac1_name == std::string("RemoteRam")) {
 			ac1 = new RemoteRam(2, ac0->getRouter(), 0x2048); //2KB
 		} else {
@@ -635,6 +668,15 @@ vmips::setup_cube()
 			ac2 = new CMA(3, ac1->getRouter());
 		} else if (ac1_name == std::string("SNACC")) {
 			ac2 = new SNACC(3, ac1->getRouter(), 4);
+			ac0 = new SNACC(1, rtif->getRouter(), 4);
+			if (snacc_inst_dump[0] == 0) {
+				((SNACC*)(ac2))->enable_inst_dump(snacc_inst_dump[1]);
+				snacc_inst_dump_fail = false;
+			}
+			if (snacc_mad_debug[0] == 0) {
+				((SNACC*)(ac2))->enable_mad_debug(snacc_mad_debug[1]);
+				snacc_mad_debug_fail = false;
+			}
 		} else if (ac1_name == std::string("RemoteRam")) {
 			ac2 = new RemoteRam(3, ac1->getRouter(), 0x2048); //2KB
 		} else {
@@ -651,6 +693,15 @@ vmips::setup_cube()
 											ACDBGR_SIZE * 2);
 			dbgr->register_ac_debbuger(ac2_dbg);
 		}
+	}
+
+	if (snacc_inst_dump_fail) {
+		warning("SNACC inst dump option for node %d is ignored\n",
+			snacc_inst_dump[0]);
+	}
+	if (snacc_mad_debug_fail) {
+		warning("SNACC mad debug option for node %d is ignored\n",
+			snacc_mad_debug[0]);
 	}
 
 	return true;
