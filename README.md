@@ -67,7 +67,7 @@ VMIPSから備わっているオプションに関しては[VMIPSのドキュメ
 * dcachebnum: データキャッシュのブロック数 (数値)
 #### メモリアクセス関連
 * mem_bandwidth: メモリバンド幅 (ワード数を指定する) (数値)
-* bus_latency: バスアクセス権獲得メモリモジュールに要求が到達するまでのサイクル数 (数値)
+* bus_latency: バスアクセス権獲得後にメモリモジュールに要求が到達するまでのサイクル数 (数値)
 * exmem_latency: 外部メモリにおける遅延サイクル数 (数値)
 
 #### ルータ関連
@@ -79,4 +79,15 @@ VMIPSから備わっているオプションに関しては[VMIPSのドキュメ
 * accelerator2: 2番目のアクセラレータ (文字列)
 
 #### SNACC用オプション
-* snacc_sram_latency: SRAMからの読み出しレイテンシ(mad,madlp演算用)
+* snacc_sram_latency: オンチップSRAMのレイテンシ (数値)
+* snacc_inst_dump: コアで実行した命令をダンプする (文字列: 形式 "(チップID,コアID)")
+* snacc_mad_debug: コアのmadユニットでの計算を表示する (文字列: 形式 "(チップID,コアID)")
+
+※) snacc_inst_dump, snacc_mad_debugを利用するにはGCC 4.9以上でビルドする必要があります。
+
+### プロファイルオプション
+シミュレーション終了後にプロファイル結果を表示する
+* cacheprof: キャッシュアクセス数、ミス率など (bool)
+* routerprof: 転送フリット数など (bool)
+* exmemprof: 外部メモリへのアクセス数 (bool)
+
