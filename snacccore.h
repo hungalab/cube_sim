@@ -217,7 +217,7 @@ static const char* InstrFormat[16] = {
 		"", "", "", "Loadi r%d, 0x%X",
 		"Bneq r%d, 0x%X", "Jump 0x%X",
 		"Mad r%d, 0x%X", "Madlp r%d, 0x%X",
-		"Setcr r%d, 0x%X", "Addi r%d, 0x%X",
+		"Setcr cr%d, 0x%X", "Addi r%d, 0x%X",
 		"Subi r%d, 0x%X", "Sll r%d, 0x%X",
 		"Srl r%d, 0x%X", "Sra r%d, 0x%X",
 		"Unknown", "Unknown" };
@@ -231,7 +231,7 @@ static const char* RType0InstrFormat[16] = {
 
 static const char* RType1InstrFormat[16] = {
 		"Halt", "Loadw r%d, r%d", "Storew r%d, r%d", "Loadh r%d, r%d",
-		"Storeh  r%d, r%d", "Unknown", "Unknown", "Readcr",
+		"Storeh  r%d, r%d", "Unknown", "Unknown", "Readcr r$d, cr%d",
 		"Unknown", "Unknown",
 		"Dbchange %d, %d", "Dma r%d, r%d",
 		"Unknown", "Unknown",

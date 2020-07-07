@@ -201,6 +201,10 @@ void SNACCCore::ex_stage()
 
 void SNACCCore::wb_stage()
 {
+	if (inst_dump) {
+		disassemble();
+	}
+
 	if (reg_write & (dec_rd != SNACC_REG_PC_INDEX)) {
 		regs[dec_rd] = reg_write_data;
 		//fprintf(stderr, "regs[%d] <= %X\n", dec_rd, reg_write_data);
@@ -218,14 +222,11 @@ void SNACCCore::wb_stage()
 	isBranch = false;
 	reg_write = false;
 
-	if (inst_dump) {
-		disassemble();
-	}
 }
 
 void SNACCCore::disassemble()
 {
-	fprintf(stderr, "%d:\tSNACC\t", machine->num_cycles);
+	fprintf(stderr, "%d:\tSNACC\t PC: %5d\t", machine->num_cycles, pc);
 	switch(dec_opcode) {
 		case SNACC_CORE_OPCODE_RTYPE0:
 			fprintf(stderr, RType0InstrFormat[dec_func], dec_rd, dec_rs);
