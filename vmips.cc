@@ -128,12 +128,15 @@ void vmips::check_mode()
 
 	if (mode_str == std::string("cube")) {
 		mode_cube = true;
+		step_ptr = &vmips::step_cube;
 	} else if (mode_str == std::string("cpu_only")) {
 		mode_cpu_only = true;
+		step_ptr = &vmips::step_cpu_only;
 	} else if (mode_str == std::string("bus_conn")) {
 		mode_bus_conn = true;
+		step_ptr = &vmips::step_bus_conn;
 	} else {
-		fatal_error("unknown system model: %s\n",
+		error("unknown system model: %s\n",
 					mode_str.c_str());
 	}
 
@@ -419,8 +422,13 @@ void vmips::dump_cpu_info(bool dumpcpu, bool dumpcp0) {
 		cpu->cpzero_dump_regs_and_tlb (stderr);
 }
 
+void vmips::step(void)
+{
+	(this->*step_ptr)();
+}
+
 void
-vmips::step(void)
+vmips::step_cube(void)
 {
 	/* Process instructions. */
 	cpu->step();
@@ -430,6 +438,52 @@ vmips::step(void)
 	if (ac0 != NULL) ac0->step();
 	if (ac1 != NULL) ac1->step();
 	if (ac2 != NULL) ac2->step();
+
+	/* Keep track of time passing. Each instruction either takes
+	 * clock_nanos nanoseconds, or we use pass_realtime() to check the
+	 * system clock.
+     */
+	if( !opt_realtime )
+	   clock->increment_time(clock_nanos);
+	else
+	   clock->pass_realtime(opt_timeratio);
+
+	/* If user requested it, dump registers from CPU and/or CP0. */
+    dump_cpu_info (opt_dumpcpu, opt_dumpcp0);
+
+	num_cycles++;
+}
+
+void
+vmips::step_cpu_only(void)
+{
+	/* Process instructions. */
+	cpu->step();
+	if (dmac != NULL) dmac->step();
+
+	/* Keep track of time passing. Each instruction either takes
+	 * clock_nanos nanoseconds, or we use pass_realtime() to check the
+	 * system clock.
+     */
+	if( !opt_realtime )
+	   clock->increment_time(clock_nanos);
+	else
+	   clock->pass_realtime(opt_timeratio);
+
+	/* If user requested it, dump registers from CPU and/or CP0. */
+    dump_cpu_info (opt_dumpcpu, opt_dumpcp0);
+
+	num_cycles++;
+}
+
+void
+vmips::step_bus_conn(void)
+{
+	/* Process instructions. */
+	for (int i = 0; i < master_count; i++) {
+		(bus_masters[(master_start + 1) % master_count])->step();
+	}
+	master_start = ++master_start % master_count;
 
 	/* Keep track of time passing. Each instruction either takes
 	 * clock_nanos nanoseconds, or we use pass_realtime() to check the
@@ -730,6 +784,22 @@ vmips::setup_cube()
 
 }
 
+bool
+vmips::setup_bus_master()
+{
+	bus_masters.push_back(cpu);
+	if (dmac != NULL) {
+		bus_masters.push_back(dmac);
+	}
+
+	master_count = bus_masters.size();
+	fprintf(stderr, "bus conn count %d\n", master_count);
+	master_start = 0;
+	return true;
+}
+
+
+
 static void
 halt_machine_by_signal (int sig)
 {
@@ -807,15 +877,24 @@ vmips::run()
 	if (!setup_rs232c())
 	  return 1;
 
+	if (!setup_dmac())
+		return 1;
+
 	if (mode_cube) {
 		if (!setup_router())
 		  return 1;
 		if (!setup_cube())
 		  return 1;
+	} else {
+		//just allocate router address range
+		MemoryModule *rt_dummy = new MemoryModule(0x3F0000, 0);
+		physmem->map_at_physical_address(rt_dummy, 0xba010000);
+		if (mode_bus_conn) {
+			if (!setup_bus_master()) {
+				return 1;
+			}
+		}
 	}
-
-	if (!setup_dmac())
-		return 1;
 
 	signal (SIGQUIT, halt_machine_by_signal);
 

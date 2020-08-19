@@ -22,8 +22,10 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 #define _VMIPS_H_
 
 #include "types.h"
+#include "deviceexc.h"
 #include <cstdio>
 #include <new>
+#include <vector>
 
 class Mapper;
 class CPU;
@@ -184,6 +186,8 @@ private:
 
 	virtual bool setup_dmac();
 
+	virtual bool setup_bus_master();
+
 	bool load_elf (FILE *fp);
 	bool load_ecoff (FILE *fp);
 	char *translate_to_host_ram_pointer (uint32 vaddr);
@@ -201,6 +205,11 @@ private:
 	bool setup_haltdevice();
 
 	void check_mode();
+
+	//Bus masters
+	std::vector<DeviceExc*> bus_masters;
+	int master_count;
+	int master_start;
 
 public:
 	void refresh_options(void);
@@ -224,7 +233,16 @@ public:
 
 	void dump_cpu_info(bool dumpcpu, bool dumpcp0);
 
+	// function pointer
+	typedef void (vmips::*FuncPtr)(void);
+	FuncPtr step_ptr;
 	void step(void);
+
+	//step func for each mode
+	void step_cube(void);
+	void step_cpu_only(void);
+	void step_bus_conn(void);
+
 	int run(void);
 };
 
