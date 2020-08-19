@@ -132,6 +132,9 @@ public:
 	uint32		bus_latency;
 	uint32		exmem_latency;
 	uint32		vcbufsize;
+	bool		mode_cpu_only;
+	bool		mode_cube;
+	bool		mode_bus_conn;
 
 private:
 	Interactor *interactor;
@@ -196,6 +199,8 @@ private:
 
 	/* Initialize the halt device if it is configured. */
 	bool setup_haltdevice();
+
+	void check_mode();
 
 public:
 	void refresh_options(void);

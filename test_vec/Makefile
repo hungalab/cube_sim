@@ -14,25 +14,25 @@ TEST_BENCH = test-adpcm test-aes test-bf test-cp_test test-gsm\
 all: $(TEST_BENCH)
 
 test-adpcm: adpcm.bin
-	$(SIM) $<
+	$(SIM) -o system_mode=cube $<
 test-aes: aes.bin
-	$(SIM) $<
+	$(SIM) -o system_mode=cube $<
 test-bf: bf.bin
-	$(SIM) $<
+	$(SIM) -o system_mode=cube $<
 test-cp_test: cp_test.bin
-	$(SIM) $<
+	$(SIM) -o system_mode=cube $<
 test-gsm: gsm.bin
-	$(SIM) $<
+	$(SIM) -o system_mode=cube $<
 test-jpeg: jpeg.bin
-	$(SIM) $<
+	$(SIM) -o system_mode=cube $<
 test-mpeg2: mpeg2.bin
-	$(SIM) $<
+	$(SIM) -o system_mode=cube $<
 test-printf: printf.bin
-	$(SIM) $<
+	$(SIM) -o system_mode=cube $<
 test-sha: sha.bin
-	$(SIM) $<
+	$(SIM) -o system_mode=cube $<
 test-sum_asm: sum_asm.bin
-	$(SIM) $<
+	$(SIM) -o system_mode=cube $<
 test-router: router_test.bin
 	$(SIM) -o accelerator0=RemoteRam -o accelerator1=RemoteRam -o routermsg $<
 test-snacc-core: snacc_sum.bin

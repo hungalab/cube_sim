@@ -114,6 +114,28 @@ vmips::refresh_options(void)
 	bus_latency = opt->option("bus_latency")->num;
 	vcbufsize = opt->option("vcbufsize")->num;
 	exmem_latency = opt->option("exmem_latency")->num;
+	check_mode();
+
+}
+
+void vmips::check_mode()
+{
+	mode_cpu_only = false;
+	mode_cube = false;
+	mode_bus_conn = false;
+	std::string mode_str = std::string(
+		opt->option("system_mode")->str);
+
+	if (mode_str == std::string("cube")) {
+		mode_cube = true;
+	} else if (mode_str == std::string("cpu_only")) {
+		mode_cpu_only = true;
+	} else if (mode_str == std::string("bus_conn")) {
+		mode_bus_conn = true;
+	} else {
+		fatal_error("unknown system model: %s\n",
+					mode_str.c_str());
+	}
 
 }
 
@@ -785,11 +807,12 @@ vmips::run()
 	if (!setup_rs232c())
 	  return 1;
 
-	if (!setup_router())
-	  return 1;
-
-	if (!setup_cube())
-	  return 1;
+	if (mode_cube) {
+		if (!setup_router())
+		  return 1;
+		if (!setup_cube())
+		  return 1;
+	}
 
 	if (!setup_dmac())
 		return 1;
@@ -802,10 +825,13 @@ vmips::run()
 	boot_msg( "\n*************RESET*************\n" );
 	boot_msg("Resetting CPU\n");
 	cpu->reset();
-	/* Reset Router interface */
-	if (rtif != NULL) {
-		boot_msg("Resetting Router Interface\n");
-		rtif->reset();
+	/* for cube mode */
+	if (mode_cube) {
+		/* Reset Router interface */
+		if (rtif != NULL) {
+			boot_msg("Resetting Router Interface\n");
+			rtif->reset();
+		}
 	}
 	if (ac0 != NULL) {
 		boot_msg("Resetting %s_0\n", ac0->accelerator_name());

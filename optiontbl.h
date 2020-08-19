@@ -369,6 +369,8 @@ static Option nametable[] = {
 	this device on as necessary; you should not normally need
 	to enable it. **/
 
+    { "system_mode", STR },
+
     { "dmac", FLAG },
     /** Enable cube DMAC */
 
@@ -432,7 +434,7 @@ static const char *defaults_table[] = {
     "bus_latency=8", "exmem_latency=3", "vcbufsize=24", "noroutermsg",
     "accelerator0=none", "accelerator1=none", "accelerator2=none",
     "snacc_sram_latency=1", "snacc_inst_dump=disabled",
-    "snacc_mad_debug=disabled",
+    "snacc_mad_debug=disabled", "system_mode=cube",
     NULL
 };
 
