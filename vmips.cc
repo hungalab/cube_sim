@@ -136,7 +136,7 @@ void vmips::check_mode()
 		mode_bus_conn = true;
 		step_ptr = &vmips::step_bus_conn;
 	} else {
-		error("unknown system model: %s\n",
+		fatal_error("unknown system model: %s\n",
 					mode_str.c_str());
 	}
 
@@ -481,7 +481,7 @@ vmips::step_bus_conn(void)
 {
 	/* Process instructions. */
 	for (int i = 0; i < master_count; i++) {
-		(bus_masters[(master_start + 1) % master_count])->step();
+		(bus_masters[(master_start + i) % master_count])->step();
 	}
 	master_start = ++master_start % master_count;
 
@@ -609,13 +609,13 @@ vmips::setup_router()
 {
 	rtif = new RouterInterface();
 	rtIO = new RouterIOReg(rtif);
-	rtrange_kseg0 = new RouterRange(rtif, false);
-	rtrange_kseg1 = new RouterRange(rtif, true);
+	rtrange_kseg0 = new RouterRange(rtif, true);
+	rtrange_kseg1 = new RouterRange(rtif, false);
 
 	//make instance
-	if (physmem->map_at_physical_address(rtIO, 0xba010000) == 0) {
-		if (physmem->map_at_physical_address(rtrange_kseg0, 0xba400000) == 0) {
-			if (physmem->map_at_physical_address(rtrange_kseg1, 0x9a400000) == 0) {
+	if (physmem->map_at_physical_address(rtIO, ROUTER_IO_ADDR_TOP) == 0) {
+		if (physmem->map_at_physical_address(rtrange_kseg0, AC_KSEG0_TOP) == 0) {
+			if (physmem->map_at_physical_address(rtrange_kseg1, AC_KSEG1_TOP) == 0) {
 				boot_msg("Succeeded in setup cube router\n");
 			} else {
 				boot_msg("Failed in setup router range (kseg1)\n");
@@ -675,14 +675,6 @@ vmips::setup_cube()
 		ac0 = new CMA(1, rtif->getRouter());
 	} else if (ac0_name == std::string("SNACC")) {
 		ac0 = new SNACC(1, rtif->getRouter(), 4);
-		if (snacc_inst_dump[0] == 0) {
-			((SNACC*)(ac0))->enable_inst_dump(snacc_inst_dump[1]);
-			snacc_inst_dump_fail = false;
-		}
-		if (snacc_mad_debug[0] == 0) {
-			((SNACC*)(ac0))->enable_mad_debug(snacc_mad_debug[1]);
-			snacc_mad_debug_fail = false;
-		}
 	} else if (ac0_name == std::string("RemoteRam")) {
 		ac0 = new RemoteRam(1, rtif->getRouter(), 0x2048); //2KB
 	} else if (ac0_name != std::string("none")) {
@@ -692,6 +684,16 @@ vmips::setup_cube()
 
 	if (ac0 != NULL) {
 		ac0->setup();
+		if (ac0_name == std::string("SNACC")) {
+			if (snacc_inst_dump[0] == 0) {
+				((SNACC*)(ac0))->enable_inst_dump(snacc_inst_dump[1]);
+				snacc_inst_dump_fail = false;
+			}
+			if (snacc_mad_debug[0] == 0) {
+				((SNACC*)(ac0))->enable_mad_debug(snacc_mad_debug[1]);
+				snacc_mad_debug_fail = false;
+			}
+		}
 		if (opt_debug) {
 			ac0_dbg = new AcceleratorDebugger(ac0);
 			physmem->map_at_physical_address(ac0_dbg, opt_debuggeraddr);
@@ -708,15 +710,6 @@ vmips::setup_cube()
 			ac1 = new CMA(2, ac0->getRouter());
 		} else if (ac1_name == std::string("SNACC")) {
 			ac1 = new SNACC(2, ac0->getRouter(), 4);
-			ac0 = new SNACC(1, rtif->getRouter(), 4);
-			if (snacc_inst_dump[0] == 0) {
-				((SNACC*)(ac1))->enable_inst_dump(snacc_inst_dump[1]);
-				snacc_inst_dump_fail = false;
-			}
-			if (snacc_mad_debug[0] == 0) {
-				((SNACC*)(ac1))->enable_mad_debug(snacc_mad_debug[1]);
-				snacc_mad_debug_fail = false;
-			}
 		} else if (ac1_name == std::string("RemoteRam")) {
 			ac1 = new RemoteRam(2, ac0->getRouter(), 0x2048); //2KB
 		} else {
@@ -727,6 +720,16 @@ vmips::setup_cube()
 
 	if (ac1 != NULL) {
 		ac1->setup();
+		if (ac1_name == std::string("SNACC")) {
+			if (snacc_inst_dump[0] == 1) {
+				((SNACC*)(ac1))->enable_inst_dump(snacc_inst_dump[1]);
+				snacc_inst_dump_fail = false;
+			}
+			if (snacc_mad_debug[0] == 1) {
+				((SNACC*)(ac1))->enable_mad_debug(snacc_mad_debug[1]);
+				snacc_mad_debug_fail = false;
+			}
+		}
 		if (opt_debug) {
 			ac1_dbg = new AcceleratorDebugger(ac1);
 			physmem->map_at_physical_address(ac1_dbg, opt_debuggeraddr + 
@@ -744,15 +747,6 @@ vmips::setup_cube()
 			ac2 = new CMA(3, ac1->getRouter());
 		} else if (ac1_name == std::string("SNACC")) {
 			ac2 = new SNACC(3, ac1->getRouter(), 4);
-			ac0 = new SNACC(1, rtif->getRouter(), 4);
-			if (snacc_inst_dump[0] == 0) {
-				((SNACC*)(ac2))->enable_inst_dump(snacc_inst_dump[1]);
-				snacc_inst_dump_fail = false;
-			}
-			if (snacc_mad_debug[0] == 0) {
-				((SNACC*)(ac2))->enable_mad_debug(snacc_mad_debug[1]);
-				snacc_mad_debug_fail = false;
-			}
 		} else if (ac1_name == std::string("RemoteRam")) {
 			ac2 = new RemoteRam(3, ac1->getRouter(), 0x2048); //2KB
 		} else {
@@ -763,6 +757,16 @@ vmips::setup_cube()
 
 	if (ac2 != NULL) {
 		ac2->setup();
+		if (ac2_name == std::string("SNACC")) {
+			if (snacc_inst_dump[0] == 2) {
+				((SNACC*)(ac2))->enable_inst_dump(snacc_inst_dump[1]);
+				snacc_inst_dump_fail = false;
+			}
+			if (snacc_mad_debug[0] == 0) {
+				((SNACC*)(ac2))->enable_mad_debug(snacc_mad_debug[1]);
+				snacc_mad_debug_fail = false;
+			}
+		}
 		if (opt_debug) {
 			ac2_dbg = new AcceleratorDebugger(ac2);
 			physmem->map_at_physical_address(ac2_dbg, opt_debuggeraddr + 
@@ -792,9 +796,16 @@ vmips::setup_bus_master()
 		bus_masters.push_back(dmac);
 	}
 
+	bus_ac0 = new SNACC(4);
+	bus_ac0->setup();
+	((SNACC*)(bus_ac0))->enable_inst_dump(0);
+	bus_ac0->connect_to_bus(physmem, AC_KSEG0_TOP, AC_KSEG1_TOP);
+	bus_masters.push_back(bus_ac0);
+
 	master_count = bus_masters.size();
 	fprintf(stderr, "bus conn count %d\n", master_count);
 	master_start = 0;
+
 	return true;
 }
 
@@ -923,6 +934,19 @@ vmips::run()
 	if (ac2 != NULL) {
 		boot_msg("Resetting %s_2\n", ac2->accelerator_name());
 		ac2->reset();
+	}
+
+	if (bus_ac0 != NULL) {
+		boot_msg("Resetting %s_0\n", bus_ac0->accelerator_name());
+		bus_ac0->reset();
+	}
+	if (bus_ac1 != NULL) {
+		boot_msg("Resetting %s_1\n", bus_ac1->accelerator_name());
+		bus_ac1->reset();
+	}
+	if (bus_ac2 != NULL) {
+		boot_msg("Resetting %s_2\n", bus_ac2->accelerator_name());
+		bus_ac2->reset();
 	}
 
 	if (dmac != NULL) {

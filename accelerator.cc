@@ -5,6 +5,12 @@
 #include "accesstypes.h"
 #include <cassert>
 
+AcceleratorBase::AcceleratorBase()
+{
+	//make localbus
+	localBus = new LocalMapper();
+}
+
 /*******************************  LocalMapper  *******************************/
 int LocalMapper::add_range(Range *r) {
 	assert (r && "Null range object passed to Mapper::add_range()");
@@ -155,8 +161,6 @@ CubeAccelerator::CubeAccelerator(uint32 node_ID_, Router* upperRouter, uint32 co
 	rtTx = new RouterPortMaster(); //sender
 	//build router
 	localRouter = new Router(rtTx, rtRx, upperRouter, node_ID);
-	//make localbus
-	localBus = new LocalMapper();
 
 	//setup network interface
 	nif_state = nif_next_state = CNIF_IDLE;
@@ -362,3 +366,66 @@ void CubeAccelerator::done_signal(bool dma_enable)
 	done_pending = true;
 	dma_after_done_en = dma_enable;
 }
+
+
+/*******************************  BusConAccelerator  *******************************/
+BusConAccelerator::BusConAccelerator()
+{
+	if_single = new SysBusInterface(localBus);
+	if_burst = new SysBusInterface(localBus);
+}
+
+
+void BusConAccelerator::step()
+{
+	core_step();
+}
+
+void BusConAccelerator::reset()
+{
+	core_reset();
+}
+
+void BusConAccelerator::connect_to_bus(Mapper* sysbus, int kseg0_addr, int kseg1_addr)
+{
+	sysbus->map_at_physical_address(if_single, kseg1_addr);
+	sysbus->map_at_physical_address(if_burst, kseg0_addr);
+}
+
+void BusConAccelerator::exception(uint16 excCode, int mode, int coprocno)
+{
+
+}
+
+/*******************************  SysBusInterface  *******************************/
+
+uint32 SysBusInterface::fetch_word(uint32 offset, int mode, DeviceExc *client)
+{
+	return lbus->fetch_word(offset);
+}
+
+uint16 SysBusInterface::fetch_halfword(uint32 offset, DeviceExc *client)
+{
+	return 0;
+}
+
+uint8 SysBusInterface::fetch_byte(uint32 offset, DeviceExc *client)
+{
+	return 0;
+}
+
+void SysBusInterface::store_word(uint32 offset, uint32 data, DeviceExc *client)
+{
+	lbus->store_word(offset, data);
+}
+
+void SysBusInterface::store_halfword(uint32 offset, uint16 data, DeviceExc *client)
+{
+
+}
+
+void SysBusInterface::store_byte(uint32 offset, uint8 data, DeviceExc *client)
+{
+
+}
+

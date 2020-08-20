@@ -52,6 +52,7 @@ class RouterIOReg;
 class CubeAccelerator;
 class DMAC;
 class AcceleratorDebugger;
+class BusConAccelerator;
 
 long timediff(struct timeval *after, struct timeval *before);
 
@@ -88,7 +89,9 @@ public:
 	RouterIOReg *rtIO;
 	RouterRange *rtrange_kseg0, *rtrange_kseg1;
 	CubeAccelerator *ac0, *ac1, *ac2;
+	BusConAccelerator *bus_ac0, *bus_ac1, *bus_ac2;
 	AcceleratorDebugger *ac0_dbg, *ac1_dbg, *ac2_dbg;
+
 	DMAC *dmac;
 
 	/* Cached versions of options: */
