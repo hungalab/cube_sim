@@ -4,7 +4,9 @@
 #include "router.h"
 #include "types.h"
 #include "range.h"
+#include "mapper.h"
 #include "debugutils.h"
+#include "devicemap.h"
 
 #define DONE_NOTIF_ADDR 0x00000
 #define DMAC_NOTIF_ADDR 0x00001
@@ -44,7 +46,13 @@
 #define CNIF_DMA_DONE	10
 #define CNIF_DONE		11
 
+//allocated size in the address space per node
+#define AC_KSEG0_TOP	0x9A400000
+#define AC_KSEG1_TOP	0xBA400000
+#define AC_ALLOC_SIZE	0x400000
+
 class Range;
+class Mapper;
 
 class LocalMapper {
 private:
@@ -80,14 +88,32 @@ public:
 
 };
 
+class SysBusInterface : public Range {
+private:
+	LocalMapper *lbus;
+public:
+	SysBusInterface(LocalMapper *lbus_) : lbus(lbus_),
+		Range (0, AC_ALLOC_SIZE, 0, MEM_READ_WRITE) {};
+	~SysBusInterface() {};
+	//bus connection
+	uint32 fetch_word(uint32 offset, int mode, DeviceExc *client);
+	uint16 fetch_halfword(uint32 offset, DeviceExc *client);
+	uint8 fetch_byte(uint32 offset, DeviceExc *client);
+	void store_word(uint32 offset, uint32 data, DeviceExc *client);
+	void store_halfword(uint32 offset, uint16 data,
+		DeviceExc *client);
+	void store_byte(uint32 offset, uint8 data, DeviceExc *client);
+};
+
 class NetworkInterfaceConfig : public Range {
 private:
 	uint32 dma_dst, dma_src, dma_len;
 	uint32 vc_normal, vc_dma, vc_dmadone, vc_done;
 	bool dmaKicked;
+	bool dma_en;
 public:
 	//Constructor
-	NetworkInterfaceConfig(uint32 config_addr_base);
+	NetworkInterfaceConfig(uint32 config_addr_base, bool dma_en_);
 	~NetworkInterfaceConfig() {}
 
 	void clearReg();
@@ -99,7 +125,7 @@ public:
 	uint32 getVCdma()		{ return vc_dma; }
 	uint32 getVCdmadone()	{ return vc_dmadone; }
 	uint32 getVCdone()		{ return vc_done; }
-	bool isDMAKicked()		{ return dmaKicked; }
+	bool isDMAKicked()		{ return dmaKicked & dma_en; }
 	void clearDMAKicked()	{ dmaKicked = false; }
 
 	uint32 fetch_word(uint32 offset, int mode, DeviceExc *client);
@@ -107,8 +133,27 @@ public:
 
 };
 
+//Base class for accelertor
+class AcceleratorBase {
+protected:
+	AcceleratorBase();
+	//data/address bus
+	LocalMapper* localBus;
+
+	virtual void core_step() = 0;
+	virtual void core_reset() = 0;
+
+public:
+	//make submodules and connect them to bus
+	virtual void setup() = 0;
+	//accelerator name
+	virtual const char *accelerator_name() = 0;
+
+};
+
 //abstract class for accelerator top module
-class CubeAccelerator : public DebuggerClient {
+class CubeAccelerator : virtual public AcceleratorBase,
+	public DebuggerClient {
 private:
 	//data to/from router
 	bool iready[VCH_SIZE];
@@ -133,15 +178,9 @@ private:
 
 protected:
 	//constructor
+	CubeAccelerator() : dmac_en(false) {}; //for bus mode, nothing to do
 	CubeAccelerator(uint32 node_ID_, Router* upperRouter,
 		uint32 config_addr_base = NIF_CONFIG_BASE, bool dmac_en_ = true);
-
-	//data/address bus
-	LocalMapper* localBus;
-
-	virtual void core_step() = 0;
-	virtual void core_reset() = 0;
-
 
 public:
 	//destructor
@@ -153,12 +192,30 @@ public:
 
 	void done_signal(bool dma_enable);
 
-	//make submodules and connect them to bus
-	virtual void setup() = 0;
-	//accelerator name
-	virtual const char *accelerator_name() = 0;
-
 	Router* getRouter() { return localRouter; };
+
+};
+
+class BusConAccelerator : public DeviceExc,
+			virtual public AcceleratorBase {
+private:
+	SysBusInterface *if_single, *if_burst;
+
+protected:
+	BusConAccelerator();
+
+public:
+	//destructor
+	virtual ~BusConAccelerator() {};
+
+	//control flow
+	void step();
+	void reset();
+
+	void exception(uint16 excCode, int mode, int coprocno);
+
+	void connect_to_bus(Mapper *sysbus, int kseg0_addr,
+							int kseg1_addr);
 
 };
 

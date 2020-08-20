@@ -43,6 +43,7 @@
 #define CMA_CTRL_BANKSEL_LSB	2
 #define CMA_CTRL_RUN_BIT 		0x02
 #define CMA_CTRL_RUN_LSB		1
+#define CMA_CTRL_DONE_BIT		0x01
 
 /* for configuration */
 #define CMA_RMC_ROW_BITMAP_LSB	22
@@ -188,12 +189,15 @@ namespace CMAComponents {
 		private:
 			bool donedma, run;
 			int bank_sel;
+			bool done;
 		public:
 			ControlReg() : Range(0, CMA_CTRL_SIZE, 0, MEM_READ_WRITE), donedma(false),
 								run(false), bank_sel(false) {}
 			bool getDoneDMA() { return donedma; };
 			bool getRun() { return run; };
 			int getBankSel() { return bank_sel; };
+			void assertDone() { done = true; };
+			void negateDone() { done = false; };
 
 			void store_word(uint32 offset, uint32 data, DeviceExc *client);
 			uint32 fetch_word(uint32 offset, int mode, DeviceExc *client);

@@ -58,6 +58,12 @@ vmipsrcファイル以外にも`-o`オプションを用いてオプションを
 VMIPSから備わっているオプションに関しては[VMIPSのドキュメント](http://vmips.sourceforge.net/vmips/doc/vmips.html)を参照してください。
 
 ### cube_simから追加されたオプション
+#### システム構成
+* system_mode: cpu_only|cube|bus_conn のいずれかを指定
+  * cpu_only: Geyser単体のシミュレーション
+  * cube: ルータを用いたチップ間通信
+  * bus_conn: バス接続&ラウンドロビン方式
+
 #### キャッシュ関連
 * icacheway: 命令キャッシュのway数 (数値)
 * icachebsize: 命令キャッシュブロックサイズ(バイト) (数値)

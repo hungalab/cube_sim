@@ -114,6 +114,31 @@ vmips::refresh_options(void)
 	bus_latency = opt->option("bus_latency")->num;
 	vcbufsize = opt->option("vcbufsize")->num;
 	exmem_latency = opt->option("exmem_latency")->num;
+	check_mode();
+
+}
+
+void vmips::check_mode()
+{
+	mode_cpu_only = false;
+	mode_cube = false;
+	mode_bus_conn = false;
+	std::string mode_str = std::string(
+		opt->option("system_mode")->str);
+
+	if (mode_str == std::string("cube")) {
+		mode_cube = true;
+		step_ptr = &vmips::step_cube;
+	} else if (mode_str == std::string("cpu_only")) {
+		mode_cpu_only = true;
+		step_ptr = &vmips::step_cpu_only;
+	} else if (mode_str == std::string("bus_conn")) {
+		mode_bus_conn = true;
+		step_ptr = &vmips::step_bus_conn;
+	} else {
+		fatal_error("unknown system model: %s\n",
+					mode_str.c_str());
+	}
 
 }
 
@@ -142,6 +167,9 @@ vmips::~vmips()
 	if (ac0) delete ac0;
 	if (ac1) delete ac1;
 	if (ac2) delete ac2;
+	if (bus_ac0) delete bus_ac0;
+	if (bus_ac1) delete bus_ac1;
+	if (bus_ac2) delete bus_ac2;
 	if (dmac) delete dmac;
 }
 
@@ -397,8 +425,13 @@ void vmips::dump_cpu_info(bool dumpcpu, bool dumpcp0) {
 		cpu->cpzero_dump_regs_and_tlb (stderr);
 }
 
+void vmips::step(void)
+{
+	(this->*step_ptr)();
+}
+
 void
-vmips::step(void)
+vmips::step_cube(void)
 {
 	/* Process instructions. */
 	cpu->step();
@@ -408,6 +441,52 @@ vmips::step(void)
 	if (ac0 != NULL) ac0->step();
 	if (ac1 != NULL) ac1->step();
 	if (ac2 != NULL) ac2->step();
+
+	/* Keep track of time passing. Each instruction either takes
+	 * clock_nanos nanoseconds, or we use pass_realtime() to check the
+	 * system clock.
+     */
+	if( !opt_realtime )
+	   clock->increment_time(clock_nanos);
+	else
+	   clock->pass_realtime(opt_timeratio);
+
+	/* If user requested it, dump registers from CPU and/or CP0. */
+    dump_cpu_info (opt_dumpcpu, opt_dumpcp0);
+
+	num_cycles++;
+}
+
+void
+vmips::step_cpu_only(void)
+{
+	/* Process instructions. */
+	cpu->step();
+	if (dmac != NULL) dmac->step();
+
+	/* Keep track of time passing. Each instruction either takes
+	 * clock_nanos nanoseconds, or we use pass_realtime() to check the
+	 * system clock.
+     */
+	if( !opt_realtime )
+	   clock->increment_time(clock_nanos);
+	else
+	   clock->pass_realtime(opt_timeratio);
+
+	/* If user requested it, dump registers from CPU and/or CP0. */
+    dump_cpu_info (opt_dumpcpu, opt_dumpcp0);
+
+	num_cycles++;
+}
+
+void
+vmips::step_bus_conn(void)
+{
+	/* Process instructions. */
+	for (int i = 0; i < master_count; i++) {
+		(bus_masters[(master_start + i) % master_count])->step();
+	}
+	master_start = ++master_start % master_count;
 
 	/* Keep track of time passing. Each instruction either takes
 	 * clock_nanos nanoseconds, or we use pass_realtime() to check the
@@ -533,13 +612,13 @@ vmips::setup_router()
 {
 	rtif = new RouterInterface();
 	rtIO = new RouterIOReg(rtif);
-	rtrange_kseg0 = new RouterRange(rtif, false);
-	rtrange_kseg1 = new RouterRange(rtif, true);
+	rtrange_kseg0 = new RouterRange(rtif, true);
+	rtrange_kseg1 = new RouterRange(rtif, false);
 
 	//make instance
-	if (physmem->map_at_physical_address(rtIO, 0xba010000) == 0) {
-		if (physmem->map_at_physical_address(rtrange_kseg0, 0xba400000) == 0) {
-			if (physmem->map_at_physical_address(rtrange_kseg1, 0x9a400000) == 0) {
+	if (physmem->map_at_physical_address(rtIO, ROUTER_IO_ADDR_TOP) == 0) {
+		if (physmem->map_at_physical_address(rtrange_kseg0, AC_KSEG0_TOP) == 0) {
+			if (physmem->map_at_physical_address(rtrange_kseg1, AC_KSEG1_TOP) == 0) {
 				boot_msg("Succeeded in setup cube router\n");
 			} else {
 				boot_msg("Failed in setup router range (kseg1)\n");
@@ -599,14 +678,6 @@ vmips::setup_cube()
 		ac0 = new CMA(1, rtif->getRouter());
 	} else if (ac0_name == std::string("SNACC")) {
 		ac0 = new SNACC(1, rtif->getRouter(), 4);
-		if (snacc_inst_dump[0] == 0) {
-			((SNACC*)(ac0))->enable_inst_dump(snacc_inst_dump[1]);
-			snacc_inst_dump_fail = false;
-		}
-		if (snacc_mad_debug[0] == 0) {
-			((SNACC*)(ac0))->enable_mad_debug(snacc_mad_debug[1]);
-			snacc_mad_debug_fail = false;
-		}
 	} else if (ac0_name == std::string("RemoteRam")) {
 		ac0 = new RemoteRam(1, rtif->getRouter(), 0x2048); //2KB
 	} else if (ac0_name != std::string("none")) {
@@ -616,6 +687,16 @@ vmips::setup_cube()
 
 	if (ac0 != NULL) {
 		ac0->setup();
+		if (ac0_name == std::string("SNACC")) {
+			if (snacc_inst_dump[0] == 0) {
+				((SNACC*)(ac0))->enable_inst_dump(snacc_inst_dump[1]);
+				snacc_inst_dump_fail = false;
+			}
+			if (snacc_mad_debug[0] == 0) {
+				((SNACC*)(ac0))->enable_mad_debug(snacc_mad_debug[1]);
+				snacc_mad_debug_fail = false;
+			}
+		}
 		if (opt_debug) {
 			ac0_dbg = new AcceleratorDebugger(ac0);
 			physmem->map_at_physical_address(ac0_dbg, opt_debuggeraddr);
@@ -632,15 +713,6 @@ vmips::setup_cube()
 			ac1 = new CMA(2, ac0->getRouter());
 		} else if (ac1_name == std::string("SNACC")) {
 			ac1 = new SNACC(2, ac0->getRouter(), 4);
-			ac0 = new SNACC(1, rtif->getRouter(), 4);
-			if (snacc_inst_dump[0] == 0) {
-				((SNACC*)(ac1))->enable_inst_dump(snacc_inst_dump[1]);
-				snacc_inst_dump_fail = false;
-			}
-			if (snacc_mad_debug[0] == 0) {
-				((SNACC*)(ac1))->enable_mad_debug(snacc_mad_debug[1]);
-				snacc_mad_debug_fail = false;
-			}
 		} else if (ac1_name == std::string("RemoteRam")) {
 			ac1 = new RemoteRam(2, ac0->getRouter(), 0x2048); //2KB
 		} else {
@@ -651,6 +723,16 @@ vmips::setup_cube()
 
 	if (ac1 != NULL) {
 		ac1->setup();
+		if (ac1_name == std::string("SNACC")) {
+			if (snacc_inst_dump[0] == 1) {
+				((SNACC*)(ac1))->enable_inst_dump(snacc_inst_dump[1]);
+				snacc_inst_dump_fail = false;
+			}
+			if (snacc_mad_debug[0] == 1) {
+				((SNACC*)(ac1))->enable_mad_debug(snacc_mad_debug[1]);
+				snacc_mad_debug_fail = false;
+			}
+		}
 		if (opt_debug) {
 			ac1_dbg = new AcceleratorDebugger(ac1);
 			physmem->map_at_physical_address(ac1_dbg, opt_debuggeraddr + 
@@ -668,15 +750,6 @@ vmips::setup_cube()
 			ac2 = new CMA(3, ac1->getRouter());
 		} else if (ac1_name == std::string("SNACC")) {
 			ac2 = new SNACC(3, ac1->getRouter(), 4);
-			ac0 = new SNACC(1, rtif->getRouter(), 4);
-			if (snacc_inst_dump[0] == 0) {
-				((SNACC*)(ac2))->enable_inst_dump(snacc_inst_dump[1]);
-				snacc_inst_dump_fail = false;
-			}
-			if (snacc_mad_debug[0] == 0) {
-				((SNACC*)(ac2))->enable_mad_debug(snacc_mad_debug[1]);
-				snacc_mad_debug_fail = false;
-			}
 		} else if (ac1_name == std::string("RemoteRam")) {
 			ac2 = new RemoteRam(3, ac1->getRouter(), 0x2048); //2KB
 		} else {
@@ -687,6 +760,16 @@ vmips::setup_cube()
 
 	if (ac2 != NULL) {
 		ac2->setup();
+		if (ac2_name == std::string("SNACC")) {
+			if (snacc_inst_dump[0] == 2) {
+				((SNACC*)(ac2))->enable_inst_dump(snacc_inst_dump[1]);
+				snacc_inst_dump_fail = false;
+			}
+			if (snacc_mad_debug[0] == 0) {
+				((SNACC*)(ac2))->enable_mad_debug(snacc_mad_debug[1]);
+				snacc_mad_debug_fail = false;
+			}
+		}
 		if (opt_debug) {
 			ac2_dbg = new AcceleratorDebugger(ac2);
 			physmem->map_at_physical_address(ac2_dbg, opt_debuggeraddr + 
@@ -707,6 +790,154 @@ vmips::setup_cube()
 	return true;
 
 }
+
+bool
+vmips::setup_bus_master()
+{
+	bus_masters.push_back(cpu);
+	if (dmac != NULL) {
+		bus_masters.push_back(dmac);
+	}
+
+	// get snacc options
+	std::vector<int> snacc_inst_dump(2, -1), snacc_mad_debug(2, -1);
+	bool snacc_inst_dump_fail, snacc_mad_debug_fail;
+	snacc_inst_dump_fail = snacc_mad_debug_fail = false;
+	std::string ac0_name = std::string(opt->option("accelerator0")->str);
+	std::string ac1_name = std::string(opt->option("accelerator1")->str);
+	std::string ac2_name = std::string(opt->option("accelerator2")->str);
+
+	//get snacc options
+	std::string opt_str = std::string(opt->option("snacc_inst_dump")->str);
+	if (opt_str != std::string("disabled")) {
+		snacc_inst_dump = opt->get_tuple(opt_str.c_str(), 2);
+		snacc_inst_dump_fail = true;
+	}
+	opt_str = std::string(opt->option("snacc_mad_debug")->str);
+	if (opt_str != std::string("disabled")) {
+		snacc_mad_debug = opt->get_tuple(opt_str.c_str(), 2);
+		snacc_mad_debug_fail = true;
+	}
+
+	//setup accelerator0
+	if (ac0_name == std::string("CMA")) {
+		bus_ac0 = new CMA();
+	} else if (ac0_name == std::string("SNACC")) {
+		bus_ac0 = new SNACC(4);
+	} else if (ac0_name == std::string("RemoteRam")) {
+		fprintf(stderr, "In bus connect mode, RemoteRam is not available\n");
+		return false;
+	} else if (ac0_name != std::string("none")) {
+		fprintf(stderr, "Unknown accelerator: %s\n", ac0_name.c_str());
+		return false;
+	}
+
+	if (bus_ac0 != NULL) {
+		bus_ac0->setup();
+		bus_ac0->connect_to_bus(physmem, AC_KSEG0_TOP, AC_KSEG1_TOP);
+		bus_masters.push_back(bus_ac0);
+		if (ac0_name == std::string("SNACC")) {
+			if (snacc_inst_dump[0] == 0) {
+				((SNACC*)(ac0))->enable_inst_dump(snacc_inst_dump[1]);
+				snacc_inst_dump_fail = false;
+			}
+			if (snacc_mad_debug[0] == 0) {
+				((SNACC*)(ac0))->enable_mad_debug(snacc_mad_debug[1]);
+				snacc_mad_debug_fail = false;
+			}
+		}
+		if (opt_debug) {
+			fprintf(stderr, "Warning: In bus connect mode,",
+				"accelerator debugger is not supported\n");
+		}
+	}
+
+	//setup accelerator1
+	if (ac1_name == std::string("CMA")) {
+		bus_ac1 = new CMA();
+	} else if (ac1_name == std::string("SNACC")) {
+		bus_ac1 = new SNACC(4);
+	} else if (ac1_name == std::string("RemoteRam")) {
+		fprintf(stderr, "In bus connect mode, RemoteRam is not available\n");
+		return false;
+	} else if (ac1_name != std::string("none")) {
+		fprintf(stderr, "Unknown accelerator: %s\n", ac1_name.c_str());
+		return false;
+	}
+
+	if (bus_ac1 != NULL) {
+		bus_ac1->setup();
+		bus_ac1->connect_to_bus(physmem, AC_KSEG0_TOP + AC_ALLOC_SIZE,
+								 AC_KSEG1_TOP + AC_ALLOC_SIZE);
+		bus_masters.push_back(bus_ac1);
+		if (ac1_name == std::string("SNACC")) {
+			if (snacc_inst_dump[0] == 0) {
+				((SNACC*)(ac1))->enable_inst_dump(snacc_inst_dump[1]);
+				snacc_inst_dump_fail = false;
+			}
+			if (snacc_mad_debug[0] == 0) {
+				((SNACC*)(ac1))->enable_mad_debug(snacc_mad_debug[1]);
+				snacc_mad_debug_fail = false;
+			}
+		}
+		if (opt_debug) {
+			fprintf(stderr, "Warning: In bus connect mode,",
+				"accelerator debugger is not supported\n");
+		}
+	}
+
+	//setup accelerator2
+	if (ac2_name == std::string("CMA")) {
+		bus_ac2 = new CMA();
+	} else if (ac2_name == std::string("SNACC")) {
+		bus_ac2 = new SNACC(4);
+	} else if (ac2_name == std::string("RemoteRam")) {
+		fprintf(stderr, "In bus connect mode, RemoteRam is not available\n");
+		return false;
+	} else if (ac2_name != std::string("none")) {
+		fprintf(stderr, "Unknown accelerator: %s\n", ac2_name.c_str());
+		return false;
+	}
+
+	if (bus_ac2 != NULL) {
+		bus_ac2->setup();
+		bus_ac2->connect_to_bus(physmem, AC_KSEG0_TOP + AC_ALLOC_SIZE * 2,
+								 AC_KSEG1_TOP + AC_ALLOC_SIZE * 2);
+		bus_masters.push_back(bus_ac2);
+		if (ac2_name == std::string("SNACC")) {
+			if (snacc_inst_dump[0] == 0) {
+				((SNACC*)(ac2))->enable_inst_dump(snacc_inst_dump[1]);
+				snacc_inst_dump_fail = false;
+			}
+			if (snacc_mad_debug[0] == 0) {
+				((SNACC*)(ac2))->enable_mad_debug(snacc_mad_debug[1]);
+				snacc_mad_debug_fail = false;
+			}
+		}
+		if (opt_debug) {
+			fprintf(stderr, "Warning: In bus connect mode,",
+				"accelerator debugger is not supported\n");
+		}
+	}
+
+	if (snacc_inst_dump_fail) {
+		warning("SNACC inst dump option for node %d is ignored\n",
+			snacc_inst_dump[0]);
+	}
+	if (snacc_mad_debug_fail) {
+		warning("SNACC mad debug option for node %d is ignored\n",
+			snacc_mad_debug[0]);
+	}
+
+
+	master_count = bus_masters.size();
+	fprintf(stderr, "%d devices are connected to system bus\n", master_count);
+	master_start = 0;
+
+	return true;
+}
+
+
 
 static void
 halt_machine_by_signal (int sig)
@@ -785,14 +1016,24 @@ vmips::run()
 	if (!setup_rs232c())
 	  return 1;
 
-	if (!setup_router())
-	  return 1;
-
-	if (!setup_cube())
-	  return 1;
-
 	if (!setup_dmac())
 		return 1;
+
+	if (mode_cube) {
+		if (!setup_router())
+		  return 1;
+		if (!setup_cube())
+		  return 1;
+	} else {
+		//just allocate router address range
+		MemoryModule *rt_dummy = new MemoryModule(0x3F0000, 0);
+		physmem->map_at_physical_address(rt_dummy, 0xba010000);
+		if (mode_bus_conn) {
+			if (!setup_bus_master()) {
+				return 1;
+			}
+		}
+	}
 
 	signal (SIGQUIT, halt_machine_by_signal);
 
@@ -802,10 +1043,13 @@ vmips::run()
 	boot_msg( "\n*************RESET*************\n" );
 	boot_msg("Resetting CPU\n");
 	cpu->reset();
-	/* Reset Router interface */
-	if (rtif != NULL) {
-		boot_msg("Resetting Router Interface\n");
-		rtif->reset();
+	/* for cube mode */
+	if (mode_cube) {
+		/* Reset Router interface */
+		if (rtif != NULL) {
+			boot_msg("Resetting Router Interface\n");
+			rtif->reset();
+		}
 	}
 	if (ac0 != NULL) {
 		boot_msg("Resetting %s_0\n", ac0->accelerator_name());
@@ -818,6 +1062,19 @@ vmips::run()
 	if (ac2 != NULL) {
 		boot_msg("Resetting %s_2\n", ac2->accelerator_name());
 		ac2->reset();
+	}
+
+	if (bus_ac0 != NULL) {
+		boot_msg("Resetting %s_0\n", bus_ac0->accelerator_name());
+		bus_ac0->reset();
+	}
+	if (bus_ac1 != NULL) {
+		boot_msg("Resetting %s_1\n", bus_ac1->accelerator_name());
+		bus_ac1->reset();
+	}
+	if (bus_ac2 != NULL) {
+		boot_msg("Resetting %s_2\n", bus_ac2->accelerator_name());
+		bus_ac2->reset();
 	}
 
 	if (dmac != NULL) {

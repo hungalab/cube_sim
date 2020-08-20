@@ -22,8 +22,10 @@ with VMIPS; if not, write to the Free Software Foundation, Inc.,
 #define _VMIPS_H_
 
 #include "types.h"
+#include "deviceexc.h"
 #include <cstdio>
 #include <new>
+#include <vector>
 
 class Mapper;
 class CPU;
@@ -50,6 +52,7 @@ class RouterIOReg;
 class CubeAccelerator;
 class DMAC;
 class AcceleratorDebugger;
+class BusConAccelerator;
 
 long timediff(struct timeval *after, struct timeval *before);
 
@@ -86,7 +89,9 @@ public:
 	RouterIOReg *rtIO;
 	RouterRange *rtrange_kseg0, *rtrange_kseg1;
 	CubeAccelerator *ac0, *ac1, *ac2;
+	BusConAccelerator *bus_ac0, *bus_ac1, *bus_ac2;
 	AcceleratorDebugger *ac0_dbg, *ac1_dbg, *ac2_dbg;
+
 	DMAC *dmac;
 
 	/* Cached versions of options: */
@@ -132,6 +137,9 @@ public:
 	uint32		bus_latency;
 	uint32		exmem_latency;
 	uint32		vcbufsize;
+	bool		mode_cpu_only;
+	bool		mode_cube;
+	bool		mode_bus_conn;
 
 private:
 	Interactor *interactor;
@@ -181,6 +189,8 @@ private:
 
 	virtual bool setup_dmac();
 
+	virtual bool setup_bus_master();
+
 	bool load_elf (FILE *fp);
 	bool load_ecoff (FILE *fp);
 	char *translate_to_host_ram_pointer (uint32 vaddr);
@@ -196,6 +206,13 @@ private:
 
 	/* Initialize the halt device if it is configured. */
 	bool setup_haltdevice();
+
+	void check_mode();
+
+	//Bus masters
+	std::vector<DeviceExc*> bus_masters;
+	int master_count;
+	int master_start;
 
 public:
 	void refresh_options(void);
@@ -219,7 +236,16 @@ public:
 
 	void dump_cpu_info(bool dumpcpu, bool dumpcp0);
 
+	// function pointer
+	typedef void (vmips::*FuncPtr)(void);
+	FuncPtr step_ptr;
 	void step(void);
+
+	//step func for each mode
+	void step_cube(void);
+	void step_cpu_only(void);
+	void step_bus_conn(void);
+
 	int run(void);
 };
 

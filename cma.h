@@ -15,7 +15,7 @@ class MemoryModule;
 class LocalMapper;
 class DoubleBuffer;
 
-class CMA : public CubeAccelerator {
+class CMA : public CubeAccelerator, public BusConAccelerator {
 private:
 	DoubleBuffer **dbank;
 	DoubleBuffer *dmem_front, *dmem_back, *imem;
@@ -44,7 +44,10 @@ private:
 	void debug_store(uint8 mod, uint8 offset, uint32 data);
 
 public:
+	// for cube mode
 	CMA(uint32 node_ID, Router* upperRouter);
+	// for bus conn mode
+	CMA();
 	~CMA();
 
 	void setup();

@@ -10,9 +10,10 @@
 #include "snaccmodules.h"
 
 class CubeAccelerator;
+class BusConAccelerator;
 class SNACCCore;
 
-class SNACC : public CubeAccelerator{
+class SNACC : public CubeAccelerator, public BusConAccelerator {
 	private:
 		int core_count;
 		SNACCCore **cores;
@@ -37,7 +38,10 @@ class SNACC : public CubeAccelerator{
 
 
 	public:
+		//for Cube Mode
 		SNACC(uint32 node_ID, Router* upperRouter, int core_count_);
+		//for Bus Mode
+		SNACC(int core_count_);
 		~SNACC();
 		void setup();
 		const char *accelerator_name() { return "SNACC"; }

@@ -6,10 +6,24 @@
 
 using namespace SNACCComponents;
 
+SNACC::SNACC(int core_count_) : core_count(core_count_)
+{
+
+}
+
 SNACC::SNACC(uint32 node_ID, Router* upperRouter, int core_count_)
-	: CubeAccelerator(node_ID, upperRouter,
-						SNACC_GLB_OUTOFRANGE, false),
-	core_count(core_count_)
+	: core_count(core_count_),
+	CubeAccelerator(node_ID, upperRouter, SNACC_GLB_OUTOFRANGE, false)
+{
+
+}
+
+SNACC::~SNACC()
+{
+
+}
+
+void SNACC::setup()
 {
 	// check debug option
 	// std::string opt_inst_dump =
@@ -52,15 +66,7 @@ SNACC::SNACC(uint32 node_ID, Router* upperRouter, int core_count_)
 	confReg = new ConfRegCtrl(core_count, dmem_upper, dmem_lower,
 								rbuf_upper, rbuf_lower, lut, imem, wbuf);
 
-}
-
-SNACC::~SNACC()
-{
-
-}
-
-void SNACC::setup()
-{
+	//Address map
 	int core_top_addr;
 	for (int i = 0; i < core_count; i++) {
 		core_top_addr = SNACC_CORE_ADDR_SIZE * i;
