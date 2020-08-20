@@ -3,8 +3,34 @@
 
 using namespace CMAComponents;
 
+CMA::CMA()
+{
+
+}
+
 CMA::CMA(uint32 node_ID, Router* upperRouter)
 	: CubeAccelerator(node_ID, upperRouter)
+{
+
+}
+
+CMA::~CMA()
+{
+	delete dmem_front;
+	delete dmem_back;
+	delete imem;
+	delete const_reg;
+	delete ld_tbl;
+	delete st_tbl;
+	delete ld_unit;
+	delete st_unit;
+	delete rmc_alu;
+	delete rmc_se;
+	delete pe_config;
+	delete preg_config;
+}
+
+void CMA::setup()
 {
 	pearray = new CCSOTB2::CCSOTB2_PEArray(CMA_PE_ARRAY_HEIGHT,
 											CMA_PE_ARRAY_WIDTH);
@@ -42,26 +68,7 @@ CMA::CMA(uint32 node_ID, Router* upperRouter)
 	debug_op = DBG_CMD_NOP;
 	resp_data = 0;
 
-}
-
-CMA::~CMA()
-{
-	delete dmem_front;
-	delete dmem_back;
-	delete imem;
-	delete const_reg;
-	delete ld_tbl;
-	delete st_tbl;
-	delete ld_unit;
-	delete st_unit;
-	delete rmc_alu;
-	delete rmc_se;
-	delete pe_config;
-	delete preg_config;
-}
-
-void CMA::setup()
-{
+	// address mapping
 	localBus->map_at_local_address(dmem_front, CMA_DBANK0_ADDR);
 	localBus->map_at_local_address(dmem_back, CMA_DBANK1_ADDR);
 	localBus->map_at_local_address(imem, CMA_IMEM_ADDR);
@@ -100,6 +107,7 @@ void CMA::core_step()
 			}
 			mc_working = true;
 			done_notif = false;
+			ctrl_reg->negateDone();
 		}
 		if (!mc_done) {
 			// execute microcontroller
@@ -115,6 +123,7 @@ void CMA::core_step()
 			}
 			imem->buf_switch();
 			done_signal(ctrl_reg->getDoneDMA());
+			ctrl_reg->assertDone();
 			done_notif = true;
 		}
 	} else {

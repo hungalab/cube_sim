@@ -84,8 +84,9 @@ void LocalMapper::store_word(uint32 laddr, uint32 data)
 }
 
 /*******************************  NetworkInterfaceConfig  *******************************/
-NetworkInterfaceConfig::NetworkInterfaceConfig(uint32 config_addr_base)
-	: Range(config_addr_base, 0x900, 0, MEM_READ_WRITE)
+NetworkInterfaceConfig::NetworkInterfaceConfig(uint32 config_addr_base, bool dma_en_)
+	: Range(config_addr_base, 0x900, 0, MEM_READ_WRITE),
+	dma_en(dma_en_)
 {
 	clearReg();
 }
@@ -166,7 +167,7 @@ CubeAccelerator::CubeAccelerator(uint32 node_ID_, Router* upperRouter, uint32 co
 	nif_state = nif_next_state = CNIF_IDLE;
 	packetMaxSize = (machine->opt->option("dcachebsize")->num / 4);
 	mem_bandwidth = machine->opt->option("mem_bandwidth")->num;
-	nif_config = new NetworkInterfaceConfig(config_addr_base);
+	nif_config = new NetworkInterfaceConfig(config_addr_base, dmac_en);
 	localBus->map_at_local_address(nif_config, config_addr_base);
 
 }

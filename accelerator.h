@@ -110,9 +110,10 @@ private:
 	uint32 dma_dst, dma_src, dma_len;
 	uint32 vc_normal, vc_dma, vc_dmadone, vc_done;
 	bool dmaKicked;
+	bool dma_en;
 public:
 	//Constructor
-	NetworkInterfaceConfig(uint32 config_addr_base);
+	NetworkInterfaceConfig(uint32 config_addr_base, bool dma_en_);
 	~NetworkInterfaceConfig() {}
 
 	void clearReg();
@@ -124,7 +125,7 @@ public:
 	uint32 getVCdma()		{ return vc_dma; }
 	uint32 getVCdmadone()	{ return vc_dmadone; }
 	uint32 getVCdone()		{ return vc_done; }
-	bool isDMAKicked()		{ return dmaKicked; }
+	bool isDMAKicked()		{ return dmaKicked & dma_en; }
 	void clearDMAKicked()	{ dmaKicked = false; }
 
 	uint32 fetch_word(uint32 offset, int mode, DeviceExc *client);
@@ -147,6 +148,7 @@ public:
 	virtual void setup() = 0;
 	//accelerator name
 	virtual const char *accelerator_name() = 0;
+
 };
 
 //abstract class for accelerator top module
@@ -176,9 +178,9 @@ private:
 
 protected:
 	//constructor
+	CubeAccelerator() : dmac_en(false) {}; //for bus mode, nothing to do
 	CubeAccelerator(uint32 node_ID_, Router* upperRouter,
 		uint32 config_addr_base = NIF_CONFIG_BASE, bool dmac_en_ = true);
-	CubeAccelerator() {}; //for bus mode, nothing to do
 
 public:
 	//destructor
@@ -198,6 +200,7 @@ class BusConAccelerator : public DeviceExc,
 			virtual public AcceleratorBase {
 private:
 	SysBusInterface *if_single, *if_burst;
+
 protected:
 	BusConAccelerator();
 
@@ -213,6 +216,7 @@ public:
 
 	void connect_to_bus(Mapper *sysbus, int kseg0_addr,
 							int kseg1_addr);
+
 };
 
 

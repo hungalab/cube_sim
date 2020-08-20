@@ -796,9 +796,9 @@ vmips::setup_bus_master()
 		bus_masters.push_back(dmac);
 	}
 
-	bus_ac0 = new SNACC(4);
+	bus_ac0 = new CMA();
 	bus_ac0->setup();
-	((SNACC*)(bus_ac0))->enable_inst_dump(0);
+	//((SNACC*)(bus_ac0))->enable_inst_dump(0);
 	bus_ac0->connect_to_bus(physmem, AC_KSEG0_TOP, AC_KSEG1_TOP);
 	bus_masters.push_back(bus_ac0);
 
