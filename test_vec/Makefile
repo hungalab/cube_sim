@@ -9,7 +9,8 @@ endif
 
 TEST_BENCH = test-adpcm test-aes test-bf test-cp_test test-gsm\
 			 test-jpeg test-mpeg2 test-printf test-sha test-sum_asm test-router\
-			 test-snacc-mad test-snacc-core test-cma test-dmac
+			 test-snacc-mad test-snacc-core test-cma test-dmac \
+			 test-snacc-mad-bus test-snacc-core-bus test-cma-bus
 
 all: $(TEST_BENCH)
 
@@ -43,3 +44,9 @@ test-cma: cma_gray.bin
 	$(SIM) -o accelerator0=CMA  $<
 test-dmac: dmac.bin
 	$(SIM) $<
+test-snacc-core-bus: snacc_sum.bin
+	$(SIM) -o accelerator0=SNACC -o system_mode=bus_conn  $<
+test-snacc-mad-bus: snacc_test.bin
+	$(SIM) -o accelerator0=SNACC -o system_mode=bus_conn $<
+test-cma-bus: cma_gray.bin
+	$(SIM) -o accelerator0=CMA -o system_mode=bus_conn $<

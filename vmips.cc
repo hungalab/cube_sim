@@ -167,6 +167,9 @@ vmips::~vmips()
 	if (ac0) delete ac0;
 	if (ac1) delete ac1;
 	if (ac2) delete ac2;
+	if (bus_ac0) delete bus_ac0;
+	if (bus_ac1) delete bus_ac1;
+	if (bus_ac2) delete bus_ac2;
 	if (dmac) delete dmac;
 }
 
