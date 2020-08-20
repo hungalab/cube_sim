@@ -796,14 +796,139 @@ vmips::setup_bus_master()
 		bus_masters.push_back(dmac);
 	}
 
-	bus_ac0 = new CMA();
-	bus_ac0->setup();
-	//((SNACC*)(bus_ac0))->enable_inst_dump(0);
-	bus_ac0->connect_to_bus(physmem, AC_KSEG0_TOP, AC_KSEG1_TOP);
-	bus_masters.push_back(bus_ac0);
+	// get snacc options
+	std::vector<int> snacc_inst_dump(2, -1), snacc_mad_debug(2, -1);
+	bool snacc_inst_dump_fail, snacc_mad_debug_fail;
+	snacc_inst_dump_fail = snacc_mad_debug_fail = false;
+	std::string ac0_name = std::string(opt->option("accelerator0")->str);
+	std::string ac1_name = std::string(opt->option("accelerator1")->str);
+	std::string ac2_name = std::string(opt->option("accelerator2")->str);
+
+	//get snacc options
+	std::string opt_str = std::string(opt->option("snacc_inst_dump")->str);
+	if (opt_str != std::string("disabled")) {
+		snacc_inst_dump = opt->get_tuple(opt_str.c_str(), 2);
+		snacc_inst_dump_fail = true;
+	}
+	opt_str = std::string(opt->option("snacc_mad_debug")->str);
+	if (opt_str != std::string("disabled")) {
+		snacc_mad_debug = opt->get_tuple(opt_str.c_str(), 2);
+		snacc_mad_debug_fail = true;
+	}
+
+	//setup accelerator0
+	if (ac0_name == std::string("CMA")) {
+		bus_ac0 = new CMA();
+	} else if (ac0_name == std::string("SNACC")) {
+		bus_ac0 = new SNACC(4);
+	} else if (ac0_name == std::string("RemoteRam")) {
+		fprintf(stderr, "In bus connect mode, RemoteRam is not available\n");
+		return false;
+	} else if (ac0_name != std::string("none")) {
+		fprintf(stderr, "Unknown accelerator: %s\n", ac0_name.c_str());
+		return false;
+	}
+
+	if (bus_ac0 != NULL) {
+		bus_ac0->setup();
+		bus_ac0->connect_to_bus(physmem, AC_KSEG0_TOP, AC_KSEG1_TOP);
+		bus_masters.push_back(bus_ac0);
+		if (ac0_name == std::string("SNACC")) {
+			if (snacc_inst_dump[0] == 0) {
+				((SNACC*)(ac0))->enable_inst_dump(snacc_inst_dump[1]);
+				snacc_inst_dump_fail = false;
+			}
+			if (snacc_mad_debug[0] == 0) {
+				((SNACC*)(ac0))->enable_mad_debug(snacc_mad_debug[1]);
+				snacc_mad_debug_fail = false;
+			}
+		}
+		if (opt_debug) {
+			fprintf(stderr, "Warning: In bus connect mode,",
+				"accelerator debugger is not supported\n");
+		}
+	}
+
+	//setup accelerator1
+	if (ac1_name == std::string("CMA")) {
+		bus_ac1 = new CMA();
+	} else if (ac1_name == std::string("SNACC")) {
+		bus_ac1 = new SNACC(4);
+	} else if (ac1_name == std::string("RemoteRam")) {
+		fprintf(stderr, "In bus connect mode, RemoteRam is not available\n");
+		return false;
+	} else if (ac1_name != std::string("none")) {
+		fprintf(stderr, "Unknown accelerator: %s\n", ac1_name.c_str());
+		return false;
+	}
+
+	if (bus_ac1 != NULL) {
+		bus_ac1->setup();
+		bus_ac1->connect_to_bus(physmem, AC_KSEG0_TOP + AC_ALLOC_SIZE,
+								 AC_KSEG1_TOP + AC_ALLOC_SIZE);
+		bus_masters.push_back(bus_ac1);
+		if (ac1_name == std::string("SNACC")) {
+			if (snacc_inst_dump[0] == 0) {
+				((SNACC*)(ac1))->enable_inst_dump(snacc_inst_dump[1]);
+				snacc_inst_dump_fail = false;
+			}
+			if (snacc_mad_debug[0] == 0) {
+				((SNACC*)(ac1))->enable_mad_debug(snacc_mad_debug[1]);
+				snacc_mad_debug_fail = false;
+			}
+		}
+		if (opt_debug) {
+			fprintf(stderr, "Warning: In bus connect mode,",
+				"accelerator debugger is not supported\n");
+		}
+	}
+
+	//setup accelerator2
+	if (ac2_name == std::string("CMA")) {
+		bus_ac2 = new CMA();
+	} else if (ac2_name == std::string("SNACC")) {
+		bus_ac2 = new SNACC(4);
+	} else if (ac2_name == std::string("RemoteRam")) {
+		fprintf(stderr, "In bus connect mode, RemoteRam is not available\n");
+		return false;
+	} else if (ac2_name != std::string("none")) {
+		fprintf(stderr, "Unknown accelerator: %s\n", ac2_name.c_str());
+		return false;
+	}
+
+	if (bus_ac2 != NULL) {
+		bus_ac2->setup();
+		bus_ac2->connect_to_bus(physmem, AC_KSEG0_TOP + AC_ALLOC_SIZE * 2,
+								 AC_KSEG1_TOP + AC_ALLOC_SIZE * 2);
+		bus_masters.push_back(bus_ac2);
+		if (ac2_name == std::string("SNACC")) {
+			if (snacc_inst_dump[0] == 0) {
+				((SNACC*)(ac2))->enable_inst_dump(snacc_inst_dump[1]);
+				snacc_inst_dump_fail = false;
+			}
+			if (snacc_mad_debug[0] == 0) {
+				((SNACC*)(ac2))->enable_mad_debug(snacc_mad_debug[1]);
+				snacc_mad_debug_fail = false;
+			}
+		}
+		if (opt_debug) {
+			fprintf(stderr, "Warning: In bus connect mode,",
+				"accelerator debugger is not supported\n");
+		}
+	}
+
+	if (snacc_inst_dump_fail) {
+		warning("SNACC inst dump option for node %d is ignored\n",
+			snacc_inst_dump[0]);
+	}
+	if (snacc_mad_debug_fail) {
+		warning("SNACC mad debug option for node %d is ignored\n",
+			snacc_mad_debug[0]);
+	}
+
 
 	master_count = bus_masters.size();
-	fprintf(stderr, "bus conn count %d\n", master_count);
+	fprintf(stderr, "%d devices are connected to system bus\n", master_count);
 	master_start = 0;
 
 	return true;
