@@ -5,7 +5,7 @@
 #define AS /**/
 
 /* Currently not used. */
-#define ASFLAGS /**/
+#define ASFLAGS /**/ 
 
 /* Currently not used. */
 #define CCAS /**/

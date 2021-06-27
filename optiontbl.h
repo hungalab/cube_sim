@@ -1,22 +1,25 @@
-/* Table of supported options, their meanings, and defaults.
-   Copyright 2001, 2003 Brian R. Gaeke.
-   Copyright 2002 Paul Twohey.
+/* Table of supported options, their meanings, and defaults, added new options for CubeSim
+    Original work Copyright 2001, 2003 Brian R. Gaeke.
+    Original work Copyright 2002 Paul Twohey.
+    Modified work Copyright (c) 2021 Amano laboratory, Keio University.
+        Modifier: Takuya Kojima
 
-This file is part of VMIPS.
+    This file is part of CubeSim, a cycle accurate simulator for 3-D stacked system.
+    It is derived from a source code of VMIPS project under GPLv2.
 
-VMIPS is free software; you can redistribute it and/or modify it
-under the terms of the GNU General Public License as published by the
-Free Software Foundation; either version 2 of the License, or (at your
-option) any later version.
+    CubeSim is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 2 of the License, or
+    (at your option) any later version.
 
-VMIPS is distributed in the hope that it will be useful, but
-WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
-or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
-for more details.
+    CubeSim is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License along
-with VMIPS; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.  */
+    You should have received a copy of the GNU General Public License
+    along with CubeSim.  If not, see <https://www.gnu.org/licenses/>.
+*/
 
 #ifndef _OPTIONTBL_H_
 #define _OPTIONTBL_H_
