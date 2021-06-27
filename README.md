@@ -1,6 +1,8 @@
 # cube_sim
 VMIPSをベースにしたCubeシステムのサイクルアキュレイトシミュレータ
 
+[VMIPS配布元](http://www.dgate.org/vmips/index.shtml)
+
 ## 関連論文
 1. 小島拓也, 池添赳治, 天野英晴, “3次元積層SiPを用いたマルチコアシステムのためのサイクルアキュレートシミュレータCubeSimの開発”, 電子情報通信学会論文誌D, Vol.J104-D,No.04,pp.228-241,Apr. 2021. DOI:10.14923/transinfj.2020PDP0046 [[Open access]](http://www.am.ics.keio.ac.jp/open_access/2021/ieicej_kojima.pdf)
 
